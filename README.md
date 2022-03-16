@@ -1,1 +1,3 @@
-# lightning-node-connect
+# @lightninglabs/lnc
+
+## A npm module for Lightning Node Connect

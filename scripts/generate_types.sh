@@ -3,23 +3,19 @@
 
 set -e
 
-# LND_RELEASE_TAG=$1
-# PROTOC_VERSION=$2
+LND_RELEASE_TAG=$1
+LOOP_RELEASE_TAG=$2
+POOL_RELEASE_TAG=$3
+FARADAY_RELEASE_TAG=$4
+PROTOC_VERSION=$5
 
-LND_RELEASE_TAG="v0.14.2-beta"
-LOOP_RELEASE_TAG="v0.17.0-beta"
-POOL_RELEASE_TAG="v0.5.5-alpha"
-FARADAY_RELEASE_TAG="v0.2.5-alpha"
+echo "LND release tag:" $LND_RELEASE_TAG
+echo "Loop release tag:" $LOOP_RELEASE_TAG
+echo "Pool release tag:" $POOL_RELEASE_TAG
+echo "Faraday release tag:" $FARADAY_RELEASE_TAG
+echo "Protoc version:" $PROTOC_VERSION
 
-PROTOC_VERSION="3.15.8"
-
-# Sanitize all proto files prior to type generation
 rm -f *.proto
-# ts-node scripts/proto-sanitizer.ts "protos/lnd/${LND_RELEASE_TAG}/**/*.proto"
-# ts-node scripts/proto-sanitizer.ts "protos/loop/${LOOP_RELEASE_TAG}/**/*.proto"
-
-# Copy google definitions
-# cp -r protos/google/. protos/lnd/${LND_RELEASE_TAG}/google
 
 GENERATED_TYPES_DIR=lib/types/generated
 if [ -d "$GENERATED_TYPES_DIR" ]

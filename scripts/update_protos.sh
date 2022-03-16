@@ -1,15 +1,18 @@
+LND_RELEASE_TAG=$1
+LOOP_RELEASE_TAG=$2
+POOL_RELEASE_TAG=$3
+FARADAY_RELEASE_TAG=$4
+
+echo "LND release tag:" $LND_RELEASE_TAG
+echo "Loop release tag:" $LOOP_RELEASE_TAG
+echo "Pool release tag:" $POOL_RELEASE_TAG
+echo "Faraday release tag:" $FARADAY_RELEASE_TAG
+
 # RPC Servers
 LND_URL="https://raw.githubusercontent.com/lightningnetwork/lnd"
-LND_RELEASE_TAG="v0.14.2-beta"
-
 LOOP_URL="https://raw.githubusercontent.com/lightninglabs/loop"
-LOOP_RELEASE_TAG="v0.17.0-beta"
-
 POOL_URL="https://raw.githubusercontent.com/lightninglabs/pool"
-POOL_RELEASE_TAG="v0.5.5-alpha"
-
 FARADAY_URL="https://raw.githubusercontent.com/lightninglabs/faraday"
-FARADAY_RELEASE_TAG="v0.2.5-alpha"
 
 curl ${LND_URL}/${LND_RELEASE_TAG}/lnrpc/lightning.proto --create-dirs -o protos/lnd/${LND_RELEASE_TAG}/lightning.proto
 curl ${LND_URL}/${LND_RELEASE_TAG}/lnrpc/walletunlocker.proto --create-dirs -o protos/lnd/${LND_RELEASE_TAG}/walletunlocker.proto
@@ -21,9 +24,6 @@ curl ${LND_URL}/${LND_RELEASE_TAG}/lnrpc/signrpc/signer.proto --create-dirs -o p
 curl ${LND_URL}/${LND_RELEASE_TAG}/lnrpc/walletrpc/walletkit.proto --create-dirs -o protos/lnd/${LND_RELEASE_TAG}/walletrpc/walletkit.proto
 curl ${LND_URL}/${LND_RELEASE_TAG}/lnrpc/watchtowerrpc/watchtower.proto --create-dirs -o protos/lnd/${LND_RELEASE_TAG}/watchtowerrpc/watchtower.proto
 curl ${LND_URL}/${LND_RELEASE_TAG}/lnrpc/wtclientrpc/wtclient.proto --create-dirs -o protos/lnd/${LND_RELEASE_TAG}/wtclientrpc/wtclient.proto
-
-# Clean Invoices RPC Server
-# sed -i '' 's/import "google\/api\/annotations\.proto";//g' protos/lnd/${LND_RELEASE_TAG}/invoicesrpc/invoices.proto
 
 curl ${LOOP_URL}/${LOOP_RELEASE_TAG}/looprpc/client.proto --create-dirs -o protos/loop/${LOOP_RELEASE_TAG}/client.proto
 curl ${LOOP_URL}/${LOOP_RELEASE_TAG}/looprpc/debug.proto --create-dirs -o protos/loop/${LOOP_RELEASE_TAG}/debug.proto

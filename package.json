@@ -3,12 +3,19 @@
   "version": "0.0.1-alpha",
   "description": "Lightning Node Connect npm module",
   "main": "./dist/",
+  "config": {
+    "lnd_release_tag": "v0.14.2-beta",
+    "loop_release_tag": "v0.17.0-beta",
+    "pool_release_tag": "v0.5.5-alpha",
+    "faraday_release_tag": "v0.2.5-alpha",
+    "protoc_version": "3.15.8"
+  },
   "scripts": {
     "build": "webpack",
     "dev": "webpack --watch --stats-error-details",
     "test": "mocha --reporter spec",
-    "update-protos": "sh scripts/update_protos.sh",
-    "generate": "sh scripts/generate_types.sh",
+    "update-protos": "sh scripts/update_protos.sh  ${npm_package_config_lnd_release_tag} ${npm_package_config_loop_release_tag} ${npm_package_config_pool_release_tag} ${npm_package_config_faraday_release_tag}",
+    "generate": "sh scripts/generate_types.sh ${npm_package_config_lnd_release_tag} ${npm_package_config_loop_release_tag} ${npm_package_config_pool_release_tag} ${npm_package_config_faraday_release_tag} ${npm_package_config_protoc_version}",
     "prettier": "prettier --check --write '**/*.ts*'"
   },
   "repository": {
