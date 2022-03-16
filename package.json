@@ -1,0 +1,58 @@
+{
+  "name": "@lightninglabs/lnc",
+  "version": "0.0.1-alpha",
+  "description": "Lightning Node Connect npm module",
+  "main": "./dist/",
+  "scripts": {
+    "build": "webpack",
+    "dev": "webpack --watch --stats-error-details",
+    "test": "mocha --reporter spec",
+    "update-protos": "sh scripts/update_protos.sh",
+    "generate": "sh scripts/generate_types.sh",
+    "prettier": "prettier --check --write '**/*.ts*'"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/lightninglabs/lnc.git"
+  },
+  "keywords": [
+    "lightning",
+    "lnd",
+    "lightning-node-connect",
+    "lnc"
+  ],
+  "author": "Evan Kaloudis",
+  "bugs": {
+    "url": "https://github.com/lightninglabs/lnc/issues"
+  },
+  "homepage": "https://github.com/lightninglabs/lnc#readme",
+  "devDependencies": {
+    "@types/debug": "4.1.7",
+    "@types/lodash": "4.14.178",
+    "@types/node": "17.0.16",
+    "chai": "4.3.6",
+    "clean-webpack-plugin": "4.0.0",
+    "mocha": "9.2.0",
+    "prettier": "2.6.0",
+    "ts-loader": "9.2.6",
+    "ts-node": "10.7.0",
+    "typescript": "4.5.5",
+    "webpack": "5.69.1",
+    "webpack-cli": "4.9.2"
+  },
+  "dependencies": {
+    "@improbable-eng/grpc-web": "0.15.0",
+    "@types/big.js": "6.1.2",
+    "@types/google-protobuf": "3.15.5",
+    "big.js": "6.1.1",
+    "google-protobuf": "3.19.4",
+    "lodash": "4.17.21",
+    "node-polyfill-webpack-plugin": "1.1.4",
+    "ts-protoc-gen": "0.15.0"
+  },
+  "browser": {
+    "fs": false,
+    "os": false,
+    "crypto": false
+  }
+}
