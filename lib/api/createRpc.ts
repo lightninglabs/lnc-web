@@ -1,6 +1,5 @@
 import WasmClient from './../index';
-
-const capitalize = (s: string) => s && s[0].toUpperCase() + s.slice(1);
+import { capitalize } from '../util/strings';
 
 /**
  * An API wrapper to communicate with the LND node via GRPC
@@ -11,11 +10,12 @@ function createRpc<T extends unknown>(wasm: WasmClient, service: any): any {
             // make sure funcs are camelcased
             const requestName = capitalize(key.toString());
 
-            const targetFunc = async function (request: any): Promise<any> {
-                const res = await wasm.request(service[requestName], request);
+            const call = service[requestName];
+
+            return async function (request: any): Promise<any> {
+                const res = await wasm.request(call, request);
                 return res.toObject();
             };
-            return targetFunc;
         }
     });
 }

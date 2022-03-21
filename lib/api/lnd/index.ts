@@ -22,6 +22,7 @@ interface LndEvents {
     channel: LND.ChannelEventUpdate.AsObject;
     invoice: LND.Invoice.AsObject;
     peerevent: LND.PeerEvent.AsObject;
+    event: any;
 }
 
 /**
@@ -124,19 +125,6 @@ class LndApi extends BaseApi<LndEvents> {
             new LND.InvoiceSubscription(),
             (invoiceEvent) => this.emit('invoice', invoiceEvent.toObject())
         );
-    }
-
-    //
-    // Util funcs
-    //
-
-    parseLightningAddress(addr: string): LND.LightningAddress {
-        if (!addr.includes('@')) throw new Error('Invalid Lightning Address');
-        const [pubkey, host] = addr.split('@');
-        const lnAddr = new LND.LightningAddress();
-        lnAddr.setPubkey(pubkey);
-        lnAddr.setHost(host);
-        return lnAddr;
     }
 }
 
