@@ -81,10 +81,9 @@ export default class LNC {
         this._serverHost =
             config.serverHost || 'mailbox.terminal.lightning.today:443';
         this._pairingPhrase = config.pairingPhrase;
-        // TODO: have CDN instance be fallback
         this._wasmClientCode =
             config.wasmClientCode ||
-            'https://dev-website.example/wasm-client.wasm';
+            'https://lightning.engineering/lnc-v0.1.8-alpha.wasm';
         // TODO: pull Go off of the global state
         const g = global || window || self;
         this.go = new g.Go();
@@ -111,8 +110,7 @@ export default class LNC {
      */
     async load() {
         const result = await WebAssembly.instantiateStreaming(
-            fetch('wasm-client.wasm'),
-            // fetch('https://zeusln.app/wasm-client.wasm'),
+            fetch(this._wasmClientCode),
             this.go.importObject
         );
         log.info('downloaded WASM file');
