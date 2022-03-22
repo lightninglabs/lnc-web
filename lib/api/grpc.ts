@@ -5,8 +5,6 @@ import {
     MethodDefinition,
     UnaryMethodDefinition
 } from '@improbable-eng/grpc-web/dist/typings/service';
-// TODO handle DEV_HOST
-// import { DEV_HOST } from '../config';
 import { AuthenticationError } from '../util/errors';
 import { grpcLog as log } from '../util/log';
 import { sampleApiResponses } from '../util/tests/sampleData';
