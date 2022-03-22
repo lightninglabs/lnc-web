@@ -24,8 +24,16 @@ class LoopApi extends BaseApi<LoopEvents> {
 
     constructor(wasm: WasmClient) {
         super();
+
+        const swapSubscriptions = {
+            monitor: (request: any, callback: Function): void => {
+                const req = new LOOP.MonitorRequest();
+                this.subscribe(SwapClient.Monitor, req, callback);
+            }
+        };
+
         this._wasm = wasm;
-        this.swapClient = createRpc(wasm, SwapClient);
+        this.swapClient = createRpc(wasm, SwapClient, swapSubscriptions);
         this.debug = createRpc(wasm, Debug);
     }
 
@@ -76,6 +84,14 @@ class LoopApi extends BaseApi<LoopEvents> {
      */
     disconnect() {
         this._wasm.disconnect();
+    }
+
+    subscribe(call: any, request: any, callback?: Function) {
+        this._wasm.subscribe(
+            call,
+            request,
+            (event) => callback && callback(event.toObject())
+        );
     }
 }
 

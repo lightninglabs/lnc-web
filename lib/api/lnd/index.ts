@@ -1,4 +1,7 @@
 import * as LND from '../../types/generated/lightning_pb';
+import * as InvoicesRPC from '../../types/generated/invoicesrpc/invoices_pb';
+import * as RouterRPC from '../../types/generated/routerrpc/router_pb';
+
 import { Lightning } from '../../types/generated/lightning_pb_service';
 import { WalletUnlocker } from '../../types/generated/walletunlocker_pb_service';
 
@@ -18,11 +21,13 @@ import createRpc from './../createRpc';
 
 /** the names and argument types for the subscription events */
 interface LndEvents {
-    transaction: LND.Transaction.AsObject;
     channel: LND.ChannelEventUpdate.AsObject;
+    channelBackupSnapshot: LND.ChanBackupSnapshot.AsObject;
+    customMessage: LND.CustomMessage.AsObject;
+    graphTopologyUpdate: LND.GraphTopologyUpdate.AsObject;
     invoice: LND.Invoice.AsObject;
-    peerevent: LND.PeerEvent.AsObject;
-    event: any;
+    peerEvent: LND.PeerEvent.AsObject;
+    transaction: LND.Transaction.AsObject;
 }
 
 /**
@@ -44,12 +49,93 @@ class LndApi extends BaseApi<LndEvents> {
 
     constructor(wasm: WasmClient) {
         super();
+
+        const invoicesSubscriptions = {
+            subscribeSingleInvoice: (
+                request: any,
+                callback: Function
+            ): void => {
+                const req = new InvoicesRPC.SubscribeSingleInvoiceRequest();
+                if (request.r_hash) req.setRHash(request.r_hash);
+                this.subscribe(Invoices.SubscribeSingleInvoice, req, callback);
+            }
+        };
+
+        const lightningSubscriptions = {
+            subscribeChannelBackups: (
+                request: any,
+                callback: Function
+            ): void => {
+                this.subscribe(
+                    Lightning.SubscribeChannelBackups,
+                    new LND.ChannelBackupSubscription(),
+                    callback
+                );
+            },
+            subscribeChannelEvents: (
+                request: any,
+                callback: Function
+            ): void => {
+                this.subscribe(
+                    Lightning.SubscribeChannelEvents,
+                    new LND.ChannelEventSubscription(),
+                    callback
+                );
+            },
+            subscribeChannelGraph: (request: any, callback: Function): void => {
+                this.subscribe(
+                    Lightning.SubscribeChannelGraph,
+                    new LND.GraphTopologySubscription(),
+                    callback
+                );
+            },
+            subscribeCustomMessages: (
+                request: any,
+                callback: Function
+            ): void => {
+                this.subscribe(
+                    Lightning.SubscribeCustomMessages,
+                    new LND.SubscribeCustomMessagesRequest(),
+                    callback
+                );
+            },
+            subscribeInvoices: (request: any, callback: Function): void => {
+                const req = new LND.InvoiceSubscription();
+                if (request.add_index) req.setAddIndex(request.add_index);
+                if (request.settle_index)
+                    req.setSettleIndex(request.settle_index);
+                this.subscribe(Lightning.SubscribeInvoices, req, callback);
+            },
+            subscribePeerEvents: (request: any, callback: Function): void => {
+                this.subscribe(
+                    Lightning.SubscribePeerEvents,
+                    new LND.PeerEventSubscription(),
+                    callback
+                );
+            },
+            subscribeTransactions: (request: any, callback: Function): void => {
+                const req = new LND.GetTransactionsRequest();
+                if (request.start_height)
+                    req.setStartHeight(request.start_height);
+                if (request.end_height) req.setEndHeight(request.end_height);
+                if (request.account) req.setAccount(request.account);
+                this.subscribe(Lightning.SubscribeTransactions, req, callback);
+            }
+        };
+
+        const routerSubscriptions = {
+            subscribeHtlcEvents: (request: any, callback: Function): void => {
+                const req = new RouterRPC.SubscribeHtlcEventsRequest();
+                this.subscribe(Router.SubscribeHtlcEvents, req, callback);
+            }
+        };
+
         this._wasm = wasm;
         this.autopilot = createRpc(wasm, Autopilot);
         this.chainNotifier = createRpc(wasm, ChainNotifier);
-        this.invoices = createRpc(wasm, Invoices);
-        this.lightning = createRpc(wasm, Lightning);
-        this.router = createRpc(wasm, Router);
+        this.invoices = createRpc(wasm, Invoices, invoicesSubscriptions);
+        this.lightning = createRpc(wasm, Lightning, lightningSubscriptions);
+        this.router = createRpc(wasm, Router, routerSubscriptions);
         this.signer = createRpc(wasm, Signer);
         this.walletKit = createRpc(wasm, WalletKit);
         this.walletUnlocker = createRpc(wasm, WalletUnlocker);
@@ -104,6 +190,14 @@ class LndApi extends BaseApi<LndEvents> {
      */
     disconnect() {
         this._wasm.disconnect();
+    }
+
+    subscribe(call: any, request: any, callback?: Function) {
+        this._wasm.subscribe(
+            call,
+            request,
+            (event) => callback && callback(event.toObject())
+        );
     }
 
     /**
