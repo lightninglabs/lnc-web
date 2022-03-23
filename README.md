@@ -2,7 +2,7 @@
 
 ## A npm module for Lightning Node Connect
 
-### API Design
+## API Design
 #### Set-up and connection
 
 The constructor for the LNC object takes a parameters object with the three following fields:
@@ -90,4 +90,29 @@ lnd.lightning.subscribeChannelEvents(
    params,
    event => handleNewChannelEventData(event),
 );
+```
+
+## Updating protos
+
+First, update the service version under the `config` block in `package.json`.
+
+eg.
+
+```
+"config": {
+    "lnd_release_tag": "v0.14.2-beta",
+    "loop_release_tag": "v0.17.0-beta",
+    "pool_release_tag": "v0.5.5-alpha",
+    "faraday_release_tag": "v0.2.5-alpha",
+    "protoc_version": "3.15.8"
+},
+```
+
+Then run the following commands:
+
+```
+# download schemas
+npm run update-protos
+# format schemas
+npm run generate
 ```
