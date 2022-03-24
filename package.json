@@ -16,7 +16,7 @@
     "test": "mocha --reporter spec",
     "update-protos": "sh scripts/update_protos.sh  ${npm_package_config_lnd_release_tag} ${npm_package_config_loop_release_tag} ${npm_package_config_pool_release_tag} ${npm_package_config_faraday_release_tag}",
     "generate": "sh scripts/generate_types.sh ${npm_package_config_lnd_release_tag} ${npm_package_config_loop_release_tag} ${npm_package_config_pool_release_tag} ${npm_package_config_faraday_release_tag} ${npm_package_config_protoc_version}",
-    "prettier": "prettier --check --write '**/*.ts*' '!lib/types/**'"
+    "prettier": "prettier --check --write '**/*.ts*' '!dist/**' '!lib/types/**'"
   },
   "repository": {
     "type": "git",
