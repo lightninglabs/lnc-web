@@ -137,8 +137,6 @@ export default class LNC {
         if (!this.isReady) await this.waitTilReady();
 
         // connect to the server
-        // TODO handle IS_DEV
-        // wasmGlobal.wasmClientConnectServer(server, IS_DEV, phrase);
         wasmGlobal.wasmClientConnectServer(server, false, phrase);
 
         // add an event listener to disconnect if the page is unloaded

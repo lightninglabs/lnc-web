@@ -1,4 +1,3 @@
-import { IS_DEV } from '../config';
 import debug, { Debugger } from 'debug';
 
 export enum LogLevel {
@@ -25,19 +24,13 @@ export class Logger {
      * creates a new Logger instance by inspecting the executing environment
      */
     static fromEnv(namespace: string): Logger {
-        // by default, log everything in development and nothing in production
-        let level = IS_DEV ? LogLevel.debug : LogLevel.none;
+        // by default, log nothing (assuming prod)
+        let level = LogLevel.none;
 
         if (localStorage && localStorage.getItem('debug')) {
             // if a 'debug' key is found in localStorage, use the level in storage or 'debug' by default
             const storageLevel = localStorage.getItem('debug-level') || 'debug';
             level = LogLevel[storageLevel as keyof typeof LogLevel];
-        } else if (localStorage && IS_DEV) {
-            // if running in development with no localStorage key, use debug
-            level = LogLevel.debug;
-            // set the keys so they can be easily changed in the browser DevTools
-            localStorage.setItem('debug', '*');
-            localStorage.setItem('debug-level', 'debug');
         }
 
         return new Logger(level, namespace);
