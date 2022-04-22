@@ -27,21 +27,6 @@ declare class LndApi extends BaseApi<LndEvents> {
     watchtower: any;
     watchtowerClient: any;
     constructor(wasm: WasmClient);
-    /**
-     * Downloads the WASM binary and initializes the executable
-     */
-    load(): Promise<void>;
-    /**
-     * Uses the WasmClient to connect to the backend LND node via a Terminal
-     * Connect proxy server
-     * @param server the proxy server to connect to
-     * @param phrase the secret pairing phrase to use
-     */
-    connect(server: string, phrase: string): Promise<LND.GetInfoResponse.AsObject>;
-    /**
-     * Disconnects from the proxy server
-     */
-    disconnect(): void;
     subscribe(call: any, request: any, callback?: Function): void;
     /**
      * Connect to the LND streaming endpoints

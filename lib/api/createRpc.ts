@@ -1,9 +1,6 @@
 import WasmClient from './../index';
 import { capitalize } from '../util/strings';
 
-import * as LND from '../types/generated/lightning_pb';
-import { Lightning } from '../types/generated/lightning_pb_service';
-
 /**
  * An API wrapper to communicate with the LND node via GRPC
  */
