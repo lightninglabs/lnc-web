@@ -70,6 +70,43 @@ class LndApi extends BaseApi<LndEvents> {
         };
 
         const lightningSubscriptions = {
+            closeChannel: (
+                request: any,
+                callback: Function,
+                errCallback?: Function
+            ): void => {
+                const chanPoint = new LND.ChannelPoint();
+                if (
+                    request.channel_point &&
+                    request.channel_point.funding_txid_str
+                )
+                    chanPoint.setFundingTxidStr(
+                        request.channel_point.funding_txid_str
+                    );
+                if (
+                    request.channel_point &&
+                    request.channel_point.funding_txid_bytes
+                )
+                    chanPoint.setFundingTxidBytes(
+                        request.channel_point.funding_txid_bytes
+                    );
+                chanPoint.setOutputIndex(request.channel_point.output_index);
+
+                const req = new LND.CloseChannelRequest();
+                req.setChannelPoint(chanPoint);
+                if (request.force) req.setForce(true);
+                if (request.target_conf) req.setTargetConf(request.target_conf);
+                if (request.delivery_address)
+                    req.setDeliveryAddress(request.delivery_address);
+                if (request.sat_per_vbyte)
+                    req.setSatPerVbyte(request.sat_per_vbyte);
+                this.subscribe(
+                    Lightning.CloseChannel,
+                    req,
+                    callback,
+                    errCallback
+                );
+            },
             subscribeChannelBackups: (
                 request: any,
                 callback: Function,
