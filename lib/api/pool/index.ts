@@ -29,24 +29,35 @@ class PoolApi extends BaseApi<PoolEvents> {
     constructor(wasm: WasmClient) {
         super();
 
+        this._wasm = wasm;
+
         const hashmailSubscriptions = {
-            recvStream: (request: any, callback: Function): void => {
+            recvStream: (
+                request: any,
+                callback: Function,
+                errCallback?: Function
+            ): void => {
                 const req = new HASHMAIL.CipherBoxDesc();
-                this.subscribe(HashMail.RecvStream, req, callback);
+                this.subscribe(HashMail.RecvStream, req, callback, errCallback);
             }
         };
 
-        this._wasm = wasm;
         this.trader = createRpc(wasm, Trader);
         this.channelAuctioneer = createRpc(wasm, ChannelAuctioneer);
         this.hashmail = createRpc(wasm, HashMail, hashmailSubscriptions);
     }
 
-    subscribe(call: any, request: any, callback?: Function) {
+    subscribe(
+        call: any,
+        request: any,
+        callback?: Function,
+        errCallback?: Function
+    ) {
         this._wasm.subscribe(
             call,
             request,
-            (event) => callback && callback(event.toObject())
+            (event) => callback && callback(event.toObject()),
+            (event) => errCallback && errCallback(event)
         );
     }
 }
