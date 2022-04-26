@@ -84,11 +84,13 @@ const { lnd } = lnc;
 lnd.lightning.subscribeTransactions(
    params,
    transaction => handleNewData(transaction),
+   error => handleError(error),
 );
 
 lnd.lightning.subscribeChannelEvents(
    params,
    event => handleNewChannelEventData(event),
+   error => handleError(error),
 );
 ```
 
