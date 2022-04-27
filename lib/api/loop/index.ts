@@ -25,23 +25,34 @@ class LoopApi extends BaseApi<LoopEvents> {
     constructor(wasm: WasmClient) {
         super();
 
+        this._wasm = wasm;
+
         const swapSubscriptions = {
-            monitor: (request: any, callback: Function): void => {
+            monitor: (
+                request: any,
+                callback: Function,
+                errCallback?: Function
+            ): void => {
                 const req = new LOOP.MonitorRequest();
-                this.subscribe(SwapClient.Monitor, req, callback);
+                this.subscribe(SwapClient.Monitor, req, callback, errCallback);
             }
         };
 
-        this._wasm = wasm;
         this.swapClient = createRpc(wasm, SwapClient, swapSubscriptions);
         this.debug = createRpc(wasm, Debug);
     }
 
-    subscribe(call: any, request: any, callback?: Function) {
+    subscribe(
+        call: any,
+        request: any,
+        callback?: Function,
+        errCallback?: Function
+    ) {
         this._wasm.subscribe(
             call,
             request,
-            (event) => callback && callback(event.toObject())
+            (event) => callback && callback(event.toObject()),
+            (event) => errCallback && errCallback(event)
         );
     }
 }

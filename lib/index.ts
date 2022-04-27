@@ -233,12 +233,13 @@ export default class LNC {
      * @param methodDescriptor the GRPC method to call on the service
      * @param request the GRPC request message to send
      * @param onMessage the callback function to execute when a new message is received
-     * @param metadata headers to include with the request
+     * @param onError the callback function to execute when an error is received
      */
     subscribe<TReq extends ProtobufMessage, TRes extends ProtobufMessage>(
         methodDescriptor: MethodDefinition<TReq, TRes>,
         request: TReq,
-        onMessage: (res: TRes) => void
+        onMessage: (res: TRes) => void,
+        onError?: (res: Error) => void
     ) {
         const method = `${methodDescriptor.service.serviceName}.${methodDescriptor.methodName}`;
         log.debug(`${method} request`, request.toObject());
@@ -249,20 +250,22 @@ export default class LNC {
             method,
             reqJSON,
             (response: string) => {
+                log.debug(`${method} raw response`, response);
                 let rawRes: any;
                 try {
                     rawRes = JSON.parse(response);
+                    const res = snakeKeysToCamel(rawRes);
+                    const hackedRes = this.hackListsAndMaps(res);
+                    log.debug(`${method} response`, res);
+                    const msg = {
+                        toObject: () => hackedRes
+                    };
+                    onMessage(msg as TRes);
                 } catch (error) {
-                    log.debug(`${method} raw response`, response);
-                    return;
+                    log.debug(`${method} error`, error);
+                    const err = new Error(response);
+                    if (onError) onError(err);
                 }
-                const res = snakeKeysToCamel(rawRes);
-                const hackedRes = this.hackListsAndMaps(res);
-                log.debug(`${method} response`, res);
-                const msg = {
-                    toObject: () => hackedRes
-                };
-                onMessage(msg as TRes);
             }
         );
     }

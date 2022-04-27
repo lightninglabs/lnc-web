@@ -18,7 +18,10 @@ function createRpc<T extends unknown>(
             if (call.responseStream) {
                 if (subscriptions && subscriptions[key])
                     return subscriptions[key];
-                return null;
+                return function (request: any): any {
+                    const res = wasm.request(call, request);
+                    return res;
+                };
             } else {
                 return async function (request: any): Promise<any> {
                     const res = await wasm.request(call, request);
