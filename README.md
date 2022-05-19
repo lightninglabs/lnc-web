@@ -1,4 +1,4 @@
-# @lightninglabs/lnc
+# @lightninglabs/lnc-web
 
 ## A npm module for Lightning Node Connect
 
@@ -12,7 +12,7 @@ The constructor for the LNC object takes a parameters object with the three foll
 - `wasmClientCode` (string): Custom location for the WASM client code. Can be remote or local. If not specified we’ll default to our instance on our CDN.
 
 ```
-import LNC from ‘@lightninglabs/lnc’;
+import LNC from ‘@lightninglabs/lnc-web’;
 
 const pairingPhrase = ‘artefact morning piano photo consider light’;
 
