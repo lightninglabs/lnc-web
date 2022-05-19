@@ -1,4 +1,4 @@
-# @lightninglabs/lnc
+# @lightninglabs/lnc-web
 
 ## A npm module for Lightning Node Connect
 
@@ -8,19 +8,28 @@
 The constructor for the LNC object takes a parameters object with the three following fields:
 
 - `pairingPhrase` (string, required): Your LNC pairing phrase
-- `serverHost` (string): Specify a custom Lightning Node Connect proxy server. If not specified we'll default to `mailbox.terminal.lightning.today:443`
+- `serverHost` (string): Specify a custom Lightning Node Connect proxy server. If not specified we'll default to `mailbox.terminal.lightning.today:443`.
 - `wasmClientCode` (string): Custom location for the WASM client code. Can be remote or local. If not specified we’ll default to our instance on our CDN.
+- `namespace` (string): JavaScript namespace used for the main WASM calls. You can maintain multiple connections if you use different namespaces. If not specified we'll default to `default`.
+- `password` (string): By default, this module will handle storage of your local and remote keys for you in local storage. We highly recommend encrypting that data with a password you set here.
+- `localKey` (string): local private key; part of the second handshake authentication process. Only need to specify this if you handle storage of auth data yourself and set `onLocalPrivCreate`.
+- `remoteKey` (string): remote public key; part of the second handshake authentication process. Only need to specify this if you handle storage of auth data yourself and set `onRemoteKeyReceive`.
+- `onLocalPrivCreate` (Function): override method for the storage of the local private key. This gets called when first load the WASM without an existing local private key.
+- `onRemoteKeyReceive` (Function): override method for the storage of the remote public key. This gets called when first connecting without an existing local private key.
 
 ```
-import LNC from ‘@lightninglabs/lnc’;
+import LNC from ‘@lightninglabs/lnc-web’;
 
 const pairingPhrase = ‘artefact morning piano photo consider light’;
+const password = 'u*E0F?gU\d($N&Ckh8u)tLm';
 
 // default connection using WASM from CDN
 // WASM loaded on object creation
 // default host: mailbox.terminal.lightning.today:443
+// password used for encrypting credentials
 const lnc = new LNC({
-   pairingPhrase
+   pairingPhrase,
+   password
 });
 
 // using custom Lightning Node Connect proxy server
