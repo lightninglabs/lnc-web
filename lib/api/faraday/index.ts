@@ -7,13 +7,10 @@ import BaseApi from './../base';
 
 import createRpc from './../createRpc';
 
-/** the names and argument types for the subscription events */
-interface FaradayEvents {}
-
 /**
  * An API wrapper to communicate with the Faraday node via GRPC
  */
-class FaradayApi extends BaseApi<FaradayEvents> {
+class FaradayApi extends BaseApi<{}> {
     _wasm: WasmClient;
     // sub-services
     faradayServer: any;
