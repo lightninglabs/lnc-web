@@ -83,7 +83,7 @@ export default class LNC {
         this._pairingPhrase = config.pairingPhrase;
         this._wasmClientCode =
             config.wasmClientCode ||
-            'https://lightning.engineering/lnc-v0.1.8-alpha.wasm';
+            'https://lightning.engineering/lnc-v0.1.9-alpha.wasm';
         // TODO: pull Go off of the global state
         const g = global || window || self;
         this.go = new g.Go();
