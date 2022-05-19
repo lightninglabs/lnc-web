@@ -10,6 +10,13 @@ import isPlainObject from 'lodash/isPlainObject';
 import { wasmLog as log } from './util/log';
 import { isObject, snakeKeysToCamel } from './util/objects';
 import { LndApi, LoopApi, PoolApi, FaradayApi } from './api';
+import {
+    createTestCipher,
+    decrypt,
+    encrypt,
+    generateSalt,
+    verifyTestCipher
+} from './encryption';
 
 // polyfill
 if (!WebAssembly.instantiateStreaming) {
@@ -48,19 +55,29 @@ interface WasmGlobal {
     wasmClientInvokeRPC: (
         rpcName: string,
         request: any,
-        callback: () => any
+        callback: (response: string) => any
     ) => void;
 }
 
-/**
- * A reference to the `global` object with typings for the WASM functions
- */
-const wasmGlobal: WasmGlobal = global as any;
-
 interface LncConstructor {
+    /** Specify a custom Lightning Node Connect proxy server. If not specified we'll default to `mailbox.terminal.lightning.today:443`. */
     serverHost?: string;
+    /** Your LNC pairing phrase */
     pairingPhrase: string;
+    /** local private key; part of the second handshake authentication process. Only need to specify this if you handle storage of auth data yourself and set `onLocalPrivCreate`. */
+    localKey?: string;
+    /** remote public key; part of the second handshake authentication process. Only need to specify this if you handle storage of auth data yourself and set `onRemoteKeyReceive`. */
+    remoteKey?: string;
+    /** Custom location for the WASM client code. Can be remote or local. If not specified we’ll default to our instance on our CDN. */
     wasmClientCode: any; // URL or WASM client object
+    /** JavaScript namespace used for the main WASM calls. You can maintain multiple connections if you use different namespaces. If not specified we'll default to `default`. */
+    namespace?: string;
+    /** By default, this module will handle storage of your local and remote keys for you in local storage. We highly recommend encrypting that data with a password you set here. */
+    password?: string;
+    /** override method for the storage of the local private key. This gets called when first load the WASM without an existing local private key. */
+    onLocalPrivCreate?: (keyHex: string) => void;
+    /** override method for the storage of the remote public key. This gets called when first connecting without an existing local private key. */
+    onRemoteKeyReceive?: (keyHex: string) => void;
 }
 
 export default class LNC {
@@ -70,7 +87,15 @@ export default class LNC {
 
     _serverHost: string;
     _pairingPhrase: string;
+    _localKey?: string;
+    _remoteKey?: string;
     _wasmClientCode: any;
+    _namespace: string;
+    _password: string;
+    _onLocalPrivCreate?: (keyHex: string) => void;
+    _onRemoteKeyReceive?: (keyHex: string) => void;
+    salt: string;
+    testCipher: string;
     // TODO: add typings
     lnd: any;
     loop: any;
@@ -81,9 +106,34 @@ export default class LNC {
         this._serverHost =
             config.serverHost || 'mailbox.terminal.lightning.today:443';
         this._pairingPhrase = config.pairingPhrase;
+        this._localKey = config.localKey;
+        this._remoteKey = config.remoteKey;
         this._wasmClientCode =
             config.wasmClientCode ||
             'https://lightning.engineering/lnc-v0.1.8-alpha.wasm';
+        this._namespace = config.namespace || 'default';
+        this._password = config.password || '';
+        this._onLocalPrivCreate = config.onLocalPrivCreate;
+        this._onRemoteKeyReceive = config.onRemoteKeyReceive;
+
+        if (localStorage.getItem(`${this._namespace}:salt`)) {
+            this.salt = localStorage.getItem(`${this._namespace}:salt`) || '';
+        } else {
+            this.salt = generateSalt();
+            localStorage.setItem(`${this._namespace}:salt`, this.salt);
+        }
+
+        if (localStorage.getItem(`${this._namespace}:testCipher`)) {
+            this.testCipher =
+                localStorage.getItem(`${this._namespace}:testCipher`) || '';
+        } else {
+            this.testCipher = createTestCipher(this._password, this.salt);
+            localStorage.setItem(
+                `${this._namespace}:testCipher`,
+                this.testCipher
+            );
+        }
+
         // TODO: pull Go off of the global state
         const g = global || window || self;
         this.go = new g.Go();
@@ -94,14 +144,39 @@ export default class LNC {
         this.faraday = new FaradayApi(this);
     }
 
+    onLocalPrivCreate = (keyHex: string) => {
+        log.debug('local private key created: ' + keyHex);
+        localStorage.setItem(
+            `${this._namespace}:localKey`,
+            this._password ? encrypt(keyHex, this._password, this.salt) : keyHex
+        );
+    };
+
+    onRemoteKeyReceive = (keyHex: string) => {
+        log.debug('remote key received: ' + keyHex);
+        localStorage.setItem(
+            `${this._namespace}:remoteKey`,
+            this._password ? encrypt(keyHex, this._password, this.salt) : keyHex
+        );
+    };
+
+    get wasmNamespace() {
+        return window[this._namespace] as WasmGlobal;
+    }
+
     get isReady() {
-        return wasmGlobal.wasmClientIsReady && wasmGlobal.wasmClientIsReady();
+        return (
+            this.wasmNamespace &&
+            this.wasmNamespace.wasmClientIsReady &&
+            this.wasmNamespace.wasmClientIsReady()
+        );
     }
 
     get isConnected() {
         return (
-            wasmGlobal.wasmClientIsConnected &&
-            wasmGlobal.wasmClientIsConnected()
+            this.wasmNamespace &&
+            this.wasmNamespace.wasmClientIsConnected &&
+            this.wasmNamespace.wasmClientIsConnected()
         );
     }
 
@@ -109,15 +184,85 @@ export default class LNC {
      * Downloads the WASM client binary and run
      */
     async load() {
-        const result = await WebAssembly.instantiateStreaming(
-            fetch(this._wasmClientCode),
-            this.go.importObject
-        );
-        log.info('downloaded WASM file');
+        try {
+            const result = await WebAssembly.instantiateStreaming(
+                fetch(this._wasmClientCode),
+                this.go.importObject
+            );
+            log.info('downloaded WASM file');
 
-        this.go.argv = ['wasm-client', '--debuglevel=trace'];
-        await this.go.run(result.instance);
-        await WebAssembly.instantiate(result.module, this.go.importObject);
+            let localKey = '';
+            let remoteKey = '';
+
+            if (this._localKey) {
+                localKey = this._localKey;
+            } else if (localStorage.getItem(`${this._namespace}:localKey`)) {
+                const data = localStorage.getItem(
+                    `${this._namespace}:localKey`
+                );
+                if (
+                    !verifyTestCipher(
+                        this.testCipher,
+                        this._password,
+                        this.salt
+                    )
+                ) {
+                    throw new Error('Invalid Password');
+                }
+                localKey = this._password
+                    ? decrypt(data, this._password, this.salt)
+                    : data;
+            }
+
+            if (this._remoteKey) {
+                remoteKey = this._remoteKey;
+            } else if (localStorage.getItem(`${this._namespace}:remoteKey`)) {
+                const data = localStorage.getItem(
+                    `${this._namespace}:remoteKey`
+                );
+                if (
+                    !verifyTestCipher(
+                        this.testCipher,
+                        this._password,
+                        this.salt
+                    )
+                ) {
+                    throw new Error('Invalid password');
+                }
+                remoteKey = this._password
+                    ? decrypt(data, this._password, this.salt)
+                    : data;
+            }
+
+            log.debug('localKey', localKey);
+            log.debug('remoteKey', remoteKey);
+
+            global.onLocalPrivCreate =
+                this._onLocalPrivCreate || this.onLocalPrivCreate;
+
+            global.onRemoteKeyReceive =
+                this._onRemoteKeyReceive || this.onRemoteKeyReceive;
+
+            global.onAuthData = (keyHex: string) => {
+                log.debug('auth data received: ' + keyHex);
+            };
+
+            this.go.argv = [
+                'wasm-client',
+                '--debuglevel=trace',
+                '--namespace=' + this._namespace,
+                '--localprivate=' + localKey,
+                '--remotepublic=' + remoteKey,
+                '--onlocalprivcreate=onLocalPrivCreate',
+                '--onremotekeyreceive=onRemoteKeyReceive',
+                '--onauthdata=onAuthData'
+            ];
+
+            await this.go.run(result.instance);
+            await WebAssembly.instantiate(result.module, this.go.importObject);
+        } catch {
+            throw new Error('The password provided is not valid.');
+        }
     }
 
     /**
@@ -137,10 +282,13 @@ export default class LNC {
         if (!this.isReady) await this.waitTilReady();
 
         // connect to the server
-        wasmGlobal.wasmClientConnectServer(server, false, phrase);
+        this.wasmNamespace.wasmClientConnectServer(server, false, phrase);
 
         // add an event listener to disconnect if the page is unloaded
-        global.addEventListener('unload', wasmGlobal.wasmClientDisconnect);
+        window.addEventListener(
+            'unload',
+            this.wasmNamespace.wasmClientDisconnect
+        );
 
         // repeatedly check if the connection was successful
         return new Promise<void>((resolve, reject) => {
@@ -165,7 +313,7 @@ export default class LNC {
      * Disconnects from the proxy server
      */
     disconnect() {
-        wasmGlobal.wasmClientDisconnect();
+        this.wasmNamespace && this.wasmNamespace.wasmClientDisconnect();
     }
 
     /**
@@ -203,7 +351,7 @@ export default class LNC {
             const hackedReq = request ? this.hackRequest(request) : {};
             const reqJSON = JSON.stringify(hackedReq);
 
-            (global as any).wasmClientInvokeRPC(
+            this.wasmNamespace.wasmClientInvokeRPC(
                 method,
                 reqJSON,
                 (response: string) => {
@@ -246,7 +394,7 @@ export default class LNC {
         const hackedReq = this.hackRequest(request.toObject());
         log.debug(`${method} hacked request`, hackedReq);
         const reqJSON = JSON.stringify(hackedReq);
-        (global as any).wasmClientInvokeRPC(
+        this.wasmNamespace.wasmClientInvokeRPC(
             method,
             reqJSON,
             (response: string) => {
