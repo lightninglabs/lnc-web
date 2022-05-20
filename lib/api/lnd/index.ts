@@ -55,8 +55,8 @@ class LndApi extends BaseApi<LndEvents> {
         const invoicesSubscriptions = {
             subscribeSingleInvoice: (
                 request: any,
-                callback: Function,
-                errCallback?: Function
+                callback: (data: any) => void,
+                errCallback?: (data: any) => void
             ): void => {
                 const req = new InvoicesRPC.SubscribeSingleInvoiceRequest();
                 if (request.r_hash) req.setRHash(request.r_hash);
@@ -72,8 +72,8 @@ class LndApi extends BaseApi<LndEvents> {
         const lightningSubscriptions = {
             closeChannel: (
                 request: any,
-                callback: Function,
-                errCallback?: Function
+                callback: (data: any) => void,
+                errCallback?: (data: any) => void
             ): void => {
                 const chanPoint = new LND.ChannelPoint();
                 if (
@@ -109,8 +109,8 @@ class LndApi extends BaseApi<LndEvents> {
             },
             subscribeChannelBackups: (
                 request: any,
-                callback: Function,
-                errCallback?: Function
+                callback: (data: any) => void,
+                errCallback?: (data: any) => void
             ): void => {
                 this.subscribe(
                     Lightning.SubscribeChannelBackups,
@@ -121,8 +121,8 @@ class LndApi extends BaseApi<LndEvents> {
             },
             subscribeChannelEvents: (
                 request: any,
-                callback: Function,
-                errCallback?: Function
+                callback: (data: any) => void,
+                errCallback?: (data: any) => void
             ): void => {
                 this.subscribe(
                     Lightning.SubscribeChannelEvents,
@@ -133,8 +133,8 @@ class LndApi extends BaseApi<LndEvents> {
             },
             subscribeChannelGraph: (
                 request: any,
-                callback: Function,
-                errCallback?: Function
+                callback: (data: any) => void,
+                errCallback?: (data: any) => void
             ): void => {
                 this.subscribe(
                     Lightning.SubscribeChannelGraph,
@@ -145,8 +145,8 @@ class LndApi extends BaseApi<LndEvents> {
             },
             subscribeCustomMessages: (
                 request: any,
-                callback: Function,
-                errCallback?: Function
+                callback: (data: any) => void,
+                errCallback?: (data: any) => void
             ): void => {
                 this.subscribe(
                     Lightning.SubscribeCustomMessages,
@@ -157,8 +157,8 @@ class LndApi extends BaseApi<LndEvents> {
             },
             subscribeInvoices: (
                 request: any,
-                callback: Function,
-                errCallback?: Function
+                callback: (data: any) => void,
+                errCallback?: (data: any) => void
             ): void => {
                 const req = new LND.InvoiceSubscription();
                 if (request.add_index) req.setAddIndex(request.add_index);
@@ -173,8 +173,8 @@ class LndApi extends BaseApi<LndEvents> {
             },
             subscribePeerEvents: (
                 request: any,
-                callback: Function,
-                errCallback?: Function
+                callback: (data: any) => void,
+                errCallback?: (data: any) => void
             ): void => {
                 this.subscribe(
                     Lightning.SubscribePeerEvents,
@@ -185,8 +185,8 @@ class LndApi extends BaseApi<LndEvents> {
             },
             subscribeTransactions: (
                 request: any,
-                callback: Function,
-                errCallback?: Function
+                callback: (data: any) => void,
+                errCallback?: (data: any) => void
             ): void => {
                 const req = new LND.GetTransactionsRequest();
                 if (request.start_height)
@@ -205,8 +205,8 @@ class LndApi extends BaseApi<LndEvents> {
         const routerSubscriptions = {
             subscribeHtlcEvents: (
                 request: any,
-                callback: Function,
-                errCallback?: Function
+                callback: (data: any) => void,
+                errCallback?: (data: any) => void
             ): void => {
                 const req = new RouterRPC.SubscribeHtlcEventsRequest();
                 this.subscribe(
@@ -255,8 +255,8 @@ class LndApi extends BaseApi<LndEvents> {
     subscribe(
         call: any,
         request: any,
-        callback?: Function,
-        errCallback?: Function
+        callback?: (data: any) => void,
+        errCallback?: (data: any) => void
     ) {
         this._wasm.subscribe(
             call,

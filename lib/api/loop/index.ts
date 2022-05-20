@@ -30,8 +30,8 @@ class LoopApi extends BaseApi<LoopEvents> {
         const swapSubscriptions = {
             monitor: (
                 request: any,
-                callback: Function,
-                errCallback?: Function
+                callback: (data: any) => void,
+                errCallback?: (data: any) => void
             ): void => {
                 const req = new LOOP.MonitorRequest();
                 this.subscribe(SwapClient.Monitor, req, callback, errCallback);
@@ -45,8 +45,8 @@ class LoopApi extends BaseApi<LoopEvents> {
     subscribe(
         call: any,
         request: any,
-        callback?: Function,
-        errCallback?: Function
+        callback?: (data: any) => void,
+        errCallback?: (data: any) => void
     ) {
         this._wasm.subscribe(
             call,

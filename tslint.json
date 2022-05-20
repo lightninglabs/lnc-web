@@ -1,0 +1,10 @@
+{
+   "extends": ["tslint:recommended", "tslint-config-prettier"],
+    "linterOptions": {
+        "exclude": [
+            "dist",
+            "lib/types/**/*",
+            "lib/wasm_exec.js"
+        ]
+    }
+}

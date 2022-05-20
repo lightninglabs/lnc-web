@@ -771,7 +771,7 @@ export const poolNodeRatings: POOL.NodeRatingResponse.AsObject = {
 
 const stringToChannelPoint = (cp: string) => ({
     txid: b64(cp.split(':')[0], true),
-    outputIndex: parseInt(cp.split(':')[1])
+    outputIndex: parseInt(cp.split(':')[1], 10)
 });
 export const poolLeases: POOL.LeasesResponse.AsObject = {
     leases: [

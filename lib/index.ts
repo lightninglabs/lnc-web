@@ -1,3 +1,4 @@
+// tslint:disable-next-line
 require('./wasm_exec');
 
 import { ProtobufMessage } from '@improbable-eng/grpc-web/dist/typings/message';

@@ -34,8 +34,8 @@ class PoolApi extends BaseApi<PoolEvents> {
         const hashmailSubscriptions = {
             recvStream: (
                 request: any,
-                callback: Function,
-                errCallback?: Function
+                callback: (data: any) => void,
+                errCallback?: (data: any) => void
             ): void => {
                 const req = new HASHMAIL.CipherBoxDesc();
                 this.subscribe(HashMail.RecvStream, req, callback, errCallback);
@@ -50,8 +50,8 @@ class PoolApi extends BaseApi<PoolEvents> {
     subscribe(
         call: any,
         request: any,
-        callback?: Function,
-        errCallback?: Function
+        callback?: (data: any) => void,
+        errCallback?: (data: any) => void
     ) {
         this._wasm.subscribe(
             call,
