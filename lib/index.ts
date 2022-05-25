@@ -314,7 +314,7 @@ export default class LNC {
      * Disconnects from the proxy server
      */
     disconnect() {
-        this.wasmNamespace && this.wasmNamespace.wasmClientDisconnect();
+        this.wasmNamespace.wasmClientDisconnect();
     }
 
     /**
