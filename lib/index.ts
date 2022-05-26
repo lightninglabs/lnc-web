@@ -70,7 +70,7 @@ interface LncConstructor {
     /** remote public key; part of the second handshake authentication process. Only need to specify this if you handle storage of auth data yourself and set `onRemoteKeyReceive`. */
     remoteKey?: string;
     /** Custom location for the WASM client code. Can be remote or local. If not specified we’ll default to our instance on our CDN. */
-    wasmClientCode: any; // URL or WASM client object
+    wasmClientCode?: any; // URL or WASM client object
     /** JavaScript namespace used for the main WASM calls. You can maintain multiple connections if you use different namespaces. If not specified we'll default to `default`. */
     namespace?: string;
     /** By default, this module will handle storage of your local and remote keys for you in local storage. We highly recommend encrypting that data with a password you set here. */
