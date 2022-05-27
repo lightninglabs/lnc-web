@@ -42,6 +42,17 @@ class LoopApi extends BaseApi<LoopEvents> {
         this.debug = createRpc(wasm, Debug);
     }
 
+    /**
+     * Connect to the Loop streaming endpoint
+     */
+    connectStreams() {
+        this.subscribe(
+            SwapClient.Monitor,
+            new LOOP.MonitorRequest(),
+            (swapStatus: any) => this.emit('status', swapStatus.toObject())
+        );
+    }
+
     subscribe(
         call: any,
         request: any,
