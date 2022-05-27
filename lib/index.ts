@@ -64,7 +64,7 @@ interface LncConstructor {
     /** Specify a custom Lightning Node Connect proxy server. If not specified we'll default to `mailbox.terminal.lightning.today:443`. */
     serverHost?: string;
     /** Your LNC pairing phrase */
-    pairingPhrase: string;
+    pairingPhrase?: string;
     /** local private key; part of the second handshake authentication process. Only need to specify this if you handle storage of auth data yourself and set `onLocalPrivCreate`. */
     localKey?: string;
     /** remote public key; part of the second handshake authentication process. Only need to specify this if you handle storage of auth data yourself and set `onRemoteKeyReceive`. */
@@ -108,7 +108,7 @@ export default class LNC {
     constructor(config: LncConstructor) {
         this._serverHost =
             config.serverHost || 'mailbox.terminal.lightning.today:443';
-        this._pairingPhrase = config.pairingPhrase;
+        this._pairingPhrase = config.pairingPhrase || '';
         this._localKey = config.localKey;
         this._remoteKey = config.remoteKey;
         this._wasmClientCode =
