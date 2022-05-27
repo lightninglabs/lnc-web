@@ -83,8 +83,10 @@ interface LncConstructor {
 
 export default class LNC {
     go: any;
-    mod?: WebAssembly.Module;
-    inst?: WebAssembly.Instance;
+    result?: {
+        module: WebAssembly.Module;
+        instance: WebAssembly.Instance;
+    };
 
     _serverHost: string;
     _pairingPhrase: string;
@@ -182,16 +184,24 @@ export default class LNC {
     }
 
     /**
-     * Downloads the WASM client binary and run
+     * Downloads the WASM client binary
      */
     async load() {
-        try {
-            const result = await WebAssembly.instantiateStreaming(
-                fetch(this._wasmClientCode),
-                this.go.importObject
-            );
-            log.info('downloaded WASM file');
+        this.result = await WebAssembly.instantiateStreaming(
+            fetch(this._wasmClientCode),
+            this.go.importObject
+        );
+        log.info('downloaded WASM file');
+    }
 
+    /**
+     * Loads keys from storage and runs the Wasm client binary
+     */
+    async loadKeysAndRunClient() {
+        // make sure the WASM client binary is downloaded first
+        if (!this.result) return;
+
+        try {
             let localKey = '';
             let remoteKey = '';
 
@@ -259,8 +269,13 @@ export default class LNC {
                 '--onauthdata=onAuthData'
             ];
 
-            this.go.run(result.instance);
-            await WebAssembly.instantiate(result.module, this.go.importObject);
+            if (this.result) {
+                this.go.run(this.result.instance);
+                await WebAssembly.instantiate(
+                    this.result.module,
+                    this.go.importObject
+                );
+            }
         } catch {
             throw new Error('The password provided is not valid.');
         }
@@ -276,6 +291,8 @@ export default class LNC {
         server: string = this._serverHost,
         phrase: string = this._pairingPhrase
     ) {
+        await this.loadKeysAndRunClient();
+
         // do not attempt to connect multiple times
         if (this.isConnected) return;
 
