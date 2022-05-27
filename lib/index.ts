@@ -259,7 +259,7 @@ export default class LNC {
                 '--onauthdata=onAuthData'
             ];
 
-            await this.go.run(result.instance);
+            this.go.run(result.instance);
             await WebAssembly.instantiate(result.module, this.go.importObject);
         } catch {
             throw new Error('The password provided is not valid.');
