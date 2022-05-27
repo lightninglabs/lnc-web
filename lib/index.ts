@@ -195,6 +195,10 @@ export default class LNC {
         this._remoteKey = remoteKey;
     }
 
+    setServerHost(serverHost: string) {
+        this._serverHost = serverHost;
+    }
+
     /**
      * Downloads the WASM client binary
      */
