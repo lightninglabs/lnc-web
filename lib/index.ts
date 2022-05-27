@@ -183,6 +183,18 @@ export default class LNC {
         );
     }
 
+    setPairingPhrase(pairingPhrase: string) {
+        this._pairingPhrase = pairingPhrase;
+    }
+
+    setLocalKey(localKey: string) {
+        this._localKey = localKey;
+    }
+
+    setRemoteKey(remoteKey: string) {
+        this._remoteKey = remoteKey;
+    }
+
     /**
      * Downloads the WASM client binary
      */
