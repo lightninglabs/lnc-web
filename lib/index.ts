@@ -119,7 +119,7 @@ export default class LNC {
 
         if (localStorage.getItem(`${this._namespace}:salt`)) {
             this.salt = localStorage.getItem(`${this._namespace}:salt`) || '';
-        } else {
+        } else if (!this._onLocalPrivCreate && !this._onRemoteKeyReceive) {
             this.salt = generateSalt();
             localStorage.setItem(`${this._namespace}:salt`, this.salt);
         }
@@ -127,7 +127,7 @@ export default class LNC {
         if (localStorage.getItem(`${this._namespace}:testCipher`)) {
             this.testCipher =
                 localStorage.getItem(`${this._namespace}:testCipher`) || '';
-        } else {
+        } else if (!this._onLocalPrivCreate && !this._onRemoteKeyReceive) {
             this.testCipher = createTestCipher(this._password, this.salt);
             localStorage.setItem(
                 `${this._namespace}:testCipher`,
