@@ -116,6 +116,8 @@ export default class LNC {
         this._password = config.password || '';
         this._onLocalPrivCreate = config.onLocalPrivCreate;
         this._onRemoteKeyReceive = config.onRemoteKeyReceive;
+        this.salt = '';
+        this.testCipher = '';
 
         if (localStorage.getItem(`${this._namespace}:salt`)) {
             this.salt = localStorage.getItem(`${this._namespace}:salt`) || '';
