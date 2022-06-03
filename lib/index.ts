@@ -219,85 +219,81 @@ export default class LNC {
         // make sure the WASM client binary is downloaded first
         if (!this.isReady) await this.preload();
 
-        try {
-            let localKey = '';
-            let remoteKey = '';
+        let localKey = '';
+        let remoteKey = '';
 
-            if (this._localKey) {
-                localKey = this._localKey;
-            } else if (localStorage.getItem(`${this._namespace}:localKey`)) {
-                const data = localStorage.getItem(
-                    `${this._namespace}:localKey`
-                );
-                if (
-                    !verifyTestCipher(
-                        this.testCipher,
-                        this._password,
-                        this.salt
-                    )
-                ) {
-                    throw new Error('Invalid Password');
-                }
-                localKey = this._password
-                    ? decrypt(data, this._password, this.salt)
-                    : data;
+        if (this._localKey) {
+            localKey = this._localKey;
+        } else if (localStorage.getItem(`${this._namespace}:localKey`)) {
+            const data = localStorage.getItem(
+                `${this._namespace}:localKey`
+            );
+            if (
+                !verifyTestCipher(
+                    this.testCipher,
+                    this._password,
+                    this.salt
+                )
+            ) {
+                throw new Error('Invalid Password');
             }
+            localKey = this._password
+                ? decrypt(data, this._password, this.salt)
+                : data;
+        }
 
-            if (this._remoteKey) {
-                remoteKey = this._remoteKey;
-            } else if (localStorage.getItem(`${this._namespace}:remoteKey`)) {
-                const data = localStorage.getItem(
-                    `${this._namespace}:remoteKey`
-                );
-                if (
-                    !verifyTestCipher(
-                        this.testCipher,
-                        this._password,
-                        this.salt
-                    )
-                ) {
-                    throw new Error('Invalid password');
-                }
-                remoteKey = this._password
-                    ? decrypt(data, this._password, this.salt)
-                    : data;
+        if (this._remoteKey) {
+            remoteKey = this._remoteKey;
+        } else if (localStorage.getItem(`${this._namespace}:remoteKey`)) {
+            const data = localStorage.getItem(
+                `${this._namespace}:remoteKey`
+            );
+            if (
+                !verifyTestCipher(
+                    this.testCipher,
+                    this._password,
+                    this.salt
+                )
+            ) {
+                throw new Error('Invalid password');
             }
+            remoteKey = this._password
+                ? decrypt(data, this._password, this.salt)
+                : data;
+        }
 
-            log.debug('localKey', localKey);
-            log.debug('remoteKey', remoteKey);
+        log.debug('localKey', localKey);
+        log.debug('remoteKey', remoteKey);
 
-            global.onLocalPrivCreate =
-                this._onLocalPrivCreate || this.onLocalPrivCreate;
+        global.onLocalPrivCreate =
+            this._onLocalPrivCreate || this.onLocalPrivCreate;
 
-            global.onRemoteKeyReceive =
-                this._onRemoteKeyReceive || this.onRemoteKeyReceive;
+        global.onRemoteKeyReceive =
+            this._onRemoteKeyReceive || this.onRemoteKeyReceive;
 
-            global.onAuthData = (keyHex: string) => {
-                log.debug('auth data received: ' + keyHex);
-            };
+        global.onAuthData = (keyHex: string) => {
+            log.debug('auth data received: ' + keyHex);
+        };
 
-            this.go.argv = [
-                'wasm-client',
-                '--debuglevel=trace',
-                '--namespace=' + this._namespace,
-                '--localprivate=' + localKey,
-                '--remotepublic=' + remoteKey,
-                '--onlocalprivcreate=onLocalPrivCreate',
-                '--onremotekeyreceive=onRemoteKeyReceive',
-                '--onauthdata=onAuthData'
-            ];
+        this.go.argv = [
+            'wasm-client',
+            '--debuglevel=trace',
+            '--namespace=' + this._namespace,
+            '--localprivate=' + localKey,
+            '--remotepublic=' + remoteKey,
+            '--onlocalprivcreate=onLocalPrivCreate',
+            '--onremotekeyreceive=onRemoteKeyReceive',
+            '--onauthdata=onAuthData'
+        ];
 
-            if (this.result) {
-                this.go.run(this.result.instance);
-                await WebAssembly.instantiate(
-                    this.result.module,
-                    this.go.importObject
-                );
-            } else {
-                throw new Error("Can't find WASM instance.");
-            }
-        } catch {
-            throw new Error('The password provided is not valid.');
+        if (this.result) {
+            this.go.run(this.result.instance);
+            await WebAssembly.instantiate(
+                this.result.module,
+                this.go.importObject
+            );
+        } else {
+            throw new Error("Can't find WASM instance.");
         }
     }
 
