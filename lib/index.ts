@@ -121,20 +121,22 @@ export default class LNC {
         this.salt = '';
         this.testCipher = '';
 
-        if (localStorage.getItem(`${this._namespace}:salt`)) {
-            this.salt = localStorage.getItem(`${this._namespace}:salt`) || '';
+        if (localStorage.getItem(`lnc-web:${this._namespace}:salt`)) {
+            this.salt =
+                localStorage.getItem(`lnc-web:${this._namespace}:salt`) || '';
         } else if (!this._onLocalPrivCreate && !this._onRemoteKeyReceive) {
             this.salt = generateSalt();
-            localStorage.setItem(`${this._namespace}:salt`, this.salt);
+            localStorage.setItem(`lnc-web:${this._namespace}:salt`, this.salt);
         }
 
-        if (localStorage.getItem(`${this._namespace}:testCipher`)) {
+        if (localStorage.getItem(`lnc-web:${this._namespace}:testCipher`)) {
             this.testCipher =
-                localStorage.getItem(`${this._namespace}:testCipher`) || '';
+                localStorage.getItem(`lnc-web:${this._namespace}:testCipher`) ||
+                '';
         } else if (!this._onLocalPrivCreate && !this._onRemoteKeyReceive) {
             this.testCipher = createTestCipher(this._password, this.salt);
             localStorage.setItem(
-                `${this._namespace}:testCipher`,
+                `lnc-web:${this._namespace}:testCipher`,
                 this.testCipher
             );
         }
@@ -152,7 +154,7 @@ export default class LNC {
     onLocalPrivCreate = (keyHex: string) => {
         log.debug('local private key created: ' + keyHex);
         localStorage.setItem(
-            `${this._namespace}:localKey`,
+            `lnc-web:${this._namespace}:localKey`,
             this._password ? encrypt(keyHex, this._password, this.salt) : keyHex
         );
     };
@@ -160,7 +162,7 @@ export default class LNC {
     onRemoteKeyReceive = (keyHex: string) => {
         log.debug('remote key received: ' + keyHex);
         localStorage.setItem(
-            `${this._namespace}:remoteKey`,
+            `lnc-web:${this._namespace}:remoteKey`,
             this._password ? encrypt(keyHex, this._password, this.salt) : keyHex
         );
     };
@@ -201,6 +203,12 @@ export default class LNC {
         this._serverHost = serverHost;
     }
 
+    clearStorage = () =>
+        Object.entries(localStorage)
+            .map((x) => x[0])
+            .filter((x) => x.substring(0, 8) == 'lnc-web:')
+            .map((x) => localStorage.removeItem(x));
+
     /**
      * Downloads the WASM client binary
      */
@@ -224,17 +232,13 @@ export default class LNC {
 
         if (this._localKey) {
             localKey = this._localKey;
-        } else if (localStorage.getItem(`${this._namespace}:localKey`)) {
+        } else if (
+            localStorage.getItem(`lnc-web:${this._namespace}:localKey`)
+        ) {
             const data = localStorage.getItem(
-                `${this._namespace}:localKey`
+                `lnc-web:${this._namespace}:localKey`
             );
-            if (
-                !verifyTestCipher(
-                    this.testCipher,
-                    this._password,
-                    this.salt
-                )
-            ) {
+            if (!verifyTestCipher(this.testCipher, this._password, this.salt)) {
                 throw new Error('Invalid Password');
             }
             localKey = this._password
@@ -244,17 +248,13 @@ export default class LNC {
 
         if (this._remoteKey) {
             remoteKey = this._remoteKey;
-        } else if (localStorage.getItem(`${this._namespace}:remoteKey`)) {
+        } else if (
+            localStorage.getItem(`lnc-web:${this._namespace}:remoteKey`)
+        ) {
             const data = localStorage.getItem(
-                `${this._namespace}:remoteKey`
+                `lnc-web:${this._namespace}:remoteKey`
             );
-            if (
-                !verifyTestCipher(
-                    this.testCipher,
-                    this._password,
-                    this.salt
-                )
-            ) {
+            if (!verifyTestCipher(this.testCipher, this._password, this.salt)) {
                 throw new Error('Invalid password');
             }
             remoteKey = this._password
