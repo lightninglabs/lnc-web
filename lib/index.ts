@@ -202,7 +202,7 @@ export default class LNC {
     /**
      * Downloads the WASM client binary
      */
-    async load() {
+    async preload() {
         this.result = await WebAssembly.instantiateStreaming(
             fetch(this._wasmClientCode),
             this.go.importObject
@@ -215,7 +215,7 @@ export default class LNC {
      */
     async loadKeysAndRunClient() {
         // make sure the WASM client binary is downloaded first
-        if (!this.result) return;
+        if (!this.isReady) await this.preload();
 
         try {
             let localKey = '';
@@ -291,6 +291,8 @@ export default class LNC {
                     this.result.module,
                     this.go.importObject
                 );
+            } else {
+                throw new Error("Can't find WASM instance.");
             }
         } catch {
             throw new Error('The password provided is not valid.');
@@ -307,10 +309,10 @@ export default class LNC {
         server: string = this._serverHost,
         phrase: string = this._pairingPhrase
     ) {
-        await this.loadKeysAndRunClient();
-
         // do not attempt to connect multiple times
         if (this.isConnected) return;
+
+        await this.loadKeysAndRunClient();
 
         // ensure the WASM binary is loaded
         if (!this.isReady) await this.waitTilReady();
