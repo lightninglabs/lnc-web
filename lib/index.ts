@@ -64,7 +64,7 @@ interface LncConstructor {
     /** Specify a custom Lightning Node Connect proxy server. If not specified we'll default to `mailbox.terminal.lightning.today:443`. */
     serverHost?: string;
     /** Your LNC pairing phrase */
-    pairingPhrase: string;
+    pairingPhrase?: string;
     /** local private key; part of the second handshake authentication process. Only need to specify this if you handle storage of auth data yourself and set `onLocalPrivCreate`. */
     localKey?: string;
     /** remote public key; part of the second handshake authentication process. Only need to specify this if you handle storage of auth data yourself and set `onRemoteKeyReceive`. */
@@ -83,8 +83,10 @@ interface LncConstructor {
 
 export default class LNC {
     go: any;
-    mod?: WebAssembly.Module;
-    inst?: WebAssembly.Instance;
+    result?: {
+        module: WebAssembly.Module;
+        instance: WebAssembly.Instance;
+    };
 
     _serverHost: string;
     _pairingPhrase: string;
@@ -106,7 +108,7 @@ export default class LNC {
     constructor(config: LncConstructor) {
         this._serverHost =
             config.serverHost || 'mailbox.terminal.lightning.today:443';
-        this._pairingPhrase = config.pairingPhrase;
+        this._pairingPhrase = config.pairingPhrase || '';
         this._localKey = config.localKey;
         this._remoteKey = config.remoteKey;
         this._wasmClientCode =
@@ -185,6 +187,22 @@ export default class LNC {
         );
     }
 
+    setPairingPhrase(pairingPhrase: string) {
+        this._pairingPhrase = pairingPhrase;
+    }
+
+    setLocalKey(localKey: string) {
+        this._localKey = localKey;
+    }
+
+    setRemoteKey(remoteKey: string) {
+        this._remoteKey = remoteKey;
+    }
+
+    setServerHost(serverHost: string) {
+        this._serverHost = serverHost;
+    }
+
     clearStorage = () =>
         Object.entries(localStorage)
             .map((x) => x[0])
@@ -192,91 +210,90 @@ export default class LNC {
             .map((x) => localStorage.removeItem(x));
 
     /**
-     * Downloads the WASM client binary and run
+     * Downloads the WASM client binary
      */
-    async load() {
-        try {
-            const result = await WebAssembly.instantiateStreaming(
-                fetch(this._wasmClientCode),
+    async preload() {
+        this.result = await WebAssembly.instantiateStreaming(
+            fetch(this._wasmClientCode),
+            this.go.importObject
+        );
+        log.info('downloaded WASM file');
+    }
+
+    /**
+     * Loads keys from storage and runs the Wasm client binary
+     */
+    async loadKeysAndRunClient() {
+        // make sure the WASM client binary is downloaded first
+        if (!this.isReady) await this.preload();
+
+        let localKey = '';
+        let remoteKey = '';
+
+        if (this._localKey) {
+            localKey = this._localKey;
+        } else if (
+            localStorage.getItem(`lnc-web:${this._namespace}:localKey`)
+        ) {
+            const data = localStorage.getItem(
+                `lnc-web:${this._namespace}:localKey`
+            );
+            if (!verifyTestCipher(this.testCipher, this._password, this.salt)) {
+                throw new Error('Invalid Password');
+            }
+            localKey = this._password
+                ? decrypt(data, this._password, this.salt)
+                : data;
+        }
+
+        if (this._remoteKey) {
+            remoteKey = this._remoteKey;
+        } else if (
+            localStorage.getItem(`lnc-web:${this._namespace}:remoteKey`)
+        ) {
+            const data = localStorage.getItem(
+                `lnc-web:${this._namespace}:remoteKey`
+            );
+            if (!verifyTestCipher(this.testCipher, this._password, this.salt)) {
+                throw new Error('Invalid password');
+            }
+            remoteKey = this._password
+                ? decrypt(data, this._password, this.salt)
+                : data;
+        }
+
+        log.debug('localKey', localKey);
+        log.debug('remoteKey', remoteKey);
+
+        global.onLocalPrivCreate =
+            this._onLocalPrivCreate || this.onLocalPrivCreate;
+
+        global.onRemoteKeyReceive =
+            this._onRemoteKeyReceive || this.onRemoteKeyReceive;
+
+        global.onAuthData = (keyHex: string) => {
+            log.debug('auth data received: ' + keyHex);
+        };
+
+        this.go.argv = [
+            'wasm-client',
+            '--debuglevel=trace',
+            '--namespace=' + this._namespace,
+            '--localprivate=' + localKey,
+            '--remotepublic=' + remoteKey,
+            '--onlocalprivcreate=onLocalPrivCreate',
+            '--onremotekeyreceive=onRemoteKeyReceive',
+            '--onauthdata=onAuthData'
+        ];
+
+        if (this.result) {
+            this.go.run(this.result.instance);
+            await WebAssembly.instantiate(
+                this.result.module,
                 this.go.importObject
             );
-            log.info('downloaded WASM file');
-
-            let localKey = '';
-            let remoteKey = '';
-
-            if (this._localKey) {
-                localKey = this._localKey;
-            } else if (
-                localStorage.getItem(`lnc-web:${this._namespace}:localKey`)
-            ) {
-                const data = localStorage.getItem(
-                    `lnc-web:${this._namespace}:localKey`
-                );
-                if (
-                    !verifyTestCipher(
-                        this.testCipher,
-                        this._password,
-                        this.salt
-                    )
-                ) {
-                    throw new Error('Invalid Password');
-                }
-                localKey = this._password
-                    ? decrypt(data, this._password, this.salt)
-                    : data;
-            }
-
-            if (this._remoteKey) {
-                remoteKey = this._remoteKey;
-            } else if (
-                localStorage.getItem(`lnc-web:${this._namespace}:remoteKey`)
-            ) {
-                const data = localStorage.getItem(
-                    `lnc-web:${this._namespace}:remoteKey`
-                );
-                if (
-                    !verifyTestCipher(
-                        this.testCipher,
-                        this._password,
-                        this.salt
-                    )
-                ) {
-                    throw new Error('Invalid password');
-                }
-                remoteKey = this._password
-                    ? decrypt(data, this._password, this.salt)
-                    : data;
-            }
-
-            log.debug('localKey', localKey);
-            log.debug('remoteKey', remoteKey);
-
-            global.onLocalPrivCreate =
-                this._onLocalPrivCreate || this.onLocalPrivCreate;
-
-            global.onRemoteKeyReceive =
-                this._onRemoteKeyReceive || this.onRemoteKeyReceive;
-
-            global.onAuthData = (keyHex: string) => {
-                log.debug('auth data received: ' + keyHex);
-            };
-
-            this.go.argv = [
-                'wasm-client',
-                '--debuglevel=trace',
-                '--namespace=' + this._namespace,
-                '--localprivate=' + localKey,
-                '--remotepublic=' + remoteKey,
-                '--onlocalprivcreate=onLocalPrivCreate',
-                '--onremotekeyreceive=onRemoteKeyReceive',
-                '--onauthdata=onAuthData'
-            ];
-
-            this.go.run(result.instance);
-            await WebAssembly.instantiate(result.module, this.go.importObject);
-        } catch {
-            throw new Error('The password provided is not valid.');
+        } else {
+            throw new Error("Can't find WASM instance.");
         }
     }
 
@@ -292,6 +309,8 @@ export default class LNC {
     ) {
         // do not attempt to connect multiple times
         if (this.isConnected) return;
+
+        await this.loadKeysAndRunClient();
 
         // ensure the WASM binary is loaded
         if (!this.isReady) await this.waitTilReady();
