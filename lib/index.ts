@@ -9,7 +9,7 @@ import {
 
 import isPlainObject from 'lodash/isPlainObject';
 import { wasmLog as log } from './util/log';
-import { isObject, snakeKeysToCamel } from './util/objects';
+import { isObject, camelKeysToSnake, snakeKeysToCamel } from './util/objects';
 import { LndApi, LoopApi, PoolApi, FaradayApi } from './api';
 import {
     createTestCipher,
@@ -206,7 +206,7 @@ export default class LNC {
     clearStorage = () =>
         Object.entries(localStorage)
             .map((x) => x[0])
-            .filter((x) => x.substring(0, 8) == 'lnc-web:')
+            .filter((x) => x.substring(0, 8) === 'lnc-web:')
             .map((x) => localStorage.removeItem(x));
 
     /**
@@ -528,7 +528,7 @@ export default class LNC {
             } else {
                 updated[key] = value;
             }
-            return updated;
+            return camelKeysToSnake(updated);
         }, o);
     }
 }

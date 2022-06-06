@@ -8,6 +8,12 @@ const toCamel = (text: string) => {
 };
 
 /**
+ * Converts a string from camel-case to snake-case
+ */
+const toSnake = (str: string) =>
+    str.replace(/[A-Z]/g, (letter) => `_${letter.toLowerCase()}`);
+
+/**
  * Returns true if the value provided is an array
  */
 const isArray = (o: any) => {
@@ -39,6 +45,29 @@ export const snakeKeysToCamel = <T>(o: any): T => {
     } else if (isArray(o)) {
         return o.map((i: any) => {
             return snakeKeysToCamel(i);
+        });
+    }
+
+    return o;
+};
+
+/**
+ * Recursively converts the keys of a Javascript object from camel-case to snake-case
+ * Ex: { someKey: 'foo' } becomes { some-key: 'foo' }
+ * @param o any Javascript object
+ */
+export const camelKeysToSnake = <T>(o: any): T => {
+    if (isObject(o)) {
+        const n: Record<string, unknown> = {};
+
+        Object.keys(o).forEach((k) => {
+            n[toSnake(k)] = camelKeysToSnake(o[k]);
+        });
+
+        return n as T;
+    } else if (isArray(o)) {
+        return o.map((i: any) => {
+            return camelKeysToSnake(i);
         });
     }
 
