@@ -60,7 +60,7 @@ interface WasmGlobal {
     ) => void;
 }
 
-interface LncConstructor {
+export interface LncConstructor {
     /** Specify a custom Lightning Node Connect proxy server. If not specified we'll default to `mailbox.terminal.lightning.today:443`. */
     serverHost?: string;
     /** Your LNC pairing phrase */
