@@ -43,7 +43,9 @@ interface WasmGlobal {
     wasmClientConnectServer: (
         serverHost: string,
         isDevServer: boolean,
-        pairingPhrase: string
+        pairingPhrase: string,
+        localKey?: string,
+        remoteKey?: string
     ) => void;
     /**
      * disconnects from the proxy server
@@ -89,7 +91,7 @@ export default class LNC {
     };
 
     _serverHost: string;
-    _pairingPhrase: string;
+    _pairingPhrase?: string;
     _localKey?: string;
     _remoteKey?: string;
     _wasmClientCode: any;
@@ -108,7 +110,7 @@ export default class LNC {
     constructor(config: LncConstructor) {
         this._serverHost =
             config.serverHost || 'mailbox.terminal.lightning.today:443';
-        this._pairingPhrase = config.pairingPhrase || '';
+        this._pairingPhrase = config.pairingPhrase;
         this._localKey = config.localKey;
         this._remoteKey = config.remoteKey;
         this._wasmClientCode =
@@ -121,6 +123,7 @@ export default class LNC {
         this.salt = '';
         this.testCipher = '';
 
+        // load salt and testCipher from localStorage or generate new ones
         if (localStorage.getItem(`lnc-web:${this._namespace}:salt`)) {
             this.salt =
                 localStorage.getItem(`lnc-web:${this._namespace}:salt`) || '';
@@ -138,6 +141,16 @@ export default class LNC {
             localStorage.setItem(
                 `lnc-web:${this._namespace}:testCipher`,
                 this.testCipher
+            );
+        }
+
+        // save pairingPhrase to localStorage for backwards compatibility
+        if (this._pairingPhrase) {
+            localStorage.setItem(
+                `lnc-web:${this._namespace}:pairingPhrase`,
+                this._password
+                    ? encrypt(this._pairingPhrase, this._password, this.salt)
+                    : this._pairingPhrase
             );
         }
 
@@ -223,12 +236,64 @@ export default class LNC {
     /**
      * Loads keys from storage and runs the Wasm client binary
      */
-    async loadKeysAndRunClient() {
+    async run() {
         // make sure the WASM client binary is downloaded first
         if (!this.isReady) await this.preload();
 
+        global.onLocalPrivCreate =
+            this._onLocalPrivCreate || this.onLocalPrivCreate;
+
+        global.onRemoteKeyReceive =
+            this._onRemoteKeyReceive || this.onRemoteKeyReceive;
+
+        global.onAuthData = (keyHex: string) => {
+            log.debug('auth data received: ' + keyHex);
+        };
+
+        this.go.argv = [
+            'wasm-client',
+            '--debuglevel=trace',
+            '--namespace=' + this._namespace,
+            '--onlocalprivcreate=onLocalPrivCreate',
+            '--onremotekeyreceive=onRemoteKeyReceive',
+            '--onauthdata=onAuthData'
+        ];
+
+        if (this.result) {
+            this.go.run(this.result.instance);
+            await WebAssembly.instantiate(
+                this.result.module,
+                this.go.importObject
+            );
+        } else {
+            throw new Error("Can't find WASM instance.");
+        }
+    }
+
+    /**
+     * Loads the local and remote keys
+     * @returns an object containing the localKey and remoteKey
+     */
+    loadKeys() {
+        let pairingPhrase = '';
         let localKey = '';
         let remoteKey = '';
+
+        if (this._pairingPhrase) {
+            pairingPhrase = this._pairingPhrase;
+        } else if (
+            localStorage.getItem(`lnc-web:${this._namespace}:pairingPhrase`)
+        ) {
+            const data = localStorage.getItem(
+                `lnc-web:${this._namespace}:pairingPhrase`
+            );
+            if (!verifyTestCipher(this.testCipher, this._password, this.salt)) {
+                throw new Error('Invalid Password');
+            }
+            pairingPhrase = this._password
+                ? decrypt(data, this._password, this.salt)
+                : data;
+        }
 
         if (this._localKey) {
             localKey = this._localKey;
@@ -262,39 +327,11 @@ export default class LNC {
                 : data;
         }
 
+        log.debug('pairingPhrase', pairingPhrase);
         log.debug('localKey', localKey);
         log.debug('remoteKey', remoteKey);
 
-        global.onLocalPrivCreate =
-            this._onLocalPrivCreate || this.onLocalPrivCreate;
-
-        global.onRemoteKeyReceive =
-            this._onRemoteKeyReceive || this.onRemoteKeyReceive;
-
-        global.onAuthData = (keyHex: string) => {
-            log.debug('auth data received: ' + keyHex);
-        };
-
-        this.go.argv = [
-            'wasm-client',
-            '--debuglevel=trace',
-            '--namespace=' + this._namespace,
-            '--localprivate=' + localKey,
-            '--remotepublic=' + remoteKey,
-            '--onlocalprivcreate=onLocalPrivCreate',
-            '--onremotekeyreceive=onRemoteKeyReceive',
-            '--onauthdata=onAuthData'
-        ];
-
-        if (this.result) {
-            this.go.run(this.result.instance);
-            await WebAssembly.instantiate(
-                this.result.module,
-                this.go.importObject
-            );
-        } else {
-            throw new Error("Can't find WASM instance.");
-        }
+        return { pairingPhrase, localKey, remoteKey };
     }
 
     /**
@@ -303,20 +340,25 @@ export default class LNC {
      * @param phrase the pairing phrase
      * @returns a promise that resolves when the connection is established
      */
-    async connect(
-        server: string = this._serverHost,
-        phrase: string = this._pairingPhrase
-    ) {
+    async connect(server: string = this._serverHost) {
         // do not attempt to connect multiple times
         if (this.isConnected) return;
 
-        await this.loadKeysAndRunClient();
+        await this.run();
 
         // ensure the WASM binary is loaded
         if (!this.isReady) await this.waitTilReady();
 
+        const { pairingPhrase, localKey, remoteKey } = this.loadKeys();
+
         // connect to the server
-        this.wasmNamespace.wasmClientConnectServer(server, false, phrase);
+        this.wasmNamespace.wasmClientConnectServer(
+            server,
+            false,
+            pairingPhrase,
+            localKey,
+            remoteKey
+        );
 
         // add an event listener to disconnect if the page is unloaded
         window.addEventListener(
