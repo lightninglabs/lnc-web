@@ -113,7 +113,7 @@ export default class LNC {
         this._remoteKey = config.remoteKey;
         this._wasmClientCode =
             config.wasmClientCode ||
-            'https://lightning.engineering/lnc-v0.1.9-alpha.wasm';
+            'https://lightning.engineering/lnc-v0.1.10-alpha.wasm';
         this._namespace = config.namespace || 'default';
         this._password = config.password || '';
         this._onLocalPrivCreate = config.onLocalPrivCreate;
