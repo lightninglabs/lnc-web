@@ -43,7 +43,9 @@ interface WasmGlobal {
     wasmClientConnectServer: (
         serverHost: string,
         isDevServer: boolean,
-        pairingPhrase: string
+        pairingPhrase: string,
+        localKey?: string,
+        remoteKey?: string
     ) => void;
     /**
      * disconnects from the proxy server
@@ -223,10 +225,45 @@ export default class LNC {
     /**
      * Loads keys from storage and runs the Wasm client binary
      */
-    async loadKeysAndRunClient() {
+    async run() {
         // make sure the WASM client binary is downloaded first
         if (!this.isReady) await this.preload();
 
+        global.onLocalPrivCreate =
+            this._onLocalPrivCreate || this.onLocalPrivCreate;
+
+        global.onRemoteKeyReceive =
+            this._onRemoteKeyReceive || this.onRemoteKeyReceive;
+
+        global.onAuthData = (keyHex: string) => {
+            log.debug('auth data received: ' + keyHex);
+        };
+
+        this.go.argv = [
+            'wasm-client',
+            '--debuglevel=trace',
+            '--namespace=' + this._namespace,
+            '--onlocalprivcreate=onLocalPrivCreate',
+            '--onremotekeyreceive=onRemoteKeyReceive',
+            '--onauthdata=onAuthData'
+        ];
+
+        if (this.result) {
+            this.go.run(this.result.instance);
+            await WebAssembly.instantiate(
+                this.result.module,
+                this.go.importObject
+            );
+        } else {
+            throw new Error("Can't find WASM instance.");
+        }
+    }
+
+    /**
+     * Loads the local and remote keys
+     * @returns an object containing the localKey and remoteKey
+     */
+    loadKeys() {
         let localKey = '';
         let remoteKey = '';
 
@@ -265,36 +302,7 @@ export default class LNC {
         log.debug('localKey', localKey);
         log.debug('remoteKey', remoteKey);
 
-        global.onLocalPrivCreate =
-            this._onLocalPrivCreate || this.onLocalPrivCreate;
-
-        global.onRemoteKeyReceive =
-            this._onRemoteKeyReceive || this.onRemoteKeyReceive;
-
-        global.onAuthData = (keyHex: string) => {
-            log.debug('auth data received: ' + keyHex);
-        };
-
-        this.go.argv = [
-            'wasm-client',
-            '--debuglevel=trace',
-            '--namespace=' + this._namespace,
-            '--localprivate=' + localKey,
-            '--remotepublic=' + remoteKey,
-            '--onlocalprivcreate=onLocalPrivCreate',
-            '--onremotekeyreceive=onRemoteKeyReceive',
-            '--onauthdata=onAuthData'
-        ];
-
-        if (this.result) {
-            this.go.run(this.result.instance);
-            await WebAssembly.instantiate(
-                this.result.module,
-                this.go.importObject
-            );
-        } else {
-            throw new Error("Can't find WASM instance.");
-        }
+        return { localKey, remoteKey };
     }
 
     /**
@@ -310,13 +318,21 @@ export default class LNC {
         // do not attempt to connect multiple times
         if (this.isConnected) return;
 
-        await this.loadKeysAndRunClient();
+        await this.run();
 
         // ensure the WASM binary is loaded
         if (!this.isReady) await this.waitTilReady();
 
+        const { localKey, remoteKey } = this.loadKeys();
+
         // connect to the server
-        this.wasmNamespace.wasmClientConnectServer(server, false, phrase);
+        this.wasmNamespace.wasmClientConnectServer(
+            server,
+            false,
+            phrase,
+            localKey,
+            remoteKey
+        );
 
         // add an event listener to disconnect if the page is unloaded
         window.addEventListener(
