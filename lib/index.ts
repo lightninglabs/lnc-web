@@ -208,7 +208,7 @@ export default class LNC {
     clearStorage = () =>
         Object.entries(localStorage)
             .map((x) => x[0])
-            .filter((x) => x.substring(0, 8) == 'lnc-web:')
+            .filter((x) => x.substring(0, 8) === 'lnc-web:')
             .map((x) => localStorage.removeItem(x));
 
     /**
