@@ -1,46 +1,53 @@
-# Getting Started with Create React App
+# LNC Demo - Basic Connect
 
-This project was bootstrapped with [Create React App](https://github.com/facebook/create-react-app).
+This demo showcases the most basic flow to connect from a browser to a Lightning Terminal
+(litd) node using the `lnc-web` NPM package.
 
-## Available Scripts
+## Running the demo
 
-In the project directory, you can run:
+To run the demo, you'll need to have NodeJS installed and a Lightning Terminal node
+accessible that you can obtain a pairing phrase from.
 
-### `npm start`
+1. Clone this repo
+   ```sh
+   $ git clone https://github.com/lightninglabs/lnc-web.git
+   $ cd lnc-web/demos/connect-demo
+   ```
+2. Install the dependencies
+   ```sh
+   $ npm install
+   ```
+3. Start the web app
+   ```sh
+   $ npm start
+   ```
+   Your browser should open to http://localhost:3000 and you should see the home page
+   below
 
-Runs the app in the development mode.\
-Open [http://localhost:3000](http://localhost:3000) to view it in the browser.
+## Screenshots
 
-The page will reload if you make edits.\
-You will also see any lint errors in the console.
+### Welcome page with Connect button
 
-### `npm test`
+![1_welcome](./public/img/1_welcome.png)
 
-Launches the test runner in the interactive watch mode.\
-See the section about [running tests](https://facebook.github.io/create-react-app/docs/running-tests) for more information.
+### Connect page
 
-### `npm run build`
+Enter your pairing phrase and a new password to use so you don't need to login again
 
-Builds the app for production to the `build` folder.\
-It correctly bundles React in production mode and optimizes the build for the best performance.
+![2_connect](./public/img/2_connect.png)
 
-The build is minified and the filenames include the hashes.\
-Your app is ready to be deployed!
+### Welcome page when connected
 
-See the section about [deployment](https://facebook.github.io/create-react-app/docs/deployment) for more information.
+After connecting to your node, you'll be redirected back to the welcome page, but now it
+will display some information obtained from calling `GetInfo` on `lnd`.
 
-### `npm run eject`
+![3_connected](./public/img/3_connected.png)
 
-**Note: this is a one-way operation. Once you `eject`, you can’t go back!**
+### Login page
 
-If you aren’t satisfied with the build tool and configuration choices, you can `eject` at any time. This command will remove the single build dependency from your project.
+If you reload the page or click the Logout link, you will be taken back to the Welcome
+page. It will detect that you have already connected from this browser in the past and
+display a "Login" button instead of "Connect". When you click "Login", you'll be take to
+the Login page where you only need to provide your password to reconnect to your node.
 
-Instead, it will copy all the configuration files and the transitive dependencies (webpack, Babel, ESLint, etc) right into your project so you have full control over them. All of the commands except `eject` will still work, but they will point to the copied scripts so you can tweak them. At this point you’re on your own.
-
-You don’t have to ever use `eject`. The curated feature set is suitable for small and middle deployments, and you shouldn’t feel obligated to use this feature. However we understand that this tool wouldn’t be useful if you couldn’t customize it when you are ready for it.
-
-## Learn More
-
-You can learn more in the [Create React App documentation](https://facebook.github.io/create-react-app/docs/getting-started).
-
-To learn React, check out the [React documentation](https://reactjs.org/).
+![4_login](./public/img/4_login.png)
