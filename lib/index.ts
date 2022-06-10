@@ -123,35 +123,36 @@ export default class LNC {
         this.salt = '';
         this.testCipher = '';
 
-        // load salt and testCipher from localStorage or generate new ones
-        if (localStorage.getItem(`lnc-web:${this._namespace}:salt`)) {
-            this.salt =
-                localStorage.getItem(`lnc-web:${this._namespace}:salt`) || '';
-        } else if (!this._onLocalPrivCreate && !this._onRemoteKeyReceive) {
-            this.salt = generateSalt();
-            localStorage.setItem(`lnc-web:${this._namespace}:salt`, this.salt);
-        }
-
-        if (localStorage.getItem(`lnc-web:${this._namespace}:testCipher`)) {
-            this.testCipher =
-                localStorage.getItem(`lnc-web:${this._namespace}:testCipher`) ||
-                '';
-        } else if (!this._onLocalPrivCreate && !this._onRemoteKeyReceive) {
-            this.testCipher = createTestCipher(this._password, this.salt);
-            localStorage.setItem(
-                `lnc-web:${this._namespace}:testCipher`,
-                this.testCipher
-            );
-        }
-
-        // save pairingPhrase to localStorage for backwards compatibility
-        if (this._pairingPhrase) {
-            localStorage.setItem(
-                `lnc-web:${this._namespace}:pairingPhrase`,
-                this._password
-                    ? encrypt(this._pairingPhrase, this._password, this.salt)
-                    : this._pairingPhrase
-            );
+        // don't load the salt & cipher if a password is not provided. the
+        // storing will be done when a password is set
+        if (this._password) {
+            if (localStorage.getItem(`lnc-web:${this._namespace}:salt`)) {
+                this.salt =
+                    localStorage.getItem(`lnc-web:${this._namespace}:salt`) || '';
+            } else if (!this._onLocalPrivCreate && !this._onRemoteKeyReceive) {
+                this.salt = generateSalt();
+                localStorage.setItem(`lnc-web:${this._namespace}:salt`, this.salt);
+            }
+    
+            if (localStorage.getItem(`lnc-web:${this._namespace}:testCipher`)) {
+                this.testCipher =
+                    localStorage.getItem(`lnc-web:${this._namespace}:testCipher`) ||
+                    '';
+            } else if (!this._onLocalPrivCreate && !this._onRemoteKeyReceive) {
+                this.testCipher = createTestCipher(this._password, this.salt);
+                localStorage.setItem(
+                    `lnc-web:${this._namespace}:testCipher`,
+                    this.testCipher
+                );
+            }
+    
+            // save pairingPhrase to localStorage for backwards compatibility
+            if (this._pairingPhrase) {
+                localStorage.setItem(
+                    `lnc-web:${this._namespace}:pairingPhrase`,
+                    encrypt(this._pairingPhrase, this._password, this.salt)
+                );
+            }
         }
 
         // TODO: pull Go off of the global state
@@ -200,8 +201,68 @@ export default class LNC {
         );
     }
 
+    /**
+     * Returns `true` if this client had previously connected with a pairing phrase. If `true`
+     * then you do not need to supply a pairing phrase to reconnect, only a password.
+     */
+    get isPaired() {
+        const hasRemoteKey = !!localStorage.getItem(
+            `lnc-web:${this._namespace}:remoteKey`
+        );
+        const hasPhrase = !!localStorage.getItem(
+            `lnc-web:${this._namespace}:pairingPhrase`
+        );
+        return hasRemoteKey || hasPhrase;
+    }
+
     setPairingPhrase(pairingPhrase: string) {
         this._pairingPhrase = pairingPhrase;
+
+        // store the new pairing phrase if it is not already stored
+        if (!this.isPaired) {
+            localStorage.setItem(
+                `lnc-web:${this._namespace}:pairingPhrase`,
+                this._password
+                    ? encrypt(this._pairingPhrase, this._password, this.salt)
+                    : this._pairingPhrase
+            );
+        }
+    }
+
+    /**
+     * Sets the password that will be used to encrypt/decrypt sensitive data
+     * @param password the new or previously used password
+     */
+    setPassword(password: string) {
+        this._password = password;
+
+        // re generate the salt & cipher if the client hasn't been paired
+        if (!this.isPaired) {
+            this.clearStorage();
+            this.salt = generateSalt();
+            localStorage.setItem(`lnc-web:${this._namespace}:salt`, this.salt);
+
+            this.testCipher = createTestCipher(this._password, this.salt);
+            localStorage.setItem(
+                `lnc-web:${this._namespace}:testCipher`,
+                this.testCipher
+            );
+            if (this._pairingPhrase) {
+                localStorage.setItem(
+                    `lnc-web:${this._namespace}:pairingPhrase`,
+                    this._password
+                        ? encrypt(this._pairingPhrase, this._password, this.salt)
+                        : this._pairingPhrase
+                );                
+            }
+        } else {
+            // load the pre-existing salt and cipher
+            this.salt =
+                localStorage.getItem(`lnc-web:${this._namespace}:salt`) || '';
+            this.testCipher =
+                localStorage.getItem(`lnc-web:${this._namespace}:testCipher`) ||
+                '';
+        }
     }
 
     setLocalKey(localKey: string) {
