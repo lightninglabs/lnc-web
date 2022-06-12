@@ -17,7 +17,7 @@ import {
     encrypt,
     generateSalt,
     verifyTestCipher
-} from './encryption';
+} from './util/encryption';
 
 // polyfill
 if (!WebAssembly.instantiateStreaming) {
@@ -128,16 +128,21 @@ export default class LNC {
         if (this._password) {
             if (localStorage.getItem(`lnc-web:${this._namespace}:salt`)) {
                 this.salt =
-                    localStorage.getItem(`lnc-web:${this._namespace}:salt`) || '';
+                    localStorage.getItem(`lnc-web:${this._namespace}:salt`) ||
+                    '';
             } else if (!this._onLocalPrivCreate && !this._onRemoteKeyReceive) {
                 this.salt = generateSalt();
-                localStorage.setItem(`lnc-web:${this._namespace}:salt`, this.salt);
+                localStorage.setItem(
+                    `lnc-web:${this._namespace}:salt`,
+                    this.salt
+                );
             }
-    
+
             if (localStorage.getItem(`lnc-web:${this._namespace}:testCipher`)) {
                 this.testCipher =
-                    localStorage.getItem(`lnc-web:${this._namespace}:testCipher`) ||
-                    '';
+                    localStorage.getItem(
+                        `lnc-web:${this._namespace}:testCipher`
+                    ) || '';
             } else if (!this._onLocalPrivCreate && !this._onRemoteKeyReceive) {
                 this.testCipher = createTestCipher(this._password, this.salt);
                 localStorage.setItem(
@@ -145,7 +150,7 @@ export default class LNC {
                     this.testCipher
                 );
             }
-    
+
             // save pairingPhrase to localStorage for backwards compatibility
             if (this._pairingPhrase) {
                 localStorage.setItem(
@@ -251,9 +256,13 @@ export default class LNC {
                 localStorage.setItem(
                     `lnc-web:${this._namespace}:pairingPhrase`,
                     this._password
-                        ? encrypt(this._pairingPhrase, this._password, this.salt)
+                        ? encrypt(
+                              this._pairingPhrase,
+                              this._password,
+                              this.salt
+                          )
                         : this._pairingPhrase
-                );                
+                );
             }
         } else {
             // load the pre-existing salt and cipher
