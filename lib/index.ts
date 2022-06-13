@@ -405,10 +405,12 @@ export default class LNC {
         // do not attempt to connect multiple times
         if (this.isConnected) return;
 
-        await this.run();
-
+        
         // ensure the WASM binary is loaded
-        if (!this.isReady) await this.waitTilReady();
+        if (!this.isReady) {
+            await this.run();
+            await this.waitTilReady();
+        }
 
         const { pairingPhrase, localKey, remoteKey } = this.loadKeys();
 
