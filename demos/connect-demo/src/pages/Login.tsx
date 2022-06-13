@@ -44,7 +44,7 @@ const Login: React.FC = () => {
   );
 
   const handleClear = useCallback(() => {
-    lnc.clearStorage();
+    lnc.credentials.clear();
     navigate('/connect');
   }, [navigate, lnc]);
 
