@@ -16,8 +16,8 @@ export const encrypt = (data: any, password: string, salt: string) => {
     return AES.encrypt(JSON.stringify(data), password + salt).toString();
 };
 
-export const decrypt = (cipher: any, password: string, salt: string) => {
-    const decrypted = AES.decrypt(cipher, password + salt);
+export const decrypt = (data: any, password: string, salt: string): string => {
+    const decrypted = AES.decrypt(data, password + salt);
     return JSON.parse(decrypted.toString(enc.Utf8));
 };
 
@@ -30,6 +30,10 @@ export const verifyTestCipher = (
     password: string,
     salt: string
 ) => {
-    const decrypted = decrypt(testCipher, password, salt);
-    return decrypted === TEST_DATA;
+    try {
+        const decrypted = decrypt(testCipher, password, salt);
+        return decrypted === TEST_DATA;
+    } catch (error) {
+        return false;
+    }
 };

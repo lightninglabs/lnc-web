@@ -11,6 +11,6 @@ if (!WebAssembly.instantiateStreaming) {
     };
 }
 
-export type { LncConfig } from './types/lnc';
+export type { LncConfig, CredentialStore } from './types/lnc';
 
 export default LNC;

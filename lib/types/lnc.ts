@@ -34,22 +34,68 @@ export interface WasmGlobal {
 }
 
 export interface LncConfig {
-    /** Specify a custom Lightning Node Connect proxy server. If not specified we'll default to `mailbox.terminal.lightning.today:443`. */
+    /**
+     * Specify a custom Lightning Node Connect proxy server. If not specified we'll
+     * default to `mailbox.terminal.lightning.today:443`.
+     */
     serverHost?: string;
-    /** Your LNC pairing phrase */
-    pairingPhrase?: string;
-    /** local private key; part of the second handshake authentication process. Only need to specify this if you handle storage of auth data yourself and set `onLocalPrivCreate`. */
-    localKey?: string;
-    /** remote public key; part of the second handshake authentication process. Only need to specify this if you handle storage of auth data yourself and set `onRemoteKeyReceive`. */
-    remoteKey?: string;
-    /** Custom location for the WASM client code. Can be remote or local. If not specified we’ll default to our instance on our CDN. */
+    /**
+     * Custom location for the WASM client code. Can be remote or local. If not
+     * specified we’ll default to our instance on our CDN.
+     */
     wasmClientCode?: any; // URL or WASM client object
-    /** JavaScript namespace used for the main WASM calls. You can maintain multiple connections if you use different namespaces. If not specified we'll default to `default`. */
+    /**
+     * JavaScript namespace used for the main WASM calls. You can maintain multiple
+     * connections if you use different namespaces. If not specified we'll default
+     * to `default`.
+     */
     namespace?: string;
-    /** By default, this module will handle storage of your local and remote keys for you in local storage. We highly recommend encrypting that data with a password you set here. */
+    /**
+     * The LNC pairing phrase used to initialize the connection to the LNC proxy.
+     * This value will be passed along to the credential store.
+     */
+    pairingPhrase?: string;
+    /**
+     * By default, this module will handle storage of your local and remote keys
+     * for you in local storage. This password ise used to encrypt the keys for
+     * future use. If the password is not provided here, it must be
+     * set directly via `lnc.credentials.password` in order to persist data
+     * across page loads
+     */
     password?: string;
-    /** override method for the storage of the local private key. This gets called when first load the WASM without an existing local private key. */
-    onLocalPrivCreate?: (keyHex: string) => void;
-    /** override method for the storage of the remote public key. This gets called when first connecting without an existing local private key. */
-    onRemoteKeyReceive?: (keyHex: string) => void;
+    /**
+     * Custom store used to save & load the pairing phrase and keys needed to
+     * connect to the proxy server. The default store persists data in the
+     * browser's `localStorage`
+     */
+    credentialStore?: CredentialStore;
+}
+
+/**
+ * The interface that must be implemented to provide `LNC` instances with storage
+ * for its persistent data. These fields will be read and written to during the
+ * authentication and connection process.
+ */
+export interface CredentialStore {
+    /**
+     * Stores the optional password to use for encryption of the data. LNC does not
+     * read or write the password. This is just exposed publicly to simplify access
+     * to the field via `lnc.credentials.password`
+     */
+    password?: string;
+    /** Stores the LNC pairing phrase used to initialize the connection to the LNC proxy */
+    pairingPhrase: string;
+    /** Stores the host:port of the Lightning Node Connect proxy server to connect to */
+    serverHost: string;
+    /** Stores the local private key which LNC uses to reestablish a connection */
+    localKey: string;
+    /** Stores the remote static key which LNC uses to reestablish a connection */
+    remoteKey: string;
+    /**
+     * Read-only field which should return `true` if the client app has prior
+     * credentials persisted in the store
+     */
+    isPaired: boolean;
+    /** Clears any persisted data in the store */
+    clear(): void;
 }

@@ -5,14 +5,8 @@ import {
 } from '@improbable-eng/grpc-web/dist/typings/service';
 import isPlainObject from 'lodash/isPlainObject';
 import { FaradayApi, LndApi, LoopApi, PoolApi } from './api';
-import { LncConfig, WasmGlobal } from './types/lnc';
-import {
-  createTestCipher,
-  decrypt,
-  encrypt,
-  generateSalt,
-  verifyTestCipher,
-} from './util/encryption';
+import { CredentialStore, LncConfig, WasmGlobal } from './types/lnc';
+import LncCredentialStore from './util/credentialStore';
 import { wasmLog as log } from './util/log';
 import { camelKeysToSnake, isObject, snakeKeysToCamel } from './util/objects';
 
@@ -23,17 +17,9 @@ export default class LNC {
         instance: WebAssembly.Instance;
     };
 
-    _serverHost: string;
-    _pairingPhrase?: string;
-    _localKey?: string;
-    _remoteKey?: string;
     _wasmClientCode: any;
     _namespace: string;
-    _password: string;
-    _onLocalPrivCreate?: (keyHex: string) => void;
-    _onRemoteKeyReceive?: (keyHex: string) => void;
-    salt: string;
-    testCipher: string;
+    credentials: CredentialStore;
 
     lnd: LndApi;
     loop: LoopApi;
@@ -41,56 +27,22 @@ export default class LNC {
     faraday: FaradayApi;
 
     constructor(config: LncConfig) {
-        this._serverHost =
-            config.serverHost || 'mailbox.terminal.lightning.today:443';
-        this._pairingPhrase = config.pairingPhrase;
-        this._localKey = config.localKey;
-        this._remoteKey = config.remoteKey;
         this._wasmClientCode =
             config.wasmClientCode ||
             'https://lightning.engineering/lnc-v0.1.10-alpha.wasm';
         this._namespace = config.namespace || 'default';
-        this._password = config.password || '';
-        this._onLocalPrivCreate = config.onLocalPrivCreate;
-        this._onRemoteKeyReceive = config.onRemoteKeyReceive;
-        this.salt = '';
-        this.testCipher = '';
 
-        // don't load the salt & cipher if a password is not provided. the
-        // storing will be done when a password is set
-        if (this._password) {
-            if (localStorage.getItem(`lnc-web:${this._namespace}:salt`)) {
-                this.salt =
-                    localStorage.getItem(`lnc-web:${this._namespace}:salt`) ||
-                    '';
-            } else if (!this._onLocalPrivCreate && !this._onRemoteKeyReceive) {
-                this.salt = generateSalt();
-                localStorage.setItem(
-                    `lnc-web:${this._namespace}:salt`,
-                    this.salt
-                );
-            }
-
-            if (localStorage.getItem(`lnc-web:${this._namespace}:testCipher`)) {
-                this.testCipher =
-                    localStorage.getItem(
-                        `lnc-web:${this._namespace}:testCipher`
-                    ) || '';
-            } else if (!this._onLocalPrivCreate && !this._onRemoteKeyReceive) {
-                this.testCipher = createTestCipher(this._password, this.salt);
-                localStorage.setItem(
-                    `lnc-web:${this._namespace}:testCipher`,
-                    this.testCipher
-                );
-            }
-
-            // save pairingPhrase to localStorage for backwards compatibility
-            if (this._pairingPhrase) {
-                localStorage.setItem(
-                    `lnc-web:${this._namespace}:pairingPhrase`,
-                    encrypt(this._pairingPhrase, this._password, this.salt)
-                );
-            }
+        if (config.credentialStore) {
+            this.credentials = config.credentialStore;
+        } else {
+            this.credentials = new LncCredentialStore(
+                config.namespace,
+                config.password
+            );
+            this.credentials.serverHost =
+                config.serverHost || 'mailbox.terminal.lightning.today:443';
+            if (config.pairingPhrase)
+                this.credentials.pairingPhrase = config.pairingPhrase;
         }
 
         // TODO: pull Go off of the global state
@@ -102,22 +54,6 @@ export default class LNC {
         this.pool = new PoolApi(this);
         this.faraday = new FaradayApi(this);
     }
-
-    onLocalPrivCreate = (keyHex: string) => {
-        log.debug('local private key created: ' + keyHex);
-        localStorage.setItem(
-            `lnc-web:${this._namespace}:localKey`,
-            this._password ? encrypt(keyHex, this._password, this.salt) : keyHex
-        );
-    };
-
-    onRemoteKeyReceive = (keyHex: string) => {
-        log.debug('remote key received: ' + keyHex);
-        localStorage.setItem(
-            `lnc-web:${this._namespace}:remoteKey`,
-            this._password ? encrypt(keyHex, this._password, this.salt) : keyHex
-        );
-    };
 
     get wasmNamespace() {
         return window[this._namespace] as WasmGlobal;
@@ -140,92 +76,6 @@ export default class LNC {
     }
 
     /**
-     * Returns `true` if this client had previously connected with a pairing phrase. If `true`
-     * then you do not need to supply a pairing phrase to reconnect, only a password.
-     */
-    get isPaired() {
-        const hasRemoteKey = !!localStorage.getItem(
-            `lnc-web:${this._namespace}:remoteKey`
-        );
-        const hasPhrase = !!localStorage.getItem(
-            `lnc-web:${this._namespace}:pairingPhrase`
-        );
-        return hasRemoteKey || hasPhrase;
-    }
-
-    setPairingPhrase(pairingPhrase: string) {
-        this._pairingPhrase = pairingPhrase;
-
-        // store the new pairing phrase if it is not already stored
-        if (!this.isPaired) {
-            localStorage.setItem(
-                `lnc-web:${this._namespace}:pairingPhrase`,
-                this._password
-                    ? encrypt(this._pairingPhrase, this._password, this.salt)
-                    : this._pairingPhrase
-            );
-        }
-    }
-
-    /**
-     * Sets the password that will be used to encrypt/decrypt sensitive data
-     * @param password the new or previously used password
-     */
-    setPassword(password: string) {
-        this._password = password;
-
-        // re generate the salt & cipher if the client hasn't been paired
-        if (!this.isPaired) {
-            this.clearStorage();
-            this.salt = generateSalt();
-            localStorage.setItem(`lnc-web:${this._namespace}:salt`, this.salt);
-
-            this.testCipher = createTestCipher(this._password, this.salt);
-            localStorage.setItem(
-                `lnc-web:${this._namespace}:testCipher`,
-                this.testCipher
-            );
-            if (this._pairingPhrase) {
-                localStorage.setItem(
-                    `lnc-web:${this._namespace}:pairingPhrase`,
-                    this._password
-                        ? encrypt(
-                              this._pairingPhrase,
-                              this._password,
-                              this.salt
-                          )
-                        : this._pairingPhrase
-                );
-            }
-        } else {
-            // load the pre-existing salt and cipher
-            this.salt =
-                localStorage.getItem(`lnc-web:${this._namespace}:salt`) || '';
-            this.testCipher =
-                localStorage.getItem(`lnc-web:${this._namespace}:testCipher`) ||
-                '';
-        }
-    }
-
-    setLocalKey(localKey: string) {
-        this._localKey = localKey;
-    }
-
-    setRemoteKey(remoteKey: string) {
-        this._remoteKey = remoteKey;
-    }
-
-    setServerHost(serverHost: string) {
-        this._serverHost = serverHost;
-    }
-
-    clearStorage = () =>
-        Object.entries(localStorage)
-            .map((x) => x[0])
-            .filter((x) => x.substring(0, 8) === 'lnc-web:')
-            .map((x) => localStorage.removeItem(x));
-
-    /**
      * Downloads the WASM client binary
      */
     async preload() {
@@ -243,11 +93,15 @@ export default class LNC {
         // make sure the WASM client binary is downloaded first
         if (!this.isReady) await this.preload();
 
-        global.onLocalPrivCreate =
-            this._onLocalPrivCreate || this.onLocalPrivCreate;
+        global.onLocalPrivCreate = (keyHex: string) => {
+            log.debug('local private key created: ' + keyHex);
+            this.credentials.localKey = keyHex;
+        };
 
-        global.onRemoteKeyReceive =
-            this._onRemoteKeyReceive || this.onRemoteKeyReceive;
+        global.onRemoteKeyReceive = (keyHex: string) => {
+            log.debug('remote key received: ' + keyHex);
+            this.credentials.remoteKey = keyHex;
+        };
 
         global.onAuthData = (keyHex: string) => {
             log.debug('auth data received: ' + keyHex);
@@ -274,76 +128,10 @@ export default class LNC {
     }
 
     /**
-     * Loads the local and remote keys
-     * @returns an object containing the localKey and remoteKey
-     */
-    loadKeys() {
-        let pairingPhrase = '';
-        let localKey = '';
-        let remoteKey = '';
-
-        if (this._pairingPhrase) {
-            pairingPhrase = this._pairingPhrase;
-        } else if (
-            localStorage.getItem(`lnc-web:${this._namespace}:pairingPhrase`)
-        ) {
-            const data = localStorage.getItem(
-                `lnc-web:${this._namespace}:pairingPhrase`
-            );
-            if (!verifyTestCipher(this.testCipher, this._password, this.salt)) {
-                throw new Error('Invalid Password');
-            }
-            pairingPhrase = this._password
-                ? decrypt(data, this._password, this.salt)
-                : data;
-        }
-
-        if (this._localKey) {
-            localKey = this._localKey;
-        } else if (
-            localStorage.getItem(`lnc-web:${this._namespace}:localKey`)
-        ) {
-            const data = localStorage.getItem(
-                `lnc-web:${this._namespace}:localKey`
-            );
-            if (!verifyTestCipher(this.testCipher, this._password, this.salt)) {
-                throw new Error('Invalid Password');
-            }
-            localKey = this._password
-                ? decrypt(data, this._password, this.salt)
-                : data;
-        }
-
-        if (this._remoteKey) {
-            remoteKey = this._remoteKey;
-        } else if (
-            localStorage.getItem(`lnc-web:${this._namespace}:remoteKey`)
-        ) {
-            const data = localStorage.getItem(
-                `lnc-web:${this._namespace}:remoteKey`
-            );
-            if (!verifyTestCipher(this.testCipher, this._password, this.salt)) {
-                throw new Error('Invalid password');
-            }
-            remoteKey = this._password
-                ? decrypt(data, this._password, this.salt)
-                : data;
-        }
-
-        log.debug('pairingPhrase', pairingPhrase);
-        log.debug('localKey', localKey);
-        log.debug('remoteKey', remoteKey);
-
-        return { pairingPhrase, localKey, remoteKey };
-    }
-
-    /**
-     * Connects to the proxy server
-     * @param server the host:ip of the proxy server
-     * @param phrase the pairing phrase
+     * Connects to the LNC proxy server
      * @returns a promise that resolves when the connection is established
      */
-    async connect(server: string = this._serverHost) {
+    async connect() {
         // do not attempt to connect multiple times
         if (this.isConnected) return;
 
@@ -352,11 +140,12 @@ export default class LNC {
         // ensure the WASM binary is loaded
         if (!this.isReady) await this.waitTilReady();
 
-        const { pairingPhrase, localKey, remoteKey } = this.loadKeys();
+        const { pairingPhrase, localKey, remoteKey, serverHost } =
+            this.credentials;
 
         // connect to the server
         this.wasmNamespace.wasmClientConnectServer(
-            server,
+            serverHost,
             false,
             pairingPhrase,
             localKey,
