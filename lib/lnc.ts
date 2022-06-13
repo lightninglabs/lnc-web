@@ -55,23 +55,23 @@ export default class LNC {
         this.faraday = new FaradayApi(this);
     }
 
-    get wasmNamespace() {
+    private get wasm() {
         return window[this._namespace] as WasmGlobal;
     }
 
     get isReady() {
         return (
-            this.wasmNamespace &&
-            this.wasmNamespace.wasmClientIsReady &&
-            this.wasmNamespace.wasmClientIsReady()
+            this.wasm &&
+            this.wasm.wasmClientIsReady &&
+            this.wasm.wasmClientIsReady()
         );
     }
 
     get isConnected() {
         return (
-            this.wasmNamespace &&
-            this.wasmNamespace.wasmClientIsConnected &&
-            this.wasmNamespace.wasmClientIsConnected()
+            this.wasm &&
+            this.wasm.wasmClientIsConnected &&
+            this.wasm.wasmClientIsConnected()
         );
     }
 
@@ -144,7 +144,7 @@ export default class LNC {
             this.credentials;
 
         // connect to the server
-        this.wasmNamespace.wasmClientConnectServer(
+        this.wasm.wasmClientConnectServer(
             serverHost,
             false,
             pairingPhrase,
@@ -153,10 +153,7 @@ export default class LNC {
         );
 
         // add an event listener to disconnect if the page is unloaded
-        window.addEventListener(
-            'unload',
-            this.wasmNamespace.wasmClientDisconnect
-        );
+        window.addEventListener('unload', this.wasm.wasmClientDisconnect);
 
         // repeatedly check if the connection was successful
         return new Promise<void>((resolve, reject) => {
@@ -181,7 +178,7 @@ export default class LNC {
      * Disconnects from the proxy server
      */
     disconnect() {
-        this.wasmNamespace.wasmClientDisconnect();
+        this.wasm.wasmClientDisconnect();
     }
 
     /**
@@ -219,7 +216,7 @@ export default class LNC {
             const hackedReq = request ? this.hackRequest(request) : {};
             const reqJSON = JSON.stringify(hackedReq);
 
-            this.wasmNamespace.wasmClientInvokeRPC(
+            this.wasm.wasmClientInvokeRPC(
                 method,
                 reqJSON,
                 (response: string) => {
@@ -262,28 +259,24 @@ export default class LNC {
         const hackedReq = this.hackRequest(request);
         log.debug(`${method} hacked request`, hackedReq);
         const reqJSON = JSON.stringify(hackedReq);
-        this.wasmNamespace.wasmClientInvokeRPC(
-            method,
-            reqJSON,
-            (response: string) => {
-                log.debug(`${method} raw response`, response);
-                let rawRes: any;
-                try {
-                    rawRes = JSON.parse(response);
-                    const res = snakeKeysToCamel(rawRes);
-                    const hackedRes = this.hackListsAndMaps(res);
-                    log.debug(`${method} response`, res);
-                    const msg = {
-                        toObject: () => hackedRes
-                    };
-                    onMessage(msg as TRes);
-                } catch (error) {
-                    log.debug(`${method} error`, error);
-                    const err = new Error(response);
-                    if (onError) onError(err);
-                }
+        this.wasm.wasmClientInvokeRPC(method, reqJSON, (response: string) => {
+            log.debug(`${method} raw response`, response);
+            let rawRes: any;
+            try {
+                rawRes = JSON.parse(response);
+                const res = snakeKeysToCamel(rawRes);
+                const hackedRes = this.hackListsAndMaps(res);
+                log.debug(`${method} response`, res);
+                const msg = {
+                    toObject: () => hackedRes
+                };
+                onMessage(msg as TRes);
+            } catch (error) {
+                log.debug(`${method} error`, error);
+                const err = new Error(response);
+                if (onError) onError(err);
             }
-        );
+        });
     }
 
     /** the names of keys in RPC responses that should have the 'Map' suffix */
