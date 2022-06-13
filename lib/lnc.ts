@@ -9,6 +9,7 @@ import { CredentialStore, LncConfig, WasmGlobal } from './types/lnc';
 import LncCredentialStore from './util/credentialStore';
 import { wasmLog as log } from './util/log';
 import { camelKeysToSnake, isObject, snakeKeysToCamel } from './util/objects';
+import { JS_RESERVED_WORDS } from './util/reservedWords';
 
 /** The default values for the LncConfig options */
 const DEFAULT_CONFIG = {
@@ -292,9 +293,7 @@ export default class LNC {
     mapKeys: string[] = [
         'leaseDurationBuckets', // poolrpc.Trader.LeaseDurations
         'leaseDurations', // poolrpc.Trader.LeaseDurations
-        'matchedMarkets', // poolrpc.Trader.BatchSnapshot
-        'matchedOrders', // poolrpc.Trader.BatchSnapshot
-        'routes' // lnrpc.Lightning.QueryRoutes
+        'matchedMarkets' // poolrpc.Trader.BatchSnapshot
     ];
 
     /**
@@ -305,22 +304,28 @@ export default class LNC {
     hackListsAndMaps(response: any) {
         const o: Record<string, any> = {};
         return Object.entries<any>(response).reduce((updated, [key, value]) => {
-            if (Array.isArray(value)) {
-                updated[`${key}List`] = value;
-            } else if (this.mapKeys.includes(key)) {
+            if (this.mapKeys.includes(key)) {
                 // convert Maps from an object to an array of arrays
                 // leaseDurationBuckets: { 2016: "MARKET_OPEN", 4032: "MARKET_OPEN" }
                 // leaseDurationBucketsMap: [ [2016, 3], [4032, 3] ]
                 updated[`${key}Map`] = Object.entries<any>(value).reduce(
                     (all, [k, v]) => {
+                        const j = isNaN(parseInt(k, 10)) ? k : parseInt(k, 10);
                         all.push([
-                            k,
+                            j,
                             isObject(v) ? this.hackListsAndMaps(v) : v
                         ]);
                         return all;
                     },
                     [] as any[]
                 );
+            } else if (Array.isArray(value)) {
+                updated[`${key}List`] = (value as any[]).map((v) =>
+                    isObject(v) ? this.hackListsAndMaps(v) : v
+                );
+            } else if (JS_RESERVED_WORDS.includes(key)) {
+                // add the 'pb_' prefix for keys that are a JS reserved word
+                updated[`pb_${key}`] = value;
             } else if (isObject(value)) {
                 // recurse into nested objects
                 updated[key] = this.hackListsAndMaps(value);
