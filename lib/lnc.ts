@@ -10,6 +10,13 @@ import LncCredentialStore from './util/credentialStore';
 import { wasmLog as log } from './util/log';
 import { camelKeysToSnake, isObject, snakeKeysToCamel } from './util/objects';
 
+/** The default values for the LncConfig options */
+const DEFAULT_CONFIG = {
+    wasmClientCode: 'https://lightning.engineering/lnc-v0.1.10-alpha.wasm',
+    namespace: 'default',
+    serverHost: 'mailbox.terminal.lightning.today:443'
+} as Required<LncConfig>;
+
 export default class LNC {
     go: any;
     result?: {
@@ -26,11 +33,12 @@ export default class LNC {
     pool: PoolApi;
     faraday: FaradayApi;
 
-    constructor(config: LncConfig) {
-        this._wasmClientCode =
-            config.wasmClientCode ||
-            'https://lightning.engineering/lnc-v0.1.10-alpha.wasm';
-        this._namespace = config.namespace || 'default';
+    constructor(lncConfig: LncConfig) {
+        // merge the passed in config with the defaults
+        const config = Object.assign({}, DEFAULT_CONFIG, lncConfig);
+
+        this._wasmClientCode = config.wasmClientCode;
+        this._namespace = config.namespace;
 
         if (config.credentialStore) {
             this.credentials = config.credentialStore;
@@ -39,8 +47,9 @@ export default class LNC {
                 config.namespace,
                 config.password
             );
-            this.credentials.serverHost =
-                config.serverHost || 'mailbox.terminal.lightning.today:443';
+            // don't overwrite an existing serverHost if we're already paired
+            if (!this.credentials.isPaired)
+                this.credentials.serverHost = config.serverHost;
             if (config.pairingPhrase)
                 this.credentials.pairingPhrase = config.pairingPhrase;
         }
