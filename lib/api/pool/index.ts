@@ -37,8 +37,7 @@ class PoolApi extends BaseApi<PoolEvents> {
                 callback: (data: any) => void,
                 errCallback?: (data: any) => void
             ): void => {
-                const req = new HASHMAIL.CipherBoxDesc();
-                this.subscribe(HashMail.RecvStream, req, callback, errCallback);
+                this.subscribe(HashMail.RecvStream, request, callback, errCallback);
             }
         };
 

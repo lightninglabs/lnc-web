@@ -265,8 +265,8 @@ export default class LNC {
         onError?: (res: Error) => void
     ) {
         const method = `${methodDescriptor.service.serviceName}.${methodDescriptor.methodName}`;
-        log.debug(`${method} request`, request.toObject());
-        const hackedReq = this.hackRequest(request.toObject());
+        log.debug(`${method} request`, request);
+        const hackedReq = this.hackRequest(request || {});
         log.debug(`${method} hacked request`, hackedReq);
         const reqJSON = JSON.stringify(hackedReq);
         this.wasm.wasmClientInvokeRPC(method, reqJSON, (response: string) => {
