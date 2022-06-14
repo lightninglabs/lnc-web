@@ -14,14 +14,17 @@ const lnc = new LNC({
 const useLNC = () => {
   /** Connects to LNC using the provided pairing phrase and password */
   const connect = useCallback(async (pairingPhrase: string, password: string) => {
-    lnc.setPassword(password);
-    lnc.setPairingPhrase(pairingPhrase);
+    lnc.credentials.pairingPhrase = pairingPhrase;
     await lnc.connect();
+    // verify we can fetch data
+    await lnc.lnd.lightning.listChannels();
+    // set the password after confirming the connection works
+    lnc.credentials.password = password;
   }, []);
 
   /** Connects to LNC using the password to decrypt the stored keys */
   const login = useCallback(async (password: string) => {
-    lnc.setPassword(password);
+    lnc.credentials.password = password;
     await lnc.connect();
   }, []);
 

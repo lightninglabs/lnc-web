@@ -35,7 +35,7 @@ const Page: React.FC<Props> = ({ children }) => {
                     <Button variant="link">Logout</Button>
                   </a>
                 </>
-              ) : lnc.isPaired ? (
+              ) : lnc.credentials.isPaired ? (
                 <Link to="/login">
                   <Button>Login</Button>
                 </Link>
