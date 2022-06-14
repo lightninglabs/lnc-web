@@ -2,10 +2,7 @@ import { useCallback } from 'react';
 import LNC from '@lightninglabs/lnc-web';
 
 // create a singleton instance of LNC that will live for the lifetime of the app
-const lnc = new LNC({
-  // use the LNC wasm file stored in the public dir
-  wasmClientCode: '/lnc-v0.1.10-alpha.wasm',
-});
+const lnc = new LNC({});
 
 /**
  * A hook that exposes a single LNC instance of LNC to all component that need it.
