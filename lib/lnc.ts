@@ -34,7 +34,7 @@ export default class LNC {
     pool: PoolApi;
     faraday: FaradayApi;
 
-    constructor(lncConfig: LncConfig) {
+    constructor(lncConfig?: LncConfig) {
         // merge the passed in config with the defaults
         const config = Object.assign({}, DEFAULT_CONFIG, lncConfig);
 
