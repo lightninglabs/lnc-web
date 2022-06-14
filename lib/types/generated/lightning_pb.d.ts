@@ -3285,6 +3285,9 @@ export class WalletBalanceResponse extends jspb.Message {
   getUnconfirmedBalance(): number;
   setUnconfirmedBalance(value: number): void;
 
+  getLockedBalance(): number;
+  setLockedBalance(value: number): void;
+
   getAccountBalanceMap(): jspb.Map<string, WalletAccountBalance>;
   clearAccountBalanceMap(): void;
   serializeBinary(): Uint8Array;
@@ -3302,6 +3305,7 @@ export namespace WalletBalanceResponse {
     totalBalance: number,
     confirmedBalance: number,
     unconfirmedBalance: number,
+    lockedBalance: number,
     accountBalance: Array<[string, WalletAccountBalance.AsObject]>,
   }
 }
