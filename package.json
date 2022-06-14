@@ -1,6 +1,6 @@
 {
   "name": "@lightninglabs/lnc-web",
-  "version": "0.0.1-alpha",
+  "version": "0.0.1-alpha.rc1",
   "description": "Lightning Node Connect npm module for web",
   "main": "./dist/",
   "config": {
