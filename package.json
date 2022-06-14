@@ -18,15 +18,15 @@
     "generate": "sh scripts/generate_types.sh ${npm_package_config_lnd_release_tag} ${npm_package_config_loop_release_tag} ${npm_package_config_pool_release_tag} ${npm_package_config_faraday_release_tag} ${npm_package_config_protoc_version}",
     "prettier": "prettier --check --write '**/*.ts*' '!dist/**' '!lib/types/**'",
     "lint": "tslint -p tsconfig.json",
-    "prepare" : "npm run build",
-    "prepublishOnly" : "npm run lint",
-    "preversion" : "npm run lint",
-    "version" : "npm run prettier && git add -A lib",
+    "prepare": "npm run build",
+    "prepublishOnly": "npm run lint",
+    "preversion": "npm run lint",
+    "version": "npm run prettier && git add -A lib",
     "postversion": "git push && git push --tags"
   },
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/lightninglabs/lnc.git"
+    "url": "git+https://github.com/lightninglabs/lnc-web.git"
   },
   "keywords": [
     "lightning",
@@ -36,9 +36,9 @@
   ],
   "author": "Evan Kaloudis",
   "bugs": {
-    "url": "https://github.com/lightninglabs/lnc/issues"
+    "url": "https://github.com/lightninglabs/lnc-web/issues"
   },
-  "homepage": "https://github.com/lightninglabs/lnc#readme",
+  "homepage": "https://github.com/lightninglabs/lnc-web#readme",
   "devDependencies": {
     "@types/crypto-js": "4.1.1",
     "@types/debug": "4.1.7",
@@ -72,5 +72,12 @@
     "os": false,
     "crypto": false
   },
-  "files": ["dist/**/*"]
+  "files": [
+    "dist/**/*"
+  ],
+  "directories": {
+    "lib": "lib",
+    "test": "test"
+  },
+  "license": "MIT"
 }
