@@ -33,8 +33,12 @@ class LoopApi extends BaseApi<LoopEvents> {
                 callback: (data: any) => void,
                 errCallback?: (data: any) => void
             ): void => {
-                const req = new LOOP.MonitorRequest();
-                this.subscribe(SwapClient.Monitor, req, callback, errCallback);
+                this.subscribe(
+                    SwapClient.Monitor,
+                    request,
+                    callback,
+                    errCallback
+                );
             }
         };
 
@@ -48,7 +52,7 @@ class LoopApi extends BaseApi<LoopEvents> {
     connectStreams() {
         this.subscribe(
             SwapClient.Monitor,
-            new LOOP.MonitorRequest(),
+            {},
             (swapStatus: any) => this.emit('status', swapStatus.toObject())
         );
     }
