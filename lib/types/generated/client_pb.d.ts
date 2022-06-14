@@ -241,6 +241,16 @@ export class SwapStatus extends jspb.Message {
   getCostOffchain(): number;
   setCostOffchain(value: number): void;
 
+  getLastHop(): Uint8Array | string;
+  getLastHop_asU8(): Uint8Array;
+  getLastHop_asB64(): string;
+  setLastHop(value: Uint8Array | string): void;
+
+  clearOutgoingChanSetList(): void;
+  getOutgoingChanSetList(): Array<number>;
+  setOutgoingChanSetList(value: Array<number>): void;
+  addOutgoingChanSet(value: number, index?: number): number;
+
   getLabel(): string;
   setLabel(value: string): void;
 
@@ -270,6 +280,8 @@ export namespace SwapStatus {
     costServer: number,
     costOnchain: number,
     costOffchain: number,
+    lastHop: Uint8Array | string,
+    outgoingChanSet: Array<number>,
     label: string,
   }
 }
