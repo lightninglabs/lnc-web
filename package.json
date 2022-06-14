@@ -4,9 +4,9 @@
   "description": "Lightning Node Connect npm module for web",
   "main": "./dist/",
   "config": {
-    "lnd_release_tag": "v0.14.2-beta",
-    "loop_release_tag": "v0.17.0-beta",
-    "pool_release_tag": "v0.5.5-alpha",
+    "lnd_release_tag": "v0.14.3-beta",
+    "loop_release_tag": "v0.19.1-beta",
+    "pool_release_tag": "v0.5.6-alpha",
     "faraday_release_tag": "v0.2.5-alpha",
     "protoc_version": "3.15.8"
   },
