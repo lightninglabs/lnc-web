@@ -1,26 +1,32 @@
-# @lightninglabs/lnc
+# @lightninglabs/lnc-web
 
 ## A npm module for Lightning Node Connect
 
 ## API Design
+
 #### Set-up and connection
 
 The constructor for the LNC object takes a parameters object with the three following fields:
 
-- `pairingPhrase` (string, required): Your LNC pairing phrase
-- `serverHost` (string): Specify a custom Lightning Node Connect proxy server. If not specified we'll default to `mailbox.terminal.lightning.today:443`
-- `wasmClientCode` (string): Custom location for the WASM client code. Can be remote or local. If not specified we’ll default to our instance on our CDN.
+-   `pairingPhrase` (string): Your LNC pairing phrase
+-   `serverHost` (string): Specify a custom Lightning Node Connect proxy server. If not specified we'll default to `mailbox.terminal.lightning.today:443`.
+-   `wasmClientCode` (string): Custom location for the WASM client code. Can be remote or local. If not specified we’ll default to our instance on our CDN.
+-   `namespace` (string): JavaScript namespace used for the main WASM calls. You can maintain multiple connections if you use different namespaces. If not specified we'll default to `default`.
+-   `password` (string): By default, this module will handle storage of your local and remote keys for you in local storage. We highly recommend encrypting that data with a password you set here.
 
 ```
-import LNC from ‘@lightninglabs/lnc’;
+import LNC from ‘@lightninglabs/lnc-web’;
 
 const pairingPhrase = ‘artefact morning piano photo consider light’;
+const password = 'u*E0F?gU\d($N&Ckh8u)tLm';
 
 // default connection using WASM from CDN
 // WASM loaded on object creation
 // default host: mailbox.terminal.lightning.today:443
+// password used for encrypting credentials
 const lnc = new LNC({
-   pairingPhrase
+   pairingPhrase,
+   password
 });
 
 // using custom Lightning Node Connect proxy server
@@ -32,7 +38,7 @@ const lnc = new LNC({
 // using WASM pulled into app
 const lnc = new LNC({
    pairingPhrase,
-   wasmClientCode: ‘​​wasm-client.wasm’
+   wasmClientCode: ‘/path/to/​​wasm-client.wasm’
 });
 
 // using WASM from external link
@@ -74,7 +80,6 @@ const poolAccount = await pool.trader.initAccount(100000000, 1000);
 const insights = await faraday.channelInsights();
 ```
 
-
 #### Subscriptions
 
 ```
@@ -84,11 +89,13 @@ const { lnd } = lnc;
 lnd.lightning.subscribeTransactions(
    params,
    transaction => handleNewData(transaction),
+   error => handleError(error),
 );
 
 lnd.lightning.subscribeChannelEvents(
    params,
    event => handleNewChannelEventData(event),
+   error => handleError(error),
 );
 ```
 

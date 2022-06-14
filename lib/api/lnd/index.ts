@@ -1,6 +1,4 @@
 import * as LND from '../../types/generated/lightning_pb';
-import * as InvoicesRPC from '../../types/generated/invoicesrpc/invoices_pb';
-import * as RouterRPC from '../../types/generated/routerrpc/router_pb';
 
 import { Lightning } from '../../types/generated/lightning_pb_service';
 import { WalletUnlocker } from '../../types/generated/walletunlocker_pb_service';
@@ -50,87 +48,137 @@ class LndApi extends BaseApi<LndEvents> {
     constructor(wasm: WasmClient) {
         super();
 
+        this._wasm = wasm;
+
         const invoicesSubscriptions = {
             subscribeSingleInvoice: (
                 request: any,
-                callback: Function
+                callback: (data: any) => void,
+                errCallback?: (data: any) => void
             ): void => {
-                const req = new InvoicesRPC.SubscribeSingleInvoiceRequest();
-                if (request.r_hash) req.setRHash(request.r_hash);
-                this.subscribe(Invoices.SubscribeSingleInvoice, req, callback);
+                this.subscribe(
+                    Invoices.SubscribeSingleInvoice,
+                    request,
+                    callback,
+                    errCallback
+                );
             }
         };
 
         const lightningSubscriptions = {
+            closeChannel: (
+                request: any,
+                callback: (data: any) => void,
+                errCallback?: (data: any) => void
+            ): void => {
+                this.subscribe(
+                    Lightning.CloseChannel,
+                    request,
+                    callback,
+                    errCallback
+                );
+            },
             subscribeChannelBackups: (
                 request: any,
-                callback: Function
+                callback: (data: any) => void,
+                errCallback?: (data: any) => void
             ): void => {
                 this.subscribe(
                     Lightning.SubscribeChannelBackups,
-                    new LND.ChannelBackupSubscription(),
-                    callback
+                    request,
+                    callback,
+                    errCallback
                 );
             },
             subscribeChannelEvents: (
                 request: any,
-                callback: Function
+                callback: (data: any) => void,
+                errCallback?: (data: any) => void
             ): void => {
                 this.subscribe(
                     Lightning.SubscribeChannelEvents,
-                    new LND.ChannelEventSubscription(),
-                    callback
+                    request,
+                    callback,
+                    errCallback
                 );
             },
-            subscribeChannelGraph: (request: any, callback: Function): void => {
+            subscribeChannelGraph: (
+                request: any,
+                callback: (data: any) => void,
+                errCallback?: (data: any) => void
+            ): void => {
                 this.subscribe(
                     Lightning.SubscribeChannelGraph,
-                    new LND.GraphTopologySubscription(),
-                    callback
+                    request,
+                    callback,
+                    errCallback
                 );
             },
             subscribeCustomMessages: (
                 request: any,
-                callback: Function
+                callback: (data: any) => void,
+                errCallback?: (data: any) => void
             ): void => {
                 this.subscribe(
                     Lightning.SubscribeCustomMessages,
-                    new LND.SubscribeCustomMessagesRequest(),
-                    callback
+                    request,
+                    callback,
+                    errCallback
                 );
             },
-            subscribeInvoices: (request: any, callback: Function): void => {
-                const req = new LND.InvoiceSubscription();
-                if (request.add_index) req.setAddIndex(request.add_index);
-                if (request.settle_index)
-                    req.setSettleIndex(request.settle_index);
-                this.subscribe(Lightning.SubscribeInvoices, req, callback);
+            subscribeInvoices: (
+                request: any,
+                callback: (data: any) => void,
+                errCallback?: (data: any) => void
+            ): void => {
+                this.subscribe(
+                    Lightning.SubscribeInvoices,
+                    request,
+                    callback,
+                    errCallback
+                );
             },
-            subscribePeerEvents: (request: any, callback: Function): void => {
+            subscribePeerEvents: (
+                request: any,
+                callback: (data: any) => void,
+                errCallback?: (data: any) => void
+            ): void => {
                 this.subscribe(
                     Lightning.SubscribePeerEvents,
-                    new LND.PeerEventSubscription(),
-                    callback
+                    request,
+                    callback,
+                    errCallback
                 );
             },
-            subscribeTransactions: (request: any, callback: Function): void => {
-                const req = new LND.GetTransactionsRequest();
-                if (request.start_height)
-                    req.setStartHeight(request.start_height);
-                if (request.end_height) req.setEndHeight(request.end_height);
-                if (request.account) req.setAccount(request.account);
-                this.subscribe(Lightning.SubscribeTransactions, req, callback);
+            subscribeTransactions: (
+                request: any,
+                callback: (data: any) => void,
+                errCallback?: (data: any) => void
+            ): void => {
+                this.subscribe(
+                    Lightning.SubscribeTransactions,
+                    request,
+                    callback,
+                    errCallback
+                );
             }
         };
 
         const routerSubscriptions = {
-            subscribeHtlcEvents: (request: any, callback: Function): void => {
-                const req = new RouterRPC.SubscribeHtlcEventsRequest();
-                this.subscribe(Router.SubscribeHtlcEvents, req, callback);
+            subscribeHtlcEvents: (
+                request: any,
+                callback: (data: any) => void,
+                errCallback?: (data: any) => void
+            ): void => {
+                this.subscribe(
+                    Router.SubscribeHtlcEvents,
+                    request,
+                    callback,
+                    errCallback
+                );
             }
         };
 
-        this._wasm = wasm;
         this.autopilot = createRpc(wasm, Autopilot);
         this.chainNotifier = createRpc(wasm, ChainNotifier);
         this.invoices = createRpc(wasm, Invoices, invoicesSubscriptions);
@@ -144,80 +192,36 @@ class LndApi extends BaseApi<LndEvents> {
     }
 
     /**
-     * Downloads the WASM binary and initializes the executable
-     */
-    async load() {
-        if (!this._wasm.isReady) {
-            await this._wasm.load();
-        }
-    }
-
-    /**
-     * Uses the WasmClient to connect to the backend LND node via a Terminal
-     * Connect proxy server
-     * @param server the proxy server to connect to
-     * @param phrase the secret pairing phrase to use
-     */
-    async connect(
-        server: string,
-        phrase: string
-    ): Promise<LND.GetInfoResponse.AsObject> {
-        let connecting = true;
-
-        // terminate the connection after a 15sec timeout
-        setTimeout(() => {
-            if (connecting) this.disconnect();
-        }, 15 * 1000);
-
-        await this._wasm.connect(server, phrase);
-
-        try {
-            // attempt to fetch data from the proxy to confirm it's functioning. if the
-            // phrase is not valid, the getInfo request will hang until the timeout above
-            // is reached. then an error will be thrown
-            return await this.lightning.getInfo();
-        } catch {
-            throw new Error(
-                'Try reloading the page or obtaining a new pairing phrase.'
-            );
-        } finally {
-            connecting = false;
-        }
-    }
-
-    /**
-     * Disconnects from the proxy server
-     */
-    disconnect() {
-        this._wasm.disconnect();
-    }
-
-    subscribe(call: any, request: any, callback?: Function) {
-        this._wasm.subscribe(
-            call,
-            request,
-            (event) => callback && callback(event.toObject())
-        );
-    }
-
-    /**
      * Connect to the LND streaming endpoints
      */
     connectStreams() {
-        this._wasm.subscribe(
+        this.subscribe(
             Lightning.SubscribeTransactions,
-            new LND.GetTransactionsRequest(),
-            (transaction) => this.emit('transaction', transaction.toObject())
+            {},
+            (transaction: any) =>
+                this.emit('transaction', transaction.toObject())
         );
-        this._wasm.subscribe(
+        this.subscribe(
             Lightning.SubscribeChannelEvents,
-            new LND.ChannelEventSubscription(),
-            (channelEvent) => this.emit('channel', channelEvent.toObject())
+            {},
+            (channelEvent: any) => this.emit('channel', channelEvent.toObject())
         );
+        this.subscribe(Lightning.SubscribeInvoices, {}, (invoiceEvent: any) =>
+            this.emit('invoice', invoiceEvent.toObject())
+        );
+    }
+
+    subscribe(
+        call: any,
+        request: any,
+        callback?: (data: any) => void,
+        errCallback?: (data: any) => void
+    ) {
         this._wasm.subscribe(
-            Lightning.SubscribeInvoices,
-            new LND.InvoiceSubscription(),
-            (invoiceEvent) => this.emit('invoice', invoiceEvent.toObject())
+            call,
+            request,
+            (event) => callback && callback(event.toObject()),
+            (event) => errCallback && errCallback(event)
         );
     }
 }

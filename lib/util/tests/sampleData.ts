@@ -101,7 +101,8 @@ export const lndWalletBalance: LND.WalletBalanceResponse.AsObject = {
     totalBalance: 84992363,
     confirmedBalance: 84992363,
     unconfirmedBalance: 0,
-    accountBalance: []
+    accountBalance: [],
+    lockedBalance: 30323021
 };
 
 const txId = '6ee4e45870ac6191e25173f29804851e9f4bcf10f65f8b63100f488989e1e7a8';
@@ -371,7 +372,9 @@ export const loopListSwaps: LOOP.ListSwapsResponse.AsObject = {
         costServer: 66,
         costOnchain: 6812,
         costOffchain: 2,
-        label: `Sample Swap #${i + 1}`
+        label: `Sample Swap #${i + 1}`,
+        lastHop: '0a1',
+        outgoingChanSet: []
     }))
 };
 
@@ -771,7 +774,7 @@ export const poolNodeRatings: POOL.NodeRatingResponse.AsObject = {
 
 const stringToChannelPoint = (cp: string) => ({
     txid: b64(cp.split(':')[0], true),
-    outputIndex: parseInt(cp.split(':')[1])
+    outputIndex: parseInt(cp.split(':')[1], 10)
 });
 export const poolLeases: POOL.LeasesResponse.AsObject = {
     leases: [

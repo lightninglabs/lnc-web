@@ -1,9 +1,6 @@
 import WasmClient from './../index';
 import { capitalize } from '../util/strings';
 
-import * as LND from '../types/generated/lightning_pb';
-import { Lightning } from '../types/generated/lightning_pb_service';
-
 /**
  * An API wrapper to communicate with the LND node via GRPC
  */
@@ -21,9 +18,12 @@ function createRpc<T extends unknown>(
             if (call.responseStream) {
                 if (subscriptions && subscriptions[key])
                     return subscriptions[key];
-                return null;
+                return (request: any): any => {
+                    const res = wasm.request(call, request);
+                    return res;
+                };
             } else {
-                return async function (request: any): Promise<any> {
+                return async (request: any): Promise<any> => {
                     const res = await wasm.request(call, request);
                     return res.toObject();
                 };

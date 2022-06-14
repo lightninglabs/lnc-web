@@ -25,72 +25,49 @@ class LoopApi extends BaseApi<LoopEvents> {
     constructor(wasm: WasmClient) {
         super();
 
+        this._wasm = wasm;
+
         const swapSubscriptions = {
-            monitor: (request: any, callback: Function): void => {
-                const req = new LOOP.MonitorRequest();
-                this.subscribe(SwapClient.Monitor, req, callback);
+            monitor: (
+                request: any,
+                callback: (data: any) => void,
+                errCallback?: (data: any) => void
+            ): void => {
+                this.subscribe(
+                    SwapClient.Monitor,
+                    request,
+                    callback,
+                    errCallback
+                );
             }
         };
 
-        this._wasm = wasm;
         this.swapClient = createRpc(wasm, SwapClient, swapSubscriptions);
         this.debug = createRpc(wasm, Debug);
     }
 
     /**
-     * Downloads the WASM binary and initializes the executable
+     * Connect to the Loop streaming endpoint
      */
-    async load() {
-        if (!this._wasm.isReady) {
-            await this._wasm.load();
-        }
+    connectStreams() {
+        this.subscribe(
+            SwapClient.Monitor,
+            {},
+            (swapStatus: any) => this.emit('status', swapStatus.toObject())
+        );
     }
 
-    /**
-     * Uses the WasmClient to connect to the backend LND node via a Terminal
-     * Connect proxy server
-     * @param server the proxy server to connect to
-     * @param phrase the secret pairing phrase to use
-     */
-    async connect(
-        server: string,
-        phrase: string
-    ): Promise<LOOP.SwapResponse.AsObject> {
-        let connecting = true;
-
-        // terminate the connection after a 15sec timeout
-        setTimeout(() => {
-            if (connecting) this.disconnect();
-        }, 15 * 1000);
-
-        await this._wasm.connect(server, phrase);
-
-        try {
-            // attempt to fetch data from the proxy to confirm it's functioning. if the
-            // phrase is not valid, the getInfo request will hang until the timeout above
-            // is reached. then an error will be thrown
-            return await this.swapClient.listSwaps();
-        } catch {
-            throw new Error(
-                'Try reloading the page or obtaining a new pairing phrase.'
-            );
-        } finally {
-            connecting = false;
-        }
-    }
-
-    /**
-     * Disconnects from the proxy server
-     */
-    disconnect() {
-        this._wasm.disconnect();
-    }
-
-    subscribe(call: any, request: any, callback?: Function) {
+    subscribe(
+        call: any,
+        request: any,
+        callback?: (data: any) => void,
+        errCallback?: (data: any) => void
+    ) {
         this._wasm.subscribe(
             call,
             request,
-            (event) => callback && callback(event.toObject())
+            (event) => callback && callback(event.toObject()),
+            (event) => errCallback && errCallback(event)
         );
     }
 }
