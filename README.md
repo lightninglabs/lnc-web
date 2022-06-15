@@ -62,7 +62,7 @@ lnc.disconnect();
 
 #### Base functions
 
-All of the services (lnd, loop, pool, faraday) will be objects under the main lnc object. Each services’ sub-services will be underneath each service object, and each sub-service function below that (except in the case of faraday which only has one service - its functions will live directly under it). All service names and function names will be camel-cased.
+All of the services (lnd, loop, pool, faraday) will be objects under the main lnc object. Each services’ sub-services will be underneath each service object, and each sub-service function below that (except in the case of faraday which only has one service - its functions will live directly under it). All service, function, and param names will be camel-cased.
 
 ```
 const { lnd, loop, pool, faraday } = lnc;
@@ -70,12 +70,15 @@ const { lnd, loop, pool, faraday } = lnc;
 // all functions on the base object should have proper types
 // sub-servers exist as objects on each main service
 lnd.lightning.listInvoices();
-lnd.lightning.connectPeer(‘03aa49c1e98ff4f216d886c09da9961c516aca22812c108af1b187896ded89807e@m3keajflswtfq3bw4kzvxtbru7r4z4cp5stlreppdllhp5a7vuvjzqyd.onion:9735’);
+lnd.lightning.connectPeer({ addr: ‘03aa49c1e98ff4f216d886c09da9961c516aca22812c108af1b187896ded89807e@m3keajflswtfq3bw4kzvxtbru7r4z4cp5stlreppdllhp5a7vuvjzqyd.onion:9735’ });
 
 const signature = lnd.signer.signMessage({...params});
 
 const swaps = await loop.swapClient.listSwaps();
-const poolAccount = await pool.trader.initAccount(100000000, 1000);
+const poolAccount = await pool.trader.initAccount({
+   accountValue: 100000000,
+   relativeHeight: 1000
+ });
 
 const insights = await faraday.channelInsights();
 ```
