@@ -2,6 +2,10 @@
 
 ## A npm module for Lightning Node Connect
 
+## Install
+
+`npm i @lightninglabs/lnc-web`
+
 ## API Design
 
 #### Set-up and connection
@@ -126,3 +130,7 @@ npm run update-protos
 # format schemas
 npm run generate
 ```
+
+## Further documentation
+
+- https://docs.lightning.engineering/lightning-network-tools/lightning-terminal/lnc-npm
