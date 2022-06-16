@@ -3,7 +3,7 @@ const NodePolyfillPlugin = require('node-polyfill-webpack-plugin');
 const { CleanWebpackPlugin } = require('clean-webpack-plugin');
 
 module.exports = {
-  mode: "production",
+  mode: process.env.NODE_ENV === 'production' ? 'production' : 'development',
   entry: path.resolve(__dirname, './lib/index.ts'),
   module: {
     rules: [
@@ -16,25 +16,17 @@ module.exports = {
     ],
   },
   plugins: [
-		new NodePolyfillPlugin(),
+	new NodePolyfillPlugin(),
     new CleanWebpackPlugin()
-	],
+  ],
   resolve: {
     extensions: ['.tsx', '.ts', '.js'],
-    // fallback: {
-    //   crypto: require.resolve('crypto-browserify'),
-    //   // os: require.resolve('os-browserify/browser'),
-    //   // stream: require.resolve('stream-browserify'),
-    //   // util: require.resolve('util/')
-    // },
   },
-  // node: { fs: 'empty' },
   output: {
     filename: 'index.js',
     library: {
-      name: "LNC",
+      name: '@lightninglabs/lnc-web',
       type: "umd",  // see https://webpack.js.org/configuration/output/#outputlibrarytype
-      export: "default",  // see https://github.com/webpack/webpack/issues/8480
     },
     path: path.resolve(__dirname, 'dist'),
   },
