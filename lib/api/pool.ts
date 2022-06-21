@@ -1,7 +1,5 @@
 import LNC from '../lnc';
-import {
-  ChannelAuctioneer,
-} from '../types/proto/pool/auctioneerrpc/auctioneer';
+import { ChannelAuctioneer } from '../types/proto/pool/auctioneerrpc/auctioneer';
 import { HashMail } from '../types/proto/pool/auctioneerrpc/hashmail';
 import { Trader } from '../types/proto/pool/trader';
 import { serviceNames as sn } from '../types/proto/schema';
