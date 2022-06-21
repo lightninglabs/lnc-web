@@ -1,35 +1,38 @@
-import WasmClient from './../index';
-import { capitalize } from '../util/strings';
+import LNC from '../lnc';
+import { subscriptionMethods } from '../types/proto/schema';
+
+// capitalize the first letter in the string
+const capitalize = (s: string) => s && s[0].toUpperCase() + s.slice(1);
 
 /**
- * An API wrapper to communicate with the LND node via GRPC
+ * Creates a typed Proxy object which calls the WASM request or
+ * subscribe methods depending on which function is called on the object
  */
-function createRpc<T extends unknown>(
-    wasm: WasmClient,
-    service: any,
-    subscriptions?: any
-): any {
-    return new Proxy(service, {
+export function createRpc<T extends object>(packageName: string, lnc: LNC): T {
+    const rpc = {};
+    return new Proxy(rpc, {
         get(target, key, c) {
-            // make sure funcs are camelcased
-            const requestName = capitalize(key.toString());
+            const methodName = capitalize(key.toString());
+            // the full name of the method (ex: lnrpc.Lightning.OpenChannel)
+            const method = `${packageName}.${methodName}`;
 
-            const call = service[requestName];
-            if (call.responseStream) {
-                if (subscriptions && subscriptions[key])
-                    return subscriptions[key];
-                return (request: any): any => {
-                    const res = wasm.request(call, request);
-                    return res;
+            if (subscriptionMethods.includes(method)) {
+                // call subscribe for streaming methods
+                return (
+                    request: object,
+                    callback: (msg: object) => void,
+                    errCallback?: (err: Error) => void
+                ): void => {
+                    lnc.subscribe(method, request, callback, errCallback);
                 };
             } else {
-                return async (request: any): Promise<any> => {
-                    const res = await wasm.request(call, request);
-                    return res.toObject();
+                // call request for unary methods
+                return async (request: object): Promise<any> => {
+                    return await lnc.request(method, request);
                 };
             }
         }
-    });
+    }) as T;
 }
 
 export default createRpc;
