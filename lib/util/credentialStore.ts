@@ -1,10 +1,10 @@
 import { CredentialStore } from '../types/lnc';
 import {
-  createTestCipher,
-  decrypt,
-  encrypt,
-  generateSalt,
-  verifyTestCipher,
+    createTestCipher,
+    decrypt,
+    encrypt,
+    generateSalt,
+    verifyTestCipher
 } from './encryption';
 
 const STORAGE_KEY = 'lnc-web';
