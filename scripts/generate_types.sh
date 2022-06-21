@@ -15,9 +15,7 @@ echo "Pool release tag:" $POOL_RELEASE_TAG
 echo "Faraday release tag:" $FARADAY_RELEASE_TAG
 echo "Protoc version:" $PROTOC_VERSION
 
-rm -f *.proto
-
-GENERATED_TYPES_DIR=lib/types/generated
+GENERATED_TYPES_DIR=lib/types/proto
 if [ -d "$GENERATED_TYPES_DIR" ]
 then
     rm -rf "$GENERATED_TYPES_DIR"
@@ -46,13 +44,23 @@ curl -L ${PROTOC_URL} -o "protoc-${PROTOC_VERSION}.zip"
 unzip "protoc-${PROTOC_VERSION}.zip" -d protoc
 rm "protoc-${PROTOC_VERSION}.zip"
 
+TS_PROTO_OPTIONS="\
+  --ts_proto_opt=esModuleInterop=true \
+  --ts_proto_opt=onlyTypes=true \
+  --ts_proto_opt=stringEnums=true \
+  --ts_proto_opt=forceLong=string \
+  --ts_proto_opt=lowerCaseServiceMethods=true \
+  --ts_proto_opt=exportCommonSymbols=false \
+"
+
 # Run protoc
 echo "LND: running protoc..."
+mkdir -p "$GENERATED_TYPES_DIR/lnd"
 protoc/bin/protoc \
   --proto_path=protos/lnd/${LND_RELEASE_TAG} \
-  --plugin=protoc-gen-ts=node_modules/.bin/protoc-gen-ts \
-  --ts_out=service=grpc-web:$GENERATED_TYPES_DIR \
-  --js_out=import_style=commonjs,binary:$GENERATED_TYPES_DIR \
+  --plugin=./node_modules/.bin/protoc-gen-ts_proto \
+  --ts_proto_out=$GENERATED_TYPES_DIR/lnd \
+  $TS_PROTO_OPTIONS \
   lightning.proto \
   walletunlocker.proto \
   autopilotrpc/autopilot.proto \
@@ -64,36 +72,114 @@ protoc/bin/protoc \
   watchtowerrpc/watchtower.proto \
   wtclientrpc/wtclient.proto
 
+
 echo "LOOP: running protoc..."
+mkdir -p "$GENERATED_TYPES_DIR/loop"
 protoc/bin/protoc \
   --proto_path=protos/loop/${LOOP_RELEASE_TAG} \
-  --plugin=protoc-gen-ts=node_modules/.bin/protoc-gen-ts \
-  --ts_out=service=grpc-web:$GENERATED_TYPES_DIR \
-  --js_out=import_style=commonjs,binary:$GENERATED_TYPES_DIR \
+  --plugin=./node_modules/.bin/protoc-gen-ts_proto \
+  --ts_proto_out=$GENERATED_TYPES_DIR/loop \
+  $TS_PROTO_OPTIONS \
   client.proto \
   debug.proto \
   swapserverrpc/common.proto
 
 echo "POOL: running protoc..."
+mkdir -p "$GENERATED_TYPES_DIR/pool"
 protoc/bin/protoc \
   --proto_path=protos/pool/${POOL_RELEASE_TAG} \
-  --plugin=protoc-gen-ts=node_modules/.bin/protoc-gen-ts \
-  --ts_out=service=grpc-web:$GENERATED_TYPES_DIR \
-  --js_out=import_style=commonjs,binary:$GENERATED_TYPES_DIR \
+  --plugin=./node_modules/.bin/protoc-gen-ts_proto \
+  --ts_proto_out=$GENERATED_TYPES_DIR/pool \
+  $TS_PROTO_OPTIONS \
   trader.proto \
   auctioneerrpc/auctioneer.proto \
   auctioneerrpc/hashmail.proto
 
 echo "FARADY: running protoc..."
+mkdir -p "$GENERATED_TYPES_DIR/faraday"
 protoc/bin/protoc \
   --proto_path=protos/faraday/${FARADAY_RELEASE_TAG} \
-  --plugin=protoc-gen-ts=node_modules/.bin/protoc-gen-ts \
-  --ts_out=service=grpc-web:$GENERATED_TYPES_DIR \
-  --js_out=import_style=commonjs,binary:$GENERATED_TYPES_DIR \
+  --plugin=./node_modules/.bin/protoc-gen-ts_proto \
+  --ts_proto_out=$GENERATED_TYPES_DIR/faraday \
+  $TS_PROTO_OPTIONS \
+  faraday.proto
+
+# Temporarily generate schema files in order to provide metadata
+# about the services and subscription methods to the api classes
+SCHEMA_DIR=lib/types/schema
+if [ -d "$SCHEMA_DIR" ]
+then
+    rm -rf "$SCHEMA_DIR"
+fi
+mkdir -p "$SCHEMA_DIR"
+
+SCHEMA_PROTO_OPTIONS="\
+  --ts_proto_opt=esModuleInterop=true \
+  --ts_proto_opt=outputEncodeMethods=false \
+  --ts_proto_opt=outputClientImpl=false \
+  --ts_proto_opt=outputServices=generic-definitions \
+"
+
+echo "LND: generating schema..."
+mkdir -p "$SCHEMA_DIR/lnd"
+protoc/bin/protoc \
+  --proto_path=protos/lnd/${LND_RELEASE_TAG} \
+  --plugin=./node_modules/.bin/protoc-gen-ts_proto \
+  --ts_proto_out=$SCHEMA_DIR/lnd \
+  $SCHEMA_PROTO_OPTIONS \
+  lightning.proto \
+  walletunlocker.proto \
+  autopilotrpc/autopilot.proto \
+  chainrpc/chainnotifier.proto \
+  invoicesrpc/invoices.proto \
+  routerrpc/router.proto \
+  signrpc/signer.proto \
+  walletrpc/walletkit.proto \
+  watchtowerrpc/watchtower.proto \
+  wtclientrpc/wtclient.proto
+
+echo "LOOP: generating schema..."
+mkdir -p "$SCHEMA_DIR/loop"
+protoc/bin/protoc \
+  --proto_path=protos/loop/${LOOP_RELEASE_TAG} \
+  --plugin=./node_modules/.bin/protoc-gen-ts_proto \
+  --ts_proto_out=$SCHEMA_DIR/loop \
+  $SCHEMA_PROTO_OPTIONS \
+  client.proto \
+  debug.proto \
+  swapserverrpc/common.proto
+
+echo "POOL: generating schema..."
+mkdir -p "$SCHEMA_DIR/pool"
+protoc/bin/protoc \
+  --proto_path=protos/pool/${POOL_RELEASE_TAG} \
+  --plugin=./node_modules/.bin/protoc-gen-ts_proto \
+  --ts_proto_out=$SCHEMA_DIR/pool \
+  $SCHEMA_PROTO_OPTIONS \
+  trader.proto \
+  auctioneerrpc/auctioneer.proto \
+  auctioneerrpc/hashmail.proto
+
+echo "FARADY: generating schema..."
+mkdir -p "$SCHEMA_DIR/faraday"
+protoc/bin/protoc \
+  --proto_path=protos/faraday/${FARADAY_RELEASE_TAG} \
+  --plugin=./node_modules/.bin/protoc-gen-ts_proto \
+  --ts_proto_out=$SCHEMA_DIR/faraday \
+  $SCHEMA_PROTO_OPTIONS \
   faraday.proto
 
 # Cleanup proto directory/files
 rm -rf *.proto protoc
 
-# Remove 'List' from all generated Array type names
-ts-node scripts/clean-repeated.ts
+# Perform a bit of post-processing on the generated code
+echo "Perform post-processing on the generated code..."
+ts-node scripts/process_types.ts
+
+# Format the generated files with prettier
+echo "Formatting generated code with prettier..."
+prettier --check --write --loglevel=error 'lib/types/proto/**'
+
+# Cleanup schema directory/files
+echo "Deleting schema files..."
+rm -rf "$SCHEMA_DIR"

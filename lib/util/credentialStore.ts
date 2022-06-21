@@ -1,10 +1,10 @@
 import { CredentialStore } from '../types/lnc';
 import {
-  createTestCipher,
-  decrypt,
-  encrypt,
-  generateSalt,
-  verifyTestCipher,
+    createTestCipher,
+    decrypt,
+    encrypt,
+    generateSalt,
+    verifyTestCipher
 } from './encryption';
 
 const STORAGE_KEY = 'lnc-web';
@@ -42,11 +42,11 @@ export default class LncCredentialStore implements CredentialStore {
      * Constructs a new `LncCredentialStore` instance
      */
     constructor(namespace?: string, password?: string) {
-        // load data stored in localStorage
-        this._load();
-
         if (namespace) this.namespace = namespace;
         if (password) this.password = password;
+
+        // load data stored in localStorage
+        this._load();
     }
 
     //
