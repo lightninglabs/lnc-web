@@ -12,6 +12,7 @@ function App() {
   const isConnected = () => console.log(lnc.isConnected);
   const isReady = () => console.log(lnc.isReady);
   const load = () => lnc.preload();
+  const run = () => lnc.run();
   const connect = () => lnc.connect();
   const disconnect = () => lnc.disconnect();
 
@@ -85,6 +86,7 @@ function App() {
         <button onClick={() => isReady()}>isReady</button>
         <button onClick={() => isConnected()}>isConnected</button>
         <button onClick={() => load()}>Load</button>
+        <button onClick={() => run()}>Run</button>
         <button onClick={() => connect()}>Connect</button>
         <button onClick={() => disconnect()}>Disconnect</button>
         <h1>LND</h1>
