@@ -6,7 +6,7 @@ import { snakeKeysToCamel } from './util/objects';
 
 /** The default values for the LncConfig options */
 const DEFAULT_CONFIG = {
-    wasmClientCode: 'https://lightning.engineering/lnc-v0.1.10-alpha.wasm',
+    wasmClientCode: 'https://lightning.engineering/lnc-v0.1.11-alpha.wasm',
     namespace: 'default',
     serverHost: 'mailbox.terminal.lightning.today:443'
 } as Required<LncConfig>;
@@ -78,6 +78,38 @@ export default class LNC {
         );
     }
 
+    get status() {
+        return (
+            this.wasm &&
+            this.wasm.wasmClientStatus &&
+            this.wasm.wasmClientStatus()
+        );
+    }
+
+    get expiry(): Date {
+        return (
+            this.wasm &&
+            this.wasm.wasmClientGetExpiry &&
+            new Date(this.wasm.wasmClientGetExpiry() * 1000)
+        );
+    }
+
+    get isReadOnly() {
+        return (
+            this.wasm &&
+            this.wasm.wasmClientIsReadOnly &&
+            this.wasm.wasmClientIsReadOnly()
+        );
+    }
+
+    hasPerms(permission: string) {
+        return (
+            this.wasm &&
+            this.wasm.wasmClientHasPerms &&
+            this.wasm.wasmClientHasPerms(permission)
+        );
+    }
+
     /**
      * Downloads the WASM client binary
      */
@@ -138,10 +170,11 @@ export default class LNC {
         // do not attempt to connect multiple times
         if (this.isConnected) return;
 
-        await this.run();
-
         // ensure the WASM binary is loaded
-        if (!this.isReady) await this.waitTilReady();
+        if (!this.isReady) {
+            await this.run();
+            await this.waitTilReady();
+        }
 
         const { pairingPhrase, localKey, remoteKey, serverHost } =
             this.credentials;
