@@ -78,6 +78,38 @@ export default class LNC {
         );
     }
 
+    get status() {
+        return (
+            this.wasm &&
+            this.wasm.wasmClientStatus &&
+            this.wasm.wasmClientStatus()
+        );
+    }
+
+    get expiry(): Date {
+        return (
+            this.wasm &&
+            this.wasm.wasmClientGetExpiry &&
+            new Date(this.wasm.wasmClientGetExpiry() * 1000)
+        );
+    }
+
+    get isReadOnly() {
+        return (
+            this.wasm &&
+            this.wasm.wasmClientIsReadOnly &&
+            this.wasm.wasmClientIsReadOnly()
+        );
+    }
+
+    hasPerms(permission: string) {
+        return (
+            this.wasm &&
+            this.wasm.wasmClientHasPerms &&
+            this.wasm.wasmClientHasPerms(permission)
+        );
+    }
+
     /**
      * Downloads the WASM client binary
      */

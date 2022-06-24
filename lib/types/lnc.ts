@@ -31,6 +31,23 @@ export interface WasmGlobal {
         request: any,
         callback: (response: string) => any
     ) => void;
+    /**
+     * Returns true if client has specific permissions
+     * e.g. 'lnrpc.Lightning.GetInfo'
+     */
+    wasmClientHasPerms: (permission: string) => boolean;
+    /**
+     * Returns true if the WASM client is read only
+     */
+    wasmClientIsReadOnly: () => boolean;
+    /**
+     * Returns the WASM client status
+     */
+    wasmClientStatus: () => string;
+    /**
+     * Returns the WASM client expiry time
+     */
+    wasmClientGetExpiry: () => number;
 }
 
 export interface LncConfig {
