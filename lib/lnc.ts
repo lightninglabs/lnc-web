@@ -6,7 +6,7 @@ import { snakeKeysToCamel } from './util/objects';
 
 /** The default values for the LncConfig options */
 const DEFAULT_CONFIG = {
-    wasmClientCode: 'https://lightning.engineering/lnc-v0.1.10-alpha.wasm',
+    wasmClientCode: 'https://lightning.engineering/lnc-v0.1.11-alpha.wasm',
     namespace: 'default',
     serverHost: 'mailbox.terminal.lightning.today:443'
 } as Required<LncConfig>;
