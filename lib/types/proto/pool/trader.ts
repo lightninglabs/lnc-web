@@ -387,6 +387,16 @@ export interface Order {
     minUnitsMatch: number;
     /** The channel type to use for the resulting matched channels. */
     channelType: OrderChannelType;
+    /**
+     * List of nodes that will be allowed to match with our order. Incompatible
+     * with the `not_allowed_node_ids` field.
+     */
+    allowedNodeIds: Uint8Array | string[];
+    /**
+     * List of nodes that won't be allowed to match with our order. Incompatible
+     * with the `allowed_node_ids` field.
+     */
+    notAllowedNodeIds: Uint8Array | string[];
 }
 
 export interface Bid {

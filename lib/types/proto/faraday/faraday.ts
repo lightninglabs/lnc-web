@@ -32,6 +32,14 @@ export enum FiatBackend {
      * https://api.coindesk.com/v1/bpi/historical/close.json
      */
     COINDESK = 'COINDESK',
+    /** CUSTOM - Use custom price data provided in a CSV file for fiat price information. */
+    CUSTOM = 'CUSTOM',
+    /**
+     * COINGECKO - Use the CoinGecko API for fiat price information.
+     * This API is reached through the following URL:
+     * https://api.coingecko.com/api/v3/coins/bitcoin/market_chart
+     */
+    COINGECKO = 'COINGECKO',
     UNRECOGNIZED = 'UNRECOGNIZED'
 }
 
@@ -298,6 +306,8 @@ export interface ExchangeRateRequest {
     granularity: Granularity;
     /** The api to be used for fiat related queries. */
     fiatBackend: FiatBackend;
+    /** Custom price points to use if the CUSTOM FiatBackend option is set. */
+    customPrices: BitcoinPrice[];
 }
 
 export interface ExchangeRateResponse {
@@ -310,6 +320,8 @@ export interface BitcoinPrice {
     price: string;
     /** The timestamp for this price price provided. */
     priceTimestamp: string;
+    /** The currency that the price is denoted in. */
+    currency: string;
 }
 
 export interface ExchangeRate {
@@ -344,6 +356,8 @@ export interface NodeAuditRequest {
     customCategories: CustomCategory[];
     /** The api to be used for fiat related queries. */
     fiatBackend: FiatBackend;
+    /** Custom price points to use if the CUSTOM FiatBackend option is set. */
+    customPrices: BitcoinPrice[];
 }
 
 export interface CustomCategory {
@@ -397,13 +411,16 @@ export interface ReportEntry {
     customCategory: string;
     /** The transaction id of the entry. */
     txid: string;
-    /** The fiat amount of the entry's amount in USD. */
+    /**
+     * The fiat amount of the entry's amount in the currency specified in the
+     * btc_price field.
+     */
     fiat: string;
     /** A unique identifier for the entry, if available. */
     reference: string;
     /** An additional note for the entry, providing additional context. */
     note: string;
-    /** The bitcoin price and timestamp used to calcualte our fiat value. */
+    /** The bitcoin price and timestamp used to calculate our fiat value. */
     btcPrice: BitcoinPrice | undefined;
 }
 
