@@ -193,6 +193,11 @@ export interface SendPaymentRequest {
     maxShardSizeMsat: string;
     /** If set, an AMP-payment will be attempted. */
     amp: boolean;
+    /**
+     * The time preference for this payment. Set to -1 to optimize for fees
+     * only, to 1 to optimize for reliability only or a value inbetween for a mix.
+     */
+    timePref: number;
 }
 
 export interface SendPaymentRequest_DestCustomRecordsEntry {
@@ -557,6 +562,23 @@ export interface ForwardHtlcInterceptResponse {
     action: ResolveHoldForwardAction;
     /** The preimage in case the resolve action is Settle. */
     preimage: Uint8Array | string;
+    /**
+     * Encrypted failure message in case the resolve action is Fail.
+     *
+     * If failure_message is specified, the failure_code field must be set
+     * to zero.
+     */
+    failureMessage: Uint8Array | string;
+    /**
+     * Return the specified failure code in case the resolve action is Fail. The
+     * message data fields are populated automatically.
+     *
+     * If a non-zero failure_code is specified, failure_message must not be set.
+     *
+     * For backwards-compatibility reasons, TEMPORARY_CHANNEL_FAILURE is the
+     * default value for this field.
+     */
+    failureCode: Failure_FailureCode;
 }
 
 export interface UpdateChanStatusRequest {

@@ -37,6 +37,12 @@ export enum AuctionAccountState {
     STATE_CLOSED = 'STATE_CLOSED',
     /** STATE_PENDING_BATCH - The account has recently participated in a batch and is not yet confirmed. */
     STATE_PENDING_BATCH = 'STATE_PENDING_BATCH',
+    /**
+     * STATE_EXPIRED_PENDING_UPDATE - The account has reached the expiration height while it had a pending update
+     * that hasn't yet confirmed. This allows accounts to be renewed once
+     * confirmed and expired.
+     */
+    STATE_EXPIRED_PENDING_UPDATE = 'STATE_EXPIRED_PENDING_UPDATE',
     UNRECOGNIZED = 'UNRECOGNIZED'
 }
 
@@ -726,6 +732,16 @@ export interface ServerOrder {
      * expressed in satoshis per 1000 weight units (sat/kW).
      */
     maxBatchFeeRateSatPerKw: string;
+    /**
+     * List of nodes that will be allowed to match with our order. Incompatible
+     * with the `not_allowed_node_ids` field.
+     */
+    allowedNodeIds: Uint8Array | string[];
+    /**
+     * List of nodes that won't be allowed to match with our order. Incompatible
+     * with the `allowed_node_ids` field.
+     */
+    notAllowedNodeIds: Uint8Array | string[];
 }
 
 export interface ServerBid {

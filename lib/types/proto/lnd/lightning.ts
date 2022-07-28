@@ -1,16 +1,32 @@
 /* eslint-disable */
 
+export enum OutputScriptType {
+    SCRIPT_TYPE_PUBKEY_HASH = 'SCRIPT_TYPE_PUBKEY_HASH',
+    SCRIPT_TYPE_SCRIPT_HASH = 'SCRIPT_TYPE_SCRIPT_HASH',
+    SCRIPT_TYPE_WITNESS_V0_PUBKEY_HASH = 'SCRIPT_TYPE_WITNESS_V0_PUBKEY_HASH',
+    SCRIPT_TYPE_WITNESS_V0_SCRIPT_HASH = 'SCRIPT_TYPE_WITNESS_V0_SCRIPT_HASH',
+    SCRIPT_TYPE_PUBKEY = 'SCRIPT_TYPE_PUBKEY',
+    SCRIPT_TYPE_MULTISIG = 'SCRIPT_TYPE_MULTISIG',
+    SCRIPT_TYPE_NULLDATA = 'SCRIPT_TYPE_NULLDATA',
+    SCRIPT_TYPE_NON_STANDARD = 'SCRIPT_TYPE_NON_STANDARD',
+    SCRIPT_TYPE_WITNESS_UNKNOWN = 'SCRIPT_TYPE_WITNESS_UNKNOWN',
+    UNRECOGNIZED = 'UNRECOGNIZED'
+}
+
 /**
  * `AddressType` has to be one of:
  *
  * - `p2wkh`: Pay to witness key hash (`WITNESS_PUBKEY_HASH` = 0)
  * - `np2wkh`: Pay to nested witness key hash (`NESTED_PUBKEY_HASH` = 1)
+ * - `p2tr`: Pay to taproot pubkey (`TAPROOT_PUBKEY` = 4)
  */
 export enum AddressType {
     WITNESS_PUBKEY_HASH = 'WITNESS_PUBKEY_HASH',
     NESTED_PUBKEY_HASH = 'NESTED_PUBKEY_HASH',
     UNUSED_WITNESS_PUBKEY_HASH = 'UNUSED_WITNESS_PUBKEY_HASH',
     UNUSED_NESTED_PUBKEY_HASH = 'UNUSED_NESTED_PUBKEY_HASH',
+    TAPROOT_PUBKEY = 'TAPROOT_PUBKEY',
+    UNUSED_TAPROOT_PUBKEY = 'UNUSED_TAPROOT_PUBKEY',
     UNRECOGNIZED = 'UNRECOGNIZED'
 }
 
@@ -210,6 +226,21 @@ export interface Utxo {
     confirmations: string;
 }
 
+export interface OutputDetail {
+    /** The type of the output */
+    outputType: OutputScriptType;
+    /** The address */
+    address: string;
+    /** The pkscript in hex */
+    pkScript: string;
+    /** The output index used in the raw transaction */
+    outputIndex: string;
+    /** The value of the output coin in satoshis */
+    amount: string;
+    /** Denotes if the output is controlled by the internal wallet */
+    isOurAddress: boolean;
+}
+
 export interface Transaction {
     /** The transaction hash */
     txHash: string;
@@ -225,8 +256,15 @@ export interface Transaction {
     timeStamp: string;
     /** Fees paid for this transaction */
     totalFees: string;
-    /** Addresses that received funds for this transaction */
+    /**
+     * Addresses that received funds for this transaction. Deprecated as it is
+     * now incorporated in the output_details field.
+     *
+     * @deprecated
+     */
     destAddresses: string[];
+    /** Outputs that received funds for this transaction */
+    outputDetails: OutputDetail[];
     /** The raw transaction hex. */
     rawTxHex: string;
     /** A label that was optionally set on transaction broadcast. */
@@ -510,11 +548,11 @@ export interface OutPoint {
 }
 
 export interface LightningAddress {
-    /** The identity pubkey of the Lightning node */
+    /** The identity pubkey of the Lightning node. */
     pubkey: string;
     /**
      * The network location of the lightning node, e.g. `69.69.69.69:1337` or
-     * `localhost:10011`
+     * `localhost:10011`.
      */
     host: string;
 }
@@ -707,7 +745,7 @@ export interface VerifyMessageResponse {
 }
 
 export interface ConnectPeerRequest {
-    /** Lightning address of the peer, in the format `<pubkey>@host` */
+    /** Lightning address of the peer to connect to. */
     addr: LightningAddress | undefined;
     /**
      * If set, the daemon will attempt to persistently connect to the target
@@ -1138,6 +1176,8 @@ export interface GetInfoResponse {
      * announcements and invoices.
      */
     features: { [key: number]: Feature };
+    /** Indicates whether the HTLC interceptor API is in always-on mode. */
+    requireHtlcInterceptor: boolean;
 }
 
 export interface GetInfoResponse_FeaturesEntry {
@@ -1672,13 +1712,13 @@ export interface PendingChannelsResponse_PendingChannel {
     numForwardingPackages: string;
     /** A set of flags showing the current state of the channel. */
     chanStatusFlags: string;
+    /** Whether this channel is advertised to the network or not. */
+    private: boolean;
 }
 
 export interface PendingChannelsResponse_PendingOpenChannel {
     /** The pending channel */
     channel: PendingChannelsResponse_PendingChannel | undefined;
-    /** The height at which this channel will be confirmed */
-    confirmationHeight: number;
     /**
      * The amount calculated to be paid in fees for the current set of
      * commitment transactions. The fee amount is persisted with the channel
@@ -1944,6 +1984,11 @@ export interface QueryRoutesRequest {
      * fallback.
      */
     destFeatures: FeatureBit[];
+    /**
+     * The time preference for this payment. Set to -1 to optimize for fees
+     * only, to 1 to optimize for reliability only or a value inbetween for a mix.
+     */
+    timePref: number;
 }
 
 export interface QueryRoutesRequest_DestCustomRecordsEntry {
@@ -2040,6 +2085,8 @@ export interface Hop {
      * to drop off at each hop within the onion.
      */
     customRecords: { [key: string]: Uint8Array | string };
+    /** The payment metadata to send along with the payment to the payee. */
+    metadata: Uint8Array | string;
 }
 
 export interface Hop_CustomRecordsEntry {
@@ -2387,6 +2434,7 @@ export interface Invoice {
     /**
      * The hash of the preimage. When using REST, this field must be encoded as
      * base64.
+     * Note: Output only, don't specify for creating an invoice.
      */
     rHash: Uint8Array | string;
     /**
@@ -2407,14 +2455,21 @@ export interface Invoice {
      * @deprecated
      */
     settled: boolean;
-    /** When this invoice was created */
+    /**
+     * When this invoice was created.
+     * Note: Output only, don't specify for creating an invoice.
+     */
     creationDate: string;
-    /** When this invoice was settled */
+    /**
+     * When this invoice was settled.
+     * Note: Output only, don't specify for creating an invoice.
+     */
     settleDate: string;
     /**
      * A bare-bones invoice for a payment within the Lightning Network. With the
      * details of the invoice, the sender has all the data necessary to send a
      * payment to the recipient.
+     * Note: Output only, don't specify for creating an invoice.
      */
     paymentRequest: string;
     /**
@@ -2442,6 +2497,7 @@ export interface Invoice {
      * this index making it monotonically increasing. Callers to the
      * SubscribeInvoices call can use this to instantly get notified of all added
      * invoices with an add_index greater than this one.
+     * Note: Output only, don't specify for creating an invoice.
      */
     addIndex: string;
     /**
@@ -2449,6 +2505,7 @@ export interface Invoice {
      * increment this index making it monotonically increasing. Callers to the
      * SubscribeInvoices call can use this to instantly get notified of all
      * settled invoices with an settle_index greater than this one.
+     * Note: Output only, don't specify for creating an invoice.
      */
     settleIndex: string;
     /**
@@ -2464,6 +2521,7 @@ export interface Invoice {
      * was ultimately accepted. Additionally, it's possible that the sender paid
      * MORE that was specified in the original invoice. So we'll record that here
      * as well.
+     * Note: Output only, don't specify for creating an invoice.
      */
     amtPaidSat: string;
     /**
@@ -2473,23 +2531,35 @@ export interface Invoice {
      * amount was ultimately accepted. Additionally, it's possible that the sender
      * paid MORE that was specified in the original invoice. So we'll record that
      * here as well.
+     * Note: Output only, don't specify for creating an invoice.
      */
     amtPaidMsat: string;
-    /** The state the invoice is in. */
+    /**
+     * The state the invoice is in.
+     * Note: Output only, don't specify for creating an invoice.
+     */
     state: Invoice_InvoiceState;
-    /** List of HTLCs paying to this invoice [EXPERIMENTAL]. */
+    /**
+     * List of HTLCs paying to this invoice [EXPERIMENTAL].
+     * Note: Output only, don't specify for creating an invoice.
+     */
     htlcs: InvoiceHTLC[];
-    /** List of features advertised on the invoice. */
+    /**
+     * List of features advertised on the invoice.
+     * Note: Output only, don't specify for creating an invoice.
+     */
     features: { [key: number]: Feature };
     /**
      * Indicates if this invoice was a spontaneous payment that arrived via keysend
      * [EXPERIMENTAL].
+     * Note: Output only, don't specify for creating an invoice.
      */
     isKeysend: boolean;
     /**
      * The payment address of this invoice. This value will be used in MPP
      * payments, and also for newer invoices that always require the MPP payload
      * for added end-to-end security.
+     * Note: Output only, don't specify for creating an invoice.
      */
     paymentAddr: Uint8Array | string;
     /** Signals whether or not this is an AMP invoice. */
@@ -2501,6 +2571,7 @@ export interface Invoice {
      * given set ID. This field is always populated for AMP invoices, and can be
      * used along side LookupInvoice to obtain the HTLC information related to a
      * given sub-invoice.
+     * Note: Output only, don't specify for creating an invoice.
      */
     ampInvoiceState: { [key: string]: AMPInvoiceState };
 }
@@ -2780,6 +2851,13 @@ export interface ListPaymentsRequest {
      * of the returned payments is always oldest first (ascending index order).
      */
     reversed: boolean;
+    /**
+     * If set, all payments (complete and incomplete, independent of the
+     * max_payments parameter) will be counted. Note that setting this to true will
+     * increase the run time of the call significantly on systems that have a lot
+     * of payments, as all of them have to be iterated through to be counted.
+     */
+    countTotalPayments: boolean;
 }
 
 export interface ListPaymentsResponse {
@@ -2795,6 +2873,13 @@ export interface ListPaymentsResponse {
      * as the index_offset to continue seeking forwards in the next request.
      */
     lastIndexOffset: string;
+    /**
+     * Will only be set if count_total_payments in the request was set. Represents
+     * the total number of payments (complete and incomplete, independent of the
+     * number of payments requested in the query) currently present in the payments
+     * database.
+     */
+    totalNumPayments: string;
 }
 
 export interface DeletePaymentRequest {
