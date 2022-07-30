@@ -203,7 +203,9 @@ export default class LNC {
                 } else if (counter > 20) {
                     clearInterval(interval);
                     reject(
-                        'Failed to connect the WASM client to the proxy server'
+                        new Error(
+                            'Failed to connect the WASM client to the proxy server'
+                        )
                     );
                 }
             }, 500);
@@ -231,7 +233,7 @@ export default class LNC {
                     log.info('The WASM client is ready');
                 } else if (counter > 20) {
                     clearInterval(interval);
-                    reject('Failed to load the WASM client');
+                    reject(new Error('Failed to load the WASM client'));
                 }
             }, 500);
         });
