@@ -1,6 +1,6 @@
 {
   "name": "@lightninglabs/lnc-web",
-  "version": "0.1.11-alpha",
+  "version": "0.1.11-alpha.1",
   "description": "Lightning Node Connect npm module for web",
   "main": "./dist/index.js",
   "types": "./dist/index.d.ts",
@@ -12,12 +12,13 @@
     "protoc_version": "3.15.8"
   },
   "scripts": {
-    "build": "webpack",
+    "build": "NODE_ENV=production webpack",
     "dev": "webpack --watch --stats-error-details",
     "test": "mocha --reporter spec",
     "update-protos": "sh scripts/update_protos.sh  ${npm_package_config_lnd_release_tag} ${npm_package_config_loop_release_tag} ${npm_package_config_pool_release_tag} ${npm_package_config_faraday_release_tag}",
     "generate": "sh scripts/generate_types.sh ${npm_package_config_lnd_release_tag} ${npm_package_config_loop_release_tag} ${npm_package_config_pool_release_tag} ${npm_package_config_faraday_release_tag} ${npm_package_config_protoc_version}",
-    "prettier": "prettier --check --write '**/*.ts*' '!dist/**' '!lib/types/**'",
+    "prettier": "prettier --check '**/*.ts*'",
+    "prettier-write": "prettier --check --write '**/*.ts*'",
     "lint": "tslint -p tsconfig.json",
     "prepare": "npm run build",
     "prepublishOnly": "npm run lint",
