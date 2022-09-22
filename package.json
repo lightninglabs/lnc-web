@@ -1,14 +1,14 @@
 {
   "name": "@lightninglabs/lnc-web",
-  "version": "0.1.11-alpha.1",
+  "version": "0.1.12-alpha",
   "description": "Lightning Node Connect npm module for web",
   "main": "./dist/index.js",
   "types": "./dist/index.d.ts",
   "config": {
-    "lnd_release_tag": "v0.14.3-beta",
-    "loop_release_tag": "v0.19.1-beta",
-    "pool_release_tag": "v0.5.6-alpha",
-    "faraday_release_tag": "v0.2.5-alpha",
+    "lnd_release_tag": "v0.15.1-beta",
+    "loop_release_tag": "v0.20.1-beta",
+    "pool_release_tag": "v0.5.8-alpha",
+    "faraday_release_tag": "v0.2.8-alpha",
     "protoc_version": "3.15.8"
   },
   "scripts": {
@@ -56,11 +56,11 @@
     "tslint-config-prettier": "1.18.0",
     "typescript": "4.5.5",
     "webpack": "5.69.1",
-    "webpack-cli": "4.9.2"
+    "webpack-cli": "4.9.2",
+    "node-polyfill-webpack-plugin": "1.1.4"
   },
   "dependencies": {
-    "crypto-js": "4.1.1",
-    "node-polyfill-webpack-plugin": "1.1.4"
+    "crypto-js": "4.1.1"
   },
   "browser": {
     "fs": false,

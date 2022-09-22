@@ -20,7 +20,10 @@ export enum LookupModifier {
 }
 
 export interface CancelInvoiceMsg {
-    /** Hash corresponding to the (hold) invoice to cancel. */
+    /**
+     * Hash corresponding to the (hold) invoice to cancel. When using
+     * REST, this field must be encoded as base64.
+     */
     paymentHash: Uint8Array | string;
 }
 
@@ -102,11 +105,15 @@ export interface SettleInvoiceMsg {
 export interface SettleInvoiceResp {}
 
 export interface SubscribeSingleInvoiceRequest {
-    /** Hash corresponding to the (hold) invoice to subscribe to. */
+    /**
+     * Hash corresponding to the (hold) invoice to subscribe to. When using
+     * REST, this field must be encoded as base64url.
+     */
     rHash: Uint8Array | string;
 }
 
 export interface LookupInvoiceMsg {
+    /** When using REST, this field must be encoded as base64. */
     paymentHash: Uint8Array | string | undefined;
     paymentAddr: Uint8Array | string | undefined;
     setId: Uint8Array | string | undefined;

@@ -7,6 +7,7 @@ export enum AddressType {
     WITNESS_PUBKEY_HASH = 'WITNESS_PUBKEY_HASH',
     NESTED_WITNESS_PUBKEY_HASH = 'NESTED_WITNESS_PUBKEY_HASH',
     HYBRID_NESTED_WITNESS_PUBKEY_HASH = 'HYBRID_NESTED_WITNESS_PUBKEY_HASH',
+    TAPROOT_PUBKEY = 'TAPROOT_PUBKEY',
     UNRECOGNIZED = 'UNRECOGNIZED'
 }
 
@@ -95,6 +96,13 @@ export interface ListUnspentRequest {
     maxConfs: number;
     /** An optional filter to only include outputs belonging to an account. */
     account: string;
+    /**
+     * When min_confs and max_confs are zero, setting false implicitly
+     * overrides max_confs to be MaxInt32, otherwise max_confs remains
+     * zero. An error is returned if the value is true and both min_confs
+     * and max_confs are non-zero. (default: false)
+     */
+    unconfirmedOnly: boolean;
 }
 
 export interface ListUnspentResponse {
@@ -218,6 +226,16 @@ export interface ListAccountsRequest {
 
 export interface ListAccountsResponse {
     accounts: Account[];
+}
+
+export interface RequiredReserveRequest {
+    /** The number of additional channels the user would like to open. */
+    additionalPublicChannels: number;
+}
+
+export interface RequiredReserveResponse {
+    /** The amount of reserve required. */
+    requiredReserve: string;
 }
 
 export interface ImportAccountRequest {
@@ -522,6 +540,10 @@ export interface UtxoLease {
     outpoint: OutPoint | undefined;
     /** The absolute expiration of the output lease represented as a unix timestamp. */
     expiration: string;
+    /** The public key script of the leased output. */
+    pkScript: Uint8Array | string;
+    /** The value of the leased output in satoshis. */
+    value: string;
 }
 
 export interface SignPsbtRequest {
@@ -572,7 +594,9 @@ export interface ListLeasesResponse {
 export interface WalletKit {
     /**
      * ListUnspent returns a list of all utxos spendable by the wallet with a
-     * number of confirmations between the specified minimum and maximum.
+     * number of confirmations between the specified minimum and maximum. By
+     * default, all utxos are listed. To list only the unconfirmed utxos, set
+     * the unconfirmed_only to true.
      */
     listUnspent(
         request?: DeepPartial<ListUnspentRequest>
@@ -620,6 +644,14 @@ export interface WalletKit {
     listAccounts(
         request?: DeepPartial<ListAccountsRequest>
     ): Promise<ListAccountsResponse>;
+    /**
+     * RequiredReserve returns the minimum amount of satoshis that should be kept
+     * in the wallet in order to fee bump anchor channels if necessary. The value
+     * scales with the number of public anchor channels but is capped at a maximum.
+     */
+    requiredReserve(
+        request?: DeepPartial<RequiredReserveRequest>
+    ): Promise<RequiredReserveResponse>;
     /**
      * ImportAccount imports an account backed by an account extended public key.
      * The master key fingerprint denotes the fingerprint of the root key
