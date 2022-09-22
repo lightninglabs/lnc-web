@@ -1,7 +1,6 @@
 .github/**
 demos/**
 dist/**
-lib/types/**
 lib/wasm_exec.js
 package-lock.json
 package.json
