@@ -343,6 +343,8 @@ export interface SwapResponse {
      * Used for both loop-in and loop-out.
      */
     htlcAddressP2wsh: string;
+    /** The address of the v3 (taproot) htlc. Used for both loop-in and loop-out. */
+    htlcAddressP2tr: string;
     /** A human-readable message received from the loop server. */
     serverMessage: string;
 }
@@ -395,6 +397,8 @@ export interface SwapStatus {
     htlcAddressP2wsh: string;
     /** HTLC address (nested segwit), used in loop-in swaps only. */
     htlcAddressNp2wsh: string;
+    /** The address of the v3 (taproot) htlc. Used for both loop-in and loop-out. */
+    htlcAddressP2tr: string;
     /** Swap server cost */
     costServer: string;
     /** On-chain transaction cost */

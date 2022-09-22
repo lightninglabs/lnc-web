@@ -1,16 +1,32 @@
 /* eslint-disable */
 
+export enum OutputScriptType {
+    SCRIPT_TYPE_PUBKEY_HASH = 'SCRIPT_TYPE_PUBKEY_HASH',
+    SCRIPT_TYPE_SCRIPT_HASH = 'SCRIPT_TYPE_SCRIPT_HASH',
+    SCRIPT_TYPE_WITNESS_V0_PUBKEY_HASH = 'SCRIPT_TYPE_WITNESS_V0_PUBKEY_HASH',
+    SCRIPT_TYPE_WITNESS_V0_SCRIPT_HASH = 'SCRIPT_TYPE_WITNESS_V0_SCRIPT_HASH',
+    SCRIPT_TYPE_PUBKEY = 'SCRIPT_TYPE_PUBKEY',
+    SCRIPT_TYPE_MULTISIG = 'SCRIPT_TYPE_MULTISIG',
+    SCRIPT_TYPE_NULLDATA = 'SCRIPT_TYPE_NULLDATA',
+    SCRIPT_TYPE_NON_STANDARD = 'SCRIPT_TYPE_NON_STANDARD',
+    SCRIPT_TYPE_WITNESS_UNKNOWN = 'SCRIPT_TYPE_WITNESS_UNKNOWN',
+    UNRECOGNIZED = 'UNRECOGNIZED'
+}
+
 /**
  * `AddressType` has to be one of:
  *
  * - `p2wkh`: Pay to witness key hash (`WITNESS_PUBKEY_HASH` = 0)
  * - `np2wkh`: Pay to nested witness key hash (`NESTED_PUBKEY_HASH` = 1)
+ * - `p2tr`: Pay to taproot pubkey (`TAPROOT_PUBKEY` = 4)
  */
 export enum AddressType {
     WITNESS_PUBKEY_HASH = 'WITNESS_PUBKEY_HASH',
     NESTED_PUBKEY_HASH = 'NESTED_PUBKEY_HASH',
     UNUSED_WITNESS_PUBKEY_HASH = 'UNUSED_WITNESS_PUBKEY_HASH',
     UNUSED_NESTED_PUBKEY_HASH = 'UNUSED_NESTED_PUBKEY_HASH',
+    TAPROOT_PUBKEY = 'TAPROOT_PUBKEY',
+    UNUSED_TAPROOT_PUBKEY = 'UNUSED_TAPROOT_PUBKEY',
     UNRECOGNIZED = 'UNRECOGNIZED'
 }
 
@@ -210,6 +226,21 @@ export interface Utxo {
     confirmations: string;
 }
 
+export interface OutputDetail {
+    /** The type of the output */
+    outputType: OutputScriptType;
+    /** The address */
+    address: string;
+    /** The pkscript in hex */
+    pkScript: string;
+    /** The output index used in the raw transaction */
+    outputIndex: string;
+    /** The value of the output coin in satoshis */
+    amount: string;
+    /** Denotes if the output is controlled by the internal wallet */
+    isOurAddress: boolean;
+}
+
 export interface Transaction {
     /** The transaction hash */
     txHash: string;
@@ -225,12 +256,21 @@ export interface Transaction {
     timeStamp: string;
     /** Fees paid for this transaction */
     totalFees: string;
-    /** Addresses that received funds for this transaction */
+    /**
+     * Addresses that received funds for this transaction. Deprecated as it is
+     * now incorporated in the output_details field.
+     *
+     * @deprecated
+     */
     destAddresses: string[];
+    /** Outputs that received funds for this transaction */
+    outputDetails: OutputDetail[];
     /** The raw transaction hex. */
     rawTxHex: string;
     /** A label that was optionally set on transaction broadcast. */
     label: string;
+    /** PreviousOutpoints/Inputs of this transaction. */
+    previousOutpoints: PreviousOutPoint[];
 }
 
 export interface GetTransactionsRequest {
@@ -440,6 +480,16 @@ export interface ChannelAcceptRequest {
     channelFlags: number;
     /** The commitment type the initiator wishes to use for the proposed channel. */
     commitmentType: CommitmentType;
+    /**
+     * Whether the initiator wants to open a zero-conf channel via the channel
+     * type.
+     */
+    wantsZeroConf: boolean;
+    /**
+     * Whether the initiator wants to use the scid-alias channel type. This is
+     * separate from the feature bit.
+     */
+    wantsScidAlias: boolean;
 }
 
 export interface ChannelAcceptResponse {
@@ -483,6 +533,12 @@ export interface ChannelAcceptResponse {
     minHtlcIn: string;
     /** The number of confirmations we require before we consider the channel open. */
     minAcceptDepth: number;
+    /**
+     * Whether the responder wants this to be a zero-conf channel. This will fail
+     * if either side does not have the scid-alias feature bit set. The minimum
+     * depth field must be zero if this is true.
+     */
+    zeroConf: boolean;
 }
 
 export interface ChannelPoint {
@@ -509,12 +565,22 @@ export interface OutPoint {
     outputIndex: number;
 }
 
+export interface PreviousOutPoint {
+    /** The outpoint in format txid:n. */
+    outpoint: string;
+    /**
+     * Denotes if the outpoint is controlled by the internal wallet.
+     * The flag will only detect p2wkh, np2wkh and p2tr inputs as its own.
+     */
+    isOurOutput: boolean;
+}
+
 export interface LightningAddress {
-    /** The identity pubkey of the Lightning node */
+    /** The identity pubkey of the Lightning node. */
     pubkey: string;
     /**
      * The network location of the lightning node, e.g. `69.69.69.69:1337` or
-     * `localhost:10011`
+     * `localhost:10011`.
      */
     host: string;
 }
@@ -707,7 +773,7 @@ export interface VerifyMessageResponse {
 }
 
 export interface ConnectPeerRequest {
-    /** Lightning address of the peer, in the format `<pubkey>@host` */
+    /** Lightning address of the peer to connect to. */
     addr: LightningAddress | undefined;
     /**
      * If set, the daemon will attempt to persistently connect to the target
@@ -898,6 +964,15 @@ export interface Channel {
     localConstraints: ChannelConstraints | undefined;
     /** List constraints for the remote node. */
     remoteConstraints: ChannelConstraints | undefined;
+    /**
+     * This lists out the set of alias short channel ids that exist for a channel.
+     * This may be empty.
+     */
+    aliasScids: string[];
+    /** Whether or not this is a zero-conf channel. */
+    zeroConf: boolean;
+    /** This is the confirmed / on-chain zero-conf SCID. */
+    zeroConfConfirmedScid: string;
 }
 
 export interface ListChannelsRequest {
@@ -915,6 +990,22 @@ export interface ListChannelsRequest {
 export interface ListChannelsResponse {
     /** The list of active channels */
     channels: Channel[];
+}
+
+export interface AliasMap {
+    /**
+     * For non-zero-conf channels, this is the confirmed SCID. Otherwise, this is
+     * the first assigned "base" alias.
+     */
+    baseScid: string;
+    /** The set of all aliases stored for the base SCID. */
+    aliases: string[];
+}
+
+export interface ListAliasesRequest {}
+
+export interface ListAliasesResponse {
+    aliasMaps: AliasMap[];
 }
 
 export interface ChannelCloseSummary {
@@ -953,6 +1044,13 @@ export interface ChannelCloseSummary {
      */
     closeInitiator: Initiator;
     resolutions: Resolution[];
+    /**
+     * This lists out the set of alias short channel ids that existed for the
+     * closed channel. This may be empty.
+     */
+    aliasScids: string[];
+    /** The confirmed SCID for a zero-conf channel. */
+    zeroConfConfirmedScid: string;
 }
 
 export enum ChannelCloseSummary_ClosureType {
@@ -1138,6 +1236,8 @@ export interface GetInfoResponse {
      * announcements and invoices.
      */
     features: { [key: number]: Feature };
+    /** Indicates whether the HTLC interceptor API is in always-on mode. */
+    requireHtlcInterceptor: boolean;
 }
 
 export interface GetInfoResponse_FeaturesEntry {
@@ -1215,6 +1315,12 @@ export interface CloseChannelRequest {
      * closure transaction.
      */
     satPerVbyte: string;
+    /**
+     * The maximum fee rate the closer is willing to pay.
+     *
+     * NOTE: This field is only respected if we're the initiator of the channel.
+     */
+    maxFeePerVbyte: string;
 }
 
 export interface CloseStatusUpdate {
@@ -1432,6 +1538,13 @@ export interface OpenChannelRequest {
      * the remote peer supports explicit channel negotiation.
      */
     commitmentType: CommitmentType;
+    /** If this is true, then a zero-conf channel open will be attempted. */
+    zeroConf: boolean;
+    /**
+     * If this is true, then an option-scid-alias channel-type open will be
+     * attempted.
+     */
+    scidAlias: boolean;
 }
 
 export interface OpenStatusUpdate {
@@ -1672,13 +1785,13 @@ export interface PendingChannelsResponse_PendingChannel {
     numForwardingPackages: string;
     /** A set of flags showing the current state of the channel. */
     chanStatusFlags: string;
+    /** Whether this channel is advertised to the network or not. */
+    private: boolean;
 }
 
 export interface PendingChannelsResponse_PendingOpenChannel {
     /** The pending channel */
     channel: PendingChannelsResponse_PendingChannel | undefined;
-    /** The height at which this channel will be confirmed */
-    confirmationHeight: number;
     /**
      * The amount calculated to be paid in fees for the current set of
      * commitment transactions. The fee amount is persisted with the channel
@@ -1813,6 +1926,8 @@ export interface WalletBalanceResponse {
      * other usage.
      */
     lockedBalance: string;
+    /** The amount of reserve required. */
+    reservedBalanceAnchorChan: string;
     /** A mapping of each wallet account's name to its balance. */
     accountBalance: { [key: string]: WalletAccountBalance };
 }
@@ -1944,6 +2059,11 @@ export interface QueryRoutesRequest {
      * fallback.
      */
     destFeatures: FeatureBit[];
+    /**
+     * The time preference for this payment. Set to -1 to optimize for fees
+     * only, to 1 to optimize for reliability only or a value inbetween for a mix.
+     */
+    timePref: number;
 }
 
 export interface QueryRoutesRequest_DestCustomRecordsEntry {
@@ -2040,6 +2160,8 @@ export interface Hop {
      * to drop off at each hop within the onion.
      */
     customRecords: { [key: string]: Uint8Array | string };
+    /** The payment metadata to send along with the payment to the payee. */
+    metadata: Uint8Array | string;
 }
 
 export interface Hop_CustomRecordsEntry {
@@ -2387,6 +2509,7 @@ export interface Invoice {
     /**
      * The hash of the preimage. When using REST, this field must be encoded as
      * base64.
+     * Note: Output only, don't specify for creating an invoice.
      */
     rHash: Uint8Array | string;
     /**
@@ -2404,17 +2527,26 @@ export interface Invoice {
     /**
      * Whether this invoice has been fulfilled
      *
+     * The field is deprecated. Use the state field instead (compare to SETTLED).
+     *
      * @deprecated
      */
     settled: boolean;
-    /** When this invoice was created */
+    /**
+     * When this invoice was created.
+     * Note: Output only, don't specify for creating an invoice.
+     */
     creationDate: string;
-    /** When this invoice was settled */
+    /**
+     * When this invoice was settled.
+     * Note: Output only, don't specify for creating an invoice.
+     */
     settleDate: string;
     /**
      * A bare-bones invoice for a payment within the Lightning Network. With the
      * details of the invoice, the sender has all the data necessary to send a
      * payment to the recipient.
+     * Note: Output only, don't specify for creating an invoice.
      */
     paymentRequest: string;
     /**
@@ -2442,6 +2574,7 @@ export interface Invoice {
      * this index making it monotonically increasing. Callers to the
      * SubscribeInvoices call can use this to instantly get notified of all added
      * invoices with an add_index greater than this one.
+     * Note: Output only, don't specify for creating an invoice.
      */
     addIndex: string;
     /**
@@ -2449,6 +2582,7 @@ export interface Invoice {
      * increment this index making it monotonically increasing. Callers to the
      * SubscribeInvoices call can use this to instantly get notified of all
      * settled invoices with an settle_index greater than this one.
+     * Note: Output only, don't specify for creating an invoice.
      */
     settleIndex: string;
     /**
@@ -2464,6 +2598,7 @@ export interface Invoice {
      * was ultimately accepted. Additionally, it's possible that the sender paid
      * MORE that was specified in the original invoice. So we'll record that here
      * as well.
+     * Note: Output only, don't specify for creating an invoice.
      */
     amtPaidSat: string;
     /**
@@ -2473,23 +2608,35 @@ export interface Invoice {
      * amount was ultimately accepted. Additionally, it's possible that the sender
      * paid MORE that was specified in the original invoice. So we'll record that
      * here as well.
+     * Note: Output only, don't specify for creating an invoice.
      */
     amtPaidMsat: string;
-    /** The state the invoice is in. */
+    /**
+     * The state the invoice is in.
+     * Note: Output only, don't specify for creating an invoice.
+     */
     state: Invoice_InvoiceState;
-    /** List of HTLCs paying to this invoice [EXPERIMENTAL]. */
+    /**
+     * List of HTLCs paying to this invoice [EXPERIMENTAL].
+     * Note: Output only, don't specify for creating an invoice.
+     */
     htlcs: InvoiceHTLC[];
-    /** List of features advertised on the invoice. */
+    /**
+     * List of features advertised on the invoice.
+     * Note: Output only, don't specify for creating an invoice.
+     */
     features: { [key: number]: Feature };
     /**
      * Indicates if this invoice was a spontaneous payment that arrived via keysend
      * [EXPERIMENTAL].
+     * Note: Output only, don't specify for creating an invoice.
      */
     isKeysend: boolean;
     /**
      * The payment address of this invoice. This value will be used in MPP
      * payments, and also for newer invoices that always require the MPP payload
      * for added end-to-end security.
+     * Note: Output only, don't specify for creating an invoice.
      */
     paymentAddr: Uint8Array | string;
     /** Signals whether or not this is an AMP invoice. */
@@ -2501,6 +2648,7 @@ export interface Invoice {
      * given set ID. This field is always populated for AMP invoices, and can be
      * used along side LookupInvoice to obtain the HTLC information related to a
      * given sub-invoice.
+     * Note: Output only, don't specify for creating an invoice.
      */
     ampInvoiceState: { [key: string]: AMPInvoiceState };
 }
@@ -2780,6 +2928,13 @@ export interface ListPaymentsRequest {
      * of the returned payments is always oldest first (ascending index order).
      */
     reversed: boolean;
+    /**
+     * If set, all payments (complete and incomplete, independent of the
+     * max_payments parameter) will be counted. Note that setting this to true will
+     * increase the run time of the call significantly on systems that have a lot
+     * of payments, as all of them have to be iterated through to be counted.
+     */
+    countTotalPayments: boolean;
 }
 
 export interface ListPaymentsResponse {
@@ -2795,6 +2950,13 @@ export interface ListPaymentsResponse {
      * as the index_offset to continue seeking forwards in the next request.
      */
     lastIndexOffset: string;
+    /**
+     * Will only be set if count_total_payments in the request was set. Represents
+     * the total number of payments (complete and incomplete, independent of the
+     * number of payments requested in the query) currently present in the payments
+     * database.
+     */
+    totalNumPayments: string;
 }
 
 export interface DeletePaymentRequest {
@@ -3362,6 +3524,13 @@ export interface RPCMiddlewareRequest {
      */
     response: RPCMessage | undefined;
     /**
+     * This is used to indicate to the client that the server has successfully
+     * registered the interceptor. This is only used in the very first message
+     * that the server sends to the client after the client sends the server
+     * the middleware registration message.
+     */
+    regComplete: boolean | undefined;
+    /**
      * The unique message ID of this middleware intercept message. There can be
      * multiple middleware intercept messages per single gRPC request (one for the
      * incoming request and one for the outgoing response) or gRPC stream (one for
@@ -3392,7 +3561,8 @@ export interface RPCMessage {
     streamRpc: boolean;
     /**
      * The full canonical gRPC name of the message type (in the format
-     * <rpcpackage>.TypeName, for example lnrpc.GetInfoRequest).
+     * <rpcpackage>.TypeName, for example lnrpc.GetInfoRequest). In case of an
+     * error being returned from lnd, this simply contains the string "error".
      */
     typeName: string;
     /**
@@ -3400,6 +3570,12 @@ export interface RPCMessage {
      * format.
      */
     serialized: Uint8Array | string;
+    /**
+     * Indicates that the response from lnd was an error, not a gRPC response. If
+     * this is set to true then the type_name contains the string "error" and
+     * serialized contains the error string.
+     */
+    isError: boolean;
 }
 
 export interface RPCMiddlewareResponse {
@@ -3464,17 +3640,15 @@ export interface InterceptFeedback {
      */
     error: string;
     /**
-     * A boolean indicating that the gRPC response should be replaced/overwritten.
-     * As its name suggests, this can only be used as a feedback to an intercepted
-     * response RPC message and is ignored for feedback on any other message. This
-     * boolean is needed because in protobuf an empty message is serialized as a
-     * 0-length or nil byte slice and we wouldn't be able to distinguish between
+     * A boolean indicating that the gRPC message should be replaced/overwritten.
+     * This boolean is needed because in protobuf an empty message is serialized as
+     * a 0-length or nil byte slice and we wouldn't be able to distinguish between
      * an empty replacement message and the "don't replace anything" case.
      */
     replaceResponse: boolean;
     /**
      * If the replace_response field is set to true, this field must contain the
-     * binary serialized gRPC response message in the protobuf format.
+     * binary serialized gRPC message in the protobuf format.
      */
     replacementSerialized: Uint8Array | string;
 }
@@ -4126,6 +4300,15 @@ export interface Lightning {
         onMessage?: (msg: CustomMessage) => void,
         onError?: (err: Error) => void
     ): void;
+    /**
+     * lncli: `listaliases`
+     * ListAliases returns the set of all aliases that have ever existed with
+     * their confirmed SCID (if it exists) and/or the base SCID (in the case of
+     * zero conf).
+     */
+    listAliases(
+        request?: DeepPartial<ListAliasesRequest>
+    ): Promise<ListAliasesResponse>;
 }
 
 type Builtin =
