@@ -4,19 +4,10 @@
   "description": "Lightning Node Connect npm module for web",
   "main": "./dist/index.js",
   "types": "./dist/index.d.ts",
-  "config": {
-    "lnd_release_tag": "v0.15.1-beta",
-    "loop_release_tag": "v0.20.1-beta",
-    "pool_release_tag": "v0.5.8-alpha",
-    "faraday_release_tag": "v0.2.8-alpha",
-    "protoc_version": "3.15.8"
-  },
   "scripts": {
     "build": "NODE_ENV=production webpack",
     "dev": "webpack --watch --stats-error-details",
     "test": "mocha --reporter spec",
-    "update-protos": "sh scripts/update_protos.sh  ${npm_package_config_lnd_release_tag} ${npm_package_config_loop_release_tag} ${npm_package_config_pool_release_tag} ${npm_package_config_faraday_release_tag}",
-    "generate": "sh scripts/generate_types.sh ${npm_package_config_lnd_release_tag} ${npm_package_config_loop_release_tag} ${npm_package_config_pool_release_tag} ${npm_package_config_faraday_release_tag} ${npm_package_config_protoc_version}",
     "prettier": "prettier --check '**/*.ts*'",
     "prettier-write": "prettier --check --write '**/*.ts*'",
     "lint": "tslint -p tsconfig.json",
@@ -60,6 +51,7 @@
     "node-polyfill-webpack-plugin": "1.1.4"
   },
   "dependencies": {
+    "@lightninglabs/lnc-core": "v0.1.12-alpha",
     "crypto-js": "4.1.1"
   },
   "browser": {
