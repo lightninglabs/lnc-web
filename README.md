@@ -6,6 +6,10 @@
 
 `npm i @lightninglabs/lnc-web`
 
+or
+
+`yarn add @lightninglabs/lnc-web`
+
 ## API Design
 
 #### Set-up and connection

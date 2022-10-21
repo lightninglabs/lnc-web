@@ -15,11 +15,11 @@ accessible that you can obtain a pairing phrase from.
    ```
 2. Install the dependencies
    ```sh
-   $ npm install
+   $ yarn
    ```
 3. Start the web app
    ```sh
-   $ npm start
+   $ yarn start
    ```
    Your browser should open to http://localhost:3000 and you will see the home page.
 
