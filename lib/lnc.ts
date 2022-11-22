@@ -1,12 +1,18 @@
-import { FaradayApi, LndApi, LoopApi, PoolApi } from './api';
+import {
+    FaradayApi,
+    LndApi,
+    LoopApi,
+    PoolApi,
+    snakeKeysToCamel
+} from '@lightninglabs/lnc-core';
+import { createRpc } from './api/createRpc';
 import { CredentialStore, LncConfig, WasmGlobal } from './types/lnc';
 import LncCredentialStore from './util/credentialStore';
 import { wasmLog as log } from './util/log';
-import { snakeKeysToCamel } from './util/objects';
 
 /** The default values for the LncConfig options */
 const DEFAULT_CONFIG = {
-    wasmClientCode: 'https://lightning.engineering/lnc-v0.1.12-alpha.wasm',
+    wasmClientCode: 'https://lightning.engineering/lnc-v0.2.0-alpha.wasm',
     namespace: 'default',
     serverHost: 'mailbox.terminal.lightning.today:443'
 } as Required<LncConfig>;
@@ -52,10 +58,10 @@ export default class LNC {
         const g = global || window || self;
         this.go = new g.Go();
 
-        this.lnd = new LndApi(this);
-        this.loop = new LoopApi(this);
-        this.pool = new PoolApi(this);
-        this.faraday = new FaradayApi(this);
+        this.lnd = new LndApi(createRpc, this);
+        this.loop = new LoopApi(createRpc, this);
+        this.pool = new PoolApi(createRpc, this);
+        this.faraday = new FaradayApi(createRpc, this);
     }
 
     private get wasm() {
