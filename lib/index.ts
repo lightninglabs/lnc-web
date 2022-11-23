@@ -12,5 +12,5 @@ if (!WebAssembly.instantiateStreaming) {
 }
 
 export type { LncConfig, CredentialStore } from './types/lnc';
-
+export * from '@lightninglabs/lnc-core';
 export default LNC;
