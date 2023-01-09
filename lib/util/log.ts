@@ -27,9 +27,9 @@ export class Logger {
         // by default, log nothing (assuming prod)
         let level = LogLevel.none;
 
-        if (localStorage && localStorage.getItem('debug')) {
+        if (globalThis.localStorage && globalThis.localStorage.getItem('debug')) {
             // if a 'debug' key is found in localStorage, use the level in storage or 'debug' by default
-            const storageLevel = localStorage.getItem('debug-level') || 'debug';
+            const storageLevel = globalThis.localStorage.getItem('debug-level') || 'debug';
             level = LogLevel[storageLevel as keyof typeof LogLevel];
         }
 

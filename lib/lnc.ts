@@ -65,7 +65,7 @@ export default class LNC {
     }
 
     private get wasm() {
-        return window[this._namespace] as WasmGlobal;
+        return globalThis[this._namespace] as WasmGlobal;
     }
 
     get isReady() {
@@ -195,7 +195,11 @@ export default class LNC {
         );
 
         // add an event listener to disconnect if the page is unloaded
-        window.addEventListener('unload', this.wasm.wasmClientDisconnect);
+        if (typeof window !== "undefined") {
+            window.addEventListener('unload', this.wasm.wasmClientDisconnect);
+        } else {
+            log.info("No unload event listener added. window is not available");
+        }
 
         // repeatedly check if the connection was successful
         return new Promise<void>((resolve, reject) => {
