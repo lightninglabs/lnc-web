@@ -18,7 +18,7 @@ The constructor for the LNC object takes a parameters object with the three foll
 -   `namespace` (string): JavaScript namespace used for the main WASM calls. You can maintain multiple connections if you use different namespaces. If not specified we'll default to `default`.
 -   `password` (string): By default, this module will handle storage of your local and remote keys for you in local storage. We highly recommend encrypting that data with a password you set here.
 
-```
+```typescript
 import LNC from ‘@lightninglabs/lnc-web’;
 
 const pairingPhrase = ‘artefact morning piano photo consider light’;
@@ -68,7 +68,7 @@ lnc.disconnect();
 
 All of the services (lnd, loop, pool, faraday) will be objects under the main lnc object. Each services’ sub-services will be underneath each service object, and each sub-service function below that (except in the case of faraday which only has one service - its functions will live directly under it). All service, function, and param names will be camel-cased.
 
-```
+```typescript
 const { lnd, loop, pool, faraday } = lnc;
 
 // all functions on the base object should have proper types
@@ -89,7 +89,7 @@ const insights = await faraday.channelInsights();
 
 #### Subscriptions
 
-```
+```typescript
 const { lnd } = lnc;
 
 // handle subscriptions
