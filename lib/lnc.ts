@@ -1,5 +1,6 @@
 import {
     FaradayApi,
+    LitApi,
     LndApi,
     LoopApi,
     PoolApi,
@@ -32,6 +33,7 @@ export default class LNC {
     loop: LoopApi;
     pool: PoolApi;
     faraday: FaradayApi;
+    lit: LitApi;
 
     constructor(lncConfig?: LncConfig) {
         // merge the passed in config with the defaults
@@ -62,6 +64,7 @@ export default class LNC {
         this.loop = new LoopApi(createRpc, this);
         this.pool = new PoolApi(createRpc, this);
         this.faraday = new FaradayApi(createRpc, this);
+        this.lit = new LitApi(createRpc, this);
     }
 
     private get wasm() {
