@@ -195,10 +195,10 @@ export default class LNC {
         );
 
         // add an event listener to disconnect if the page is unloaded
-        if (typeof window !== "undefined") {
+        if (typeof window !== 'undefined') {
             window.addEventListener('unload', this.wasm.wasmClientDisconnect);
         } else {
-            log.info("No unload event listener added. window is not available");
+            log.info('No unload event listener added. window is not available');
         }
 
         // repeatedly check if the connection was successful
