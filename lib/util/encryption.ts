@@ -6,7 +6,7 @@ export const generateSalt = () => {
     const validChars =
         'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789';
     let array = new Uint8Array(32);
-    window.crypto.getRandomValues(array);
+    globalThis.crypto.getRandomValues(array);
     array = array.map((x) => validChars.charCodeAt(x % validChars.length));
     const salt = String.fromCharCode.apply(null, array as any);
     return salt;
