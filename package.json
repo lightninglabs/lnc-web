@@ -51,7 +51,7 @@
     "webpack-cli": "4.9.2"
   },
   "dependencies": {
-    "@lightninglabs/lnc-core": "0.2.1-alpha",
+    "@lightninglabs/lnc-core": "0.2.2-alpha",
     "crypto-js": "4.1.1"
   },
   "browser": {

@@ -80,10 +80,10 @@
     "@jridgewell/resolve-uri" "3.1.0"
     "@jridgewell/sourcemap-codec" "1.4.14"
 
-"@lightninglabs/lnc-core@0.2.1-alpha":
-  version "0.2.1-alpha"
-  resolved "https://registry.yarnpkg.com/@lightninglabs/lnc-core/-/lnc-core-0.2.1-alpha.tgz#b381ea29fb7bc20a7dd10334bb913bb50f6dac36"
-  integrity sha512-H297V3seL+PE786HcuAQiSass/3y0NSYCy3b4hNTZL4Io80Oy4WY49s08CpRuV8cNfjAzWjYSXkhorALjaRdwA==
+"@lightninglabs/lnc-core@0.2.2-alpha":
+  version "0.2.2-alpha"
+  resolved "https://registry.yarnpkg.com/@lightninglabs/lnc-core/-/lnc-core-0.2.2-alpha.tgz#37e1dcf3419844f70e5df7901ec55cb62a9b0b1e"
+  integrity sha512-S46tZ6cH7jPgrotbZS9Pceyb2Nf+gaC9gmorm1DC7OpWxaf2gilelNk+0wVf9B8pqIwnBfr1z3h/sTophvLkUQ==
 
 "@protobufjs/aspromise@^1.1.1", "@protobufjs/aspromise@^1.1.2":
   version "1.1.2"
