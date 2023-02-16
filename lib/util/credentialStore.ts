@@ -189,6 +189,9 @@ export default class LncCredentialStore implements CredentialStore {
 
     /** Loads persisted data from localStorage */
     private _load() {
+        // do nothing if localStorage is not available
+        if (typeof localStorage === 'undefined') return;
+
         try {
             const key = `${STORAGE_KEY}:${this.namespace}`;
             const json = localStorage.getItem(key);
@@ -202,6 +205,9 @@ export default class LncCredentialStore implements CredentialStore {
 
     /** Saves persisted data to localStorage */
     private _save() {
+        // do nothing if localStorage is not available
+        if (typeof localStorage === 'undefined') return;
+
         const key = `${STORAGE_KEY}:${this.namespace}`;
         localStorage.setItem(key, JSON.stringify(this.persisted));
     }

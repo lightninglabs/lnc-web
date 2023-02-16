@@ -1,5 +1,6 @@
 import {
     FaradayApi,
+    LitApi,
     LndApi,
     LoopApi,
     PoolApi,
@@ -12,7 +13,7 @@ import { wasmLog as log } from './util/log';
 
 /** The default values for the LncConfig options */
 const DEFAULT_CONFIG = {
-    wasmClientCode: 'https://lightning.engineering/lnc-v0.2.2-alpha.wasm',
+    wasmClientCode: 'https://lightning.engineering/lnc-v0.2.3-alpha.wasm',
     namespace: 'default',
     serverHost: 'mailbox.terminal.lightning.today:443'
 } as Required<LncConfig>;
@@ -32,6 +33,7 @@ export default class LNC {
     loop: LoopApi;
     pool: PoolApi;
     faraday: FaradayApi;
+    lit: LitApi;
 
     constructor(lncConfig?: LncConfig) {
         // merge the passed in config with the defaults
@@ -62,6 +64,7 @@ export default class LNC {
         this.loop = new LoopApi(createRpc, this);
         this.pool = new PoolApi(createRpc, this);
         this.faraday = new FaradayApi(createRpc, this);
+        this.lit = new LitApi(createRpc, this);
     }
 
     private get wasm() {
