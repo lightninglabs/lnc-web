@@ -48,6 +48,25 @@ export interface WasmGlobal {
      * Returns the WASM client expiry time
      */
     wasmClientGetExpiry: () => number;
+    /**
+     * The callback that is called when the WASM client generates a new local private
+     * key. This is used to reestablish subsequent connections to the proxy server.
+     * @param keyHex the hex encoded private key of the local WASM client
+     */
+    onLocalPrivCreate?: (keyHex: string) => void;
+    /**
+     * The callback that is called when the WASM client receives the remote node's
+     * public key. This is used to reestablish subsequent connections to the proxy
+     * server.
+     * @param keyHex the hex encoded public key of the remote node
+     */
+    onRemoteKeyReceive?: (keyHex: string) => void;
+    /**
+     * The callback that is called when the WASM client receives the macaroon
+     * associated with the LNC session.
+     * @param macaroonHex the hex encoded macaroon associated with the LNC session
+     */
+    onAuthData?: (macaroonHex: string) => void;
 }
 
 export interface LncConfig {
