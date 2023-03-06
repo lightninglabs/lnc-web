@@ -71,6 +71,10 @@ export default class LNC {
         return globalThis[this._namespace] as WasmGlobal;
     }
 
+    private set wasm(value: any) {
+        globalThis[this._namespace] = value;
+    }
+
     get isReady() {
         return (
             this.wasm &&
@@ -137,27 +141,39 @@ export default class LNC {
         // make sure the WASM client binary is downloaded first
         if (!this.isReady) await this.preload();
 
-        global.onLocalPrivCreate = (keyHex: string) => {
-            log.debug('local private key created: ' + keyHex);
-            this.credentials.localKey = keyHex;
-        };
+        // create the namespace object in the global scope if it doesn't exist
+        // so that we can assign the WASM callbacks to it
+        if (typeof this.wasm !== 'object') {
+            this.wasm = {};
+        }
 
-        global.onRemoteKeyReceive = (keyHex: string) => {
-            log.debug('remote key received: ' + keyHex);
-            this.credentials.remoteKey = keyHex;
-        };
-
-        global.onAuthData = (keyHex: string) => {
-            log.debug('auth data received: ' + keyHex);
-        };
+        // assign the WASM callbacks to the namespace object if they haven't
+        // already been assigned by the consuming app
+        if (!this.wasm.onLocalPrivCreate) {
+            this.wasm.onLocalPrivCreate = (keyHex: string) => {
+                log.debug('local private key created: ' + keyHex);
+                this.credentials.localKey = keyHex;
+            };
+        }
+        if (!this.wasm.onRemoteKeyReceive) {
+            this.wasm.onRemoteKeyReceive = (keyHex: string) => {
+                log.debug('remote key received: ' + keyHex);
+                this.credentials.remoteKey = keyHex;
+            };
+        }
+        if (!this.wasm.onAuthData) {
+            this.wasm.onAuthData = (keyHex: string) => {
+                log.debug('auth data received: ' + keyHex);
+            };
+        }
 
         this.go.argv = [
             'wasm-client',
             '--debuglevel=trace',
             '--namespace=' + this._namespace,
-            '--onlocalprivcreate=onLocalPrivCreate',
-            '--onremotekeyreceive=onRemoteKeyReceive',
-            '--onauthdata=onAuthData'
+            `--onlocalprivcreate=${this._namespace}.onLocalPrivCreate`,
+            `--onremotekeyreceive=${this._namespace}.onRemoteKeyReceive`,
+            `--onauthdata=${this._namespace}.onAuthData`
         ];
 
         if (this.result) {

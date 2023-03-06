@@ -43,10 +43,14 @@ export default class LncCredentialStore implements CredentialStore {
      */
     constructor(namespace?: string, password?: string) {
         if (namespace) this.namespace = namespace;
-        if (password) this.password = password;
 
         // load data stored in localStorage
         this._load();
+
+        // set the password after loading the data, otherwise the data will be
+        // overwritten because the password setter checks for the existence of
+        // persisted data.
+        if (password) this.password = password;
     }
 
     //
