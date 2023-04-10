@@ -132,6 +132,11 @@ export interface CredentialStore {
      * credentials persisted in the store
      */
     isPaired: boolean;
-    /** Clears any persisted data in the store */
-    clear(): void;
+    /**
+     * Clears the in-memory and persisted data in the store.
+     * @param memoryOnly If `true`, only the in-memory data will be cleared. If
+     * `false` or `undefined`, the persisted data will be cleared as well.
+     * The default is `undefined`.
+     */
+    clear(memoryOnly?: boolean): void;
 }

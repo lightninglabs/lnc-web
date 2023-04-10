@@ -229,6 +229,12 @@ export default class LNC {
                     clearInterval(interval);
                     resolve();
                     log.info('The WASM client is connected to the server');
+
+                    // clear the in-memory credentials after connecting if the
+                    // credentials are persisted in local storage
+                    if (this.credentials.password) {
+                        this.credentials.clear(true);
+                    }
                 } else if (counter > 20) {
                     clearInterval(interval);
                     reject(

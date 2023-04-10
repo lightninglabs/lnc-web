@@ -105,6 +105,10 @@ export default class LncCredentialStore implements CredentialStore {
             if (this.remoteKey)
                 this.persisted.remoteKey = this._encrypt(this.remoteKey);
             this._save();
+
+            // once the encrypted data is persisted, we can clear the plain text
+            // credentials from memory
+            this.clear(true);
         }
     }
 
@@ -170,9 +174,11 @@ export default class LncCredentialStore implements CredentialStore {
     }
 
     /** Clears any persisted data in the store */
-    clear() {
-        const key = `${STORAGE_KEY}:${this.namespace}`;
-        localStorage.removeItem(key);
+    clear(memoryOnly?: boolean) {
+        if (!memoryOnly) {
+            const key = `${STORAGE_KEY}:${this.namespace}`;
+            localStorage.removeItem(key);
+        }
         this.persisted = {
             salt: '',
             cipher: '',
