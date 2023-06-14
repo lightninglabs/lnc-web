@@ -4,7 +4,8 @@ import {
     LndApi,
     LoopApi,
     PoolApi,
-    snakeKeysToCamel
+    snakeKeysToCamel,
+    TaprootAssetsApi
 } from '@lightninglabs/lnc-core';
 import { createRpc } from './api/createRpc';
 import { CredentialStore, LncConfig, WasmGlobal } from './types/lnc';
@@ -33,6 +34,7 @@ export default class LNC {
     loop: LoopApi;
     pool: PoolApi;
     faraday: FaradayApi;
+    tapd: TaprootAssetsApi;
     lit: LitApi;
 
     constructor(lncConfig?: LncConfig) {
@@ -64,6 +66,7 @@ export default class LNC {
         this.loop = new LoopApi(createRpc, this);
         this.pool = new PoolApi(createRpc, this);
         this.faraday = new FaradayApi(createRpc, this);
+        this.tapd = new TaprootAssetsApi(createRpc, this);
         this.lit = new LitApi(createRpc, this);
     }
 
