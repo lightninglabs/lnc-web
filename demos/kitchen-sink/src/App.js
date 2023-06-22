@@ -20,6 +20,7 @@ function App() {
   const { swapClient } = lnc.loop;
   const { trader } = lnc.pool;
   const { faradayServer } = lnc.faraday;
+  const { taprootAssets, mint, universe, assetWallet } = lnc.tapd;
 
   // LND
 
@@ -79,6 +80,28 @@ function App() {
       console.log(insights);
   };
 
+  // Taproot Assets
+
+  const listAssets = async() => {
+      const assets = await taprootAssets.listAssets();
+      console.log(assets);
+  };
+
+  const listBatches = async() => {
+      const assets = await mint.listBatches();
+      console.log(assets);
+  };
+
+  const listFederationServers = async() => {
+      const assets = await universe.listFederationServers();
+      console.log(assets);
+  };
+
+  const nextScriptKey = async() => {
+      const assets = await assetWallet.nextScriptKey({ keyFamily: 1 })
+      console.log(assets);
+  };
+
   return (
     <div className="App">
       <header className="App-header">
@@ -103,6 +126,11 @@ function App() {
         <button onClick={() => auctionFee()}>auctionFee</button>
         <h1>Faraday</h1>
         <button onClick={() => channelInsights()}>channelInsights</button>
+        <h1>Taproot Assets</h1>
+        <button onClick={() => listAssets()}>listAssets</button>
+        <button onClick={() => listBatches()}>listBatches</button>
+        <button onClick={() => listFederationServers()}>listFederationServers</button>
+        <button onClick={() => nextScriptKey()}>nextScriptKey</button>
       </header>
     </div>
   );
