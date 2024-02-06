@@ -172,7 +172,7 @@ export default class LNC {
 
         this.go.argv = [
             'wasm-client',
-            '--debuglevel=trace',
+            '--debuglevel=debug,GOBN=info,GRPC=info',
             '--namespace=' + this._namespace,
             `--onlocalprivcreate=${this._namespace}.onLocalPrivCreate`,
             `--onremotekeyreceive=${this._namespace}.onRemoteKeyReceive`,
