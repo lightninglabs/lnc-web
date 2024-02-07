@@ -80,10 +80,10 @@
     "@jridgewell/resolve-uri" "3.1.0"
     "@jridgewell/sourcemap-codec" "1.4.14"
 
-"@lightninglabs/lnc-core@0.2.8-alpha":
-  version "0.2.8-alpha"
-  resolved "https://registry.yarnpkg.com/@lightninglabs/lnc-core/-/lnc-core-0.2.8-alpha.tgz#78272c04a5ec95a9ccb830f75ab9b5ca227f0801"
-  integrity sha512-2tHzmklIiQhJiK1aabX0R2AbbWi0mizWgniCUOb573XToYQN7L61Phh+hWUCxIFfAhHCkp2mnSmX+7eT/ikxOg==
+"@lightninglabs/lnc-core@0.3.0-alpha":
+  version "0.3.0-alpha"
+  resolved "https://registry.yarnpkg.com/@lightninglabs/lnc-core/-/lnc-core-0.3.0-alpha.tgz#88e4595bb4b1057ef56e6bc106293f283af7b9d6"
+  integrity sha512-I/3KR06jpg2FK+qI4i4IrqFX6hv1V8BlHhJWNV9I2gmo/yQi8B9dNRWRjU1ExBjzJtdf0xlU2Y0maMoI/6ul5A==
 
 "@tsconfig/node10@^1.0.7":
   version "1.0.9"
