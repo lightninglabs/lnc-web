@@ -14,7 +14,7 @@ import { wasmLog as log } from './util/log';
 
 /** The default values for the LncConfig options */
 const DEFAULT_CONFIG = {
-    wasmClientCode: 'https://lightning.engineering/lnc-v0.2.8-alpha.wasm',
+    wasmClientCode: 'https://lightning.engineering/lnc-v0.3.0-alpha.wasm',
     namespace: 'default',
     serverHost: 'mailbox.terminal.lightning.today:443'
 } as Required<LncConfig>;
@@ -172,7 +172,7 @@ export default class LNC {
 
         this.go.argv = [
             'wasm-client',
-            '--debuglevel=trace',
+            '--debuglevel=debug,GOBN=info,GRPC=info',
             '--namespace=' + this._namespace,
             `--onlocalprivcreate=${this._namespace}.onLocalPrivCreate`,
             `--onremotekeyreceive=${this._namespace}.onRemoteKeyReceive`,
