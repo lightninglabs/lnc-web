@@ -178,15 +178,17 @@ export default class LncCredentialStore implements CredentialStore {
         if (!memoryOnly) {
             const key = `${STORAGE_KEY}:${this.namespace}`;
             localStorage.removeItem(key);
+
+            this.persisted = {
+                salt: '',
+                cipher: '',
+                serverHost: this.persisted.serverHost,
+                localKey: '',
+                remoteKey: '',
+                pairingPhrase: ''
+            };
         }
-        this.persisted = {
-            salt: '',
-            cipher: '',
-            serverHost: this.persisted.serverHost,
-            localKey: '',
-            remoteKey: '',
-            pairingPhrase: ''
-        };
+
         this._localKey = '';
         this._remoteKey = '';
         this._pairingPhrase = '';
