@@ -51,7 +51,7 @@
   },
   "dependencies": {
     "@lightninglabs/lnc-core": "0.3.0-alpha",
-    "crypto-js": "4.1.1"
+    "crypto-js": "4.2.0"
   },
   "browser": {
     "fs": false,
