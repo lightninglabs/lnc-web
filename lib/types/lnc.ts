@@ -67,6 +67,41 @@ export interface WasmGlobal {
      * @param macaroonHex the hex encoded macaroon associated with the LNC session
      */
     onAuthData?: (macaroonHex: string) => void;
+
+    // --- MCP Function Signatures expected from Go WASM ---
+
+    /**
+     * Initializes an MCP server session.
+     */
+    mcpInitializeSession?: (sessionID: string, name: string, version: string) => { success: boolean; data?: any; error?: string };
+    /**
+     * Registers a tool handler with the MCP server.
+     */
+    mcpRegisterTool?: (sessionID: string, toolName: string, description: string, handler: Function, parameters: object) => { success: boolean; data?: any; error?: string };
+    /**
+     * Calls a tool within an MCP session. Expected to return immediately,
+     * with the actual result delivered via DeliverMCPResult/DeliverMCPError callbacks.
+     */
+    mcpCallTool?: (sessionID: string, toolName: string, args: object) => { success: boolean; data?: { status: 'pending'; callID: string }; error?: string };
+    /**
+     * Retrieves the list of available tools for an MCP session.
+     */
+    mcpGetAvailableTools?: (sessionID: string) => { success: boolean; data?: string[]; error?: string };
+    /**
+     * Closes an MCP session.
+     */
+    mcpCloseSession?: (sessionID: string) => { success: boolean; data?: any; error?: string };
+
+    /**
+     * Callback *from* Go to deliver the result of an asynchronous tool call.
+     * This function will be *overridden* by the TypeScript client.
+     */
+    DeliverMCPResult?: (callID: string, sessionID: string, resultData: any) => void;
+    /**
+     * Callback *from* Go to deliver an error from an asynchronous tool call.
+     * This function will be *overridden* by the TypeScript client.
+     */
+    DeliverMCPError?: (callID: string, sessionID: string, errorMsg: string) => void;
 }
 
 export interface LncConfig {
@@ -77,7 +112,7 @@ export interface LncConfig {
     serverHost?: string;
     /**
      * Custom location for the WASM client code. Can be remote or local. If not
-     * specified we’ll default to our instance on our CDN.
+     * specified we'll default to our instance on our CDN.
      */
     wasmClientCode?: any; // URL or WASM client object
     /**
