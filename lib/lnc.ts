@@ -14,7 +14,7 @@ import { wasmLog as log } from './util/log';
 
 /** The default values for the LncConfig options */
 const DEFAULT_CONFIG = {
-    wasmClientCode: 'https://lightning.engineering/lnc-v0.3.3-alpha.wasm',
+    wasmClientCode: 'https://lightning.engineering/lnc-v0.3.4-alpha.wasm',
     namespace: 'default',
     serverHost: 'mailbox.terminal.lightning.today:443'
 } as Required<LncConfig>;
