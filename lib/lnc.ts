@@ -8,7 +8,16 @@ import {
     TaprootAssetsApi
 } from '@lightninglabs/lnc-core';
 import { createRpc } from './api/createRpc';
-import { CredentialStore, LncConfig, WasmGlobal } from './types/lnc';
+import { PasskeyEncryptionService } from './encryption/passkeyEncryptionService';
+import SessionManager from './sessions/sessionManager';
+import UnifiedCredentialStore from './stores/unifiedCredentialStore';
+import {
+    ClearOptions,
+    CredentialStore,
+    LncConfig,
+    UnlockOptions,
+    WasmGlobal
+} from './types/lnc';
 import LncCredentialStore from './util/credentialStore';
 import { wasmLog as log } from './util/log';
 
@@ -57,7 +66,10 @@ export default class LNC {
 
         if (config.credentialStore) {
             this.credentials = config.credentialStore;
+        } else if (config.enableSessions || config.allowPasskeys) {
+            this.credentials = this.createUnifiedStore(config);
         } else {
+            // Use original LncCredentialStore for basic functionality
             this.credentials = new LncCredentialStore(
                 config.namespace,
                 config.password
@@ -80,12 +92,159 @@ export default class LNC {
         this.lit = new LitApi(createRpc, this);
     }
 
-    private get wasm() {
-        return lncGlobal[this._namespace] as WasmGlobal;
+    private createUnifiedStore(config: LncConfig): UnifiedCredentialStore {
+        // Use UnifiedCredentialStore with strategy pattern
+        // Create session manager if sessions are enabled
+        let sessionManager: SessionManager | undefined;
+        if (config.enableSessions) {
+            const namespace = config.namespace || 'default';
+            const ttl = config.sessionTTL || 24 * 60 * 60 * 1000; // 24 hours default
+
+            // Create SessionManager with session configuration
+            const sessionConfig = {
+                sessionDuration: ttl,
+                requireUserGesture: false,
+                enableActivityRefresh: true,
+                activityThreshold: 30,
+                activityThrottleInterval: 30,
+                refreshTrigger: 4,
+                refreshCheckInterval: 5,
+                pauseOnHidden: true,
+                maxRefreshes: 10,
+                maxSessionAge: 7 * 24 * 60 * 60 * 1000
+            };
+
+            sessionManager = new SessionManager(namespace, sessionConfig);
+        }
+
+        const credentials = new UnifiedCredentialStore(config, sessionManager);
+
+        // Set initial values from config
+        if (!credentials.isPaired && config.serverHost) {
+            credentials.serverHost = config.serverHost;
+        }
+        if (config.pairingPhrase) {
+            credentials.pairingPhrase = config.pairingPhrase;
+        }
+
+        return credentials;
     }
 
-    private set wasm(value: any) {
-        lncGlobal[this._namespace] = value;
+    async performAutoLogin(): Promise<boolean> {
+        if (this.unifiedStore) {
+            return (
+                (await this.unifiedStore.canAutoRestore()) &&
+                (await this.unifiedStore.tryAutoRestore())
+            );
+        }
+        return false;
+    }
+
+    /**
+     * Clear the stored credentials from session and local storage
+     * @param options.session - clear the session credentials (default: true)
+     * @param options.persisted - clear the persisted credentials (default: false)
+     */
+    async clear(options?: ClearOptions) {
+        const { session = true, persisted = false } = options || {};
+
+        if (session) {
+            console.log('[LNC] clearing session credentials');
+            this.unifiedStore?.clearSession();
+        }
+
+        if (persisted) {
+            console.log('[LNC] clearing persisted credentials');
+            this.unifiedStore?.clear();
+        }
+    }
+
+    /**
+     * Get authentication information including unlock status and available methods
+     */
+    async getAuthenticationInfo() {
+        if (this.unifiedStore) {
+            return await this.unifiedStore.getAuthenticationInfo();
+        }
+        // Fallback for legacy credential store
+        return {
+            isUnlocked: !!this.credentials.password,
+            hasStoredCredentials: this.credentials.isPaired,
+            hasActiveSession: false,
+            supportsPasskeys: false,
+            hasPasskey: false,
+            preferredUnlockMethod: 'password' as const
+        };
+    }
+
+    /**
+     * Unlock the credential store using the specified method
+     */
+    async unlock(options: UnlockOptions) {
+        if (this.unifiedStore) {
+            return await this.unifiedStore.unlock(options);
+        }
+        // Fallback for legacy credential store
+        if (options.method === 'password' && options.password) {
+            try {
+                this.credentials.password = options.password;
+                return true;
+            } catch (error) {
+                console.error('Legacy unlock failed:', error);
+                return false;
+            }
+        }
+        return false;
+    }
+
+    get isUnlocked(): boolean {
+        // Check if credentials have an isUnlocked property (UnifiedCredentialStore)
+        if (this.unifiedStore) {
+            return this.unifiedStore.isUnlocked();
+        }
+        // Fallback: check if password is set (legacy credential store)
+        return !!this.credentials.password;
+    }
+
+    get isPaired(): boolean {
+        return this.credentials.isPaired;
+    }
+
+    /**
+     * Get the unified credential store if available, null otherwise
+     */
+    private get unifiedStore(): UnifiedCredentialStore | undefined {
+        return this.credentials instanceof UnifiedCredentialStore
+            ? (this.credentials as UnifiedCredentialStore)
+            : undefined;
+    }
+
+    /**
+     * Check if passkeys are supported in the current environment
+     */
+    static async isPasskeySupported(): Promise<boolean> {
+        return await PasskeyEncryptionService.isSupported();
+    }
+
+    /**
+     * Check if the current configuration supports passkeys
+     */
+    async supportsPasskeys(): Promise<boolean> {
+        if (this.unifiedStore) {
+            const authInfo = await this.unifiedStore.getAuthenticationInfo();
+            return authInfo.supportsPasskeys;
+        }
+        return false;
+    }
+
+    private get wasm() {
+        // This cast is needed to avoid type errors when accessing the WASM client that
+        // is set when running the WASM client binary.
+        return (globalThis as any)[this._namespace] as WasmGlobal;
+    }
+
+    private set wasm(value: WasmGlobal) {
+        (globalThis as any)[this._namespace] = value;
     }
 
     get isReady() {
@@ -157,7 +316,7 @@ export default class LNC {
         // create the namespace object in the global scope if it doesn't exist
         // so that we can assign the WASM callbacks to it
         if (typeof this.wasm !== 'object') {
-            this.wasm = {};
+            this.wasm = {} as WasmGlobal;
         }
 
         // assign the WASM callbacks to the namespace object if they haven't
@@ -261,10 +420,86 @@ export default class LNC {
     }
 
     /**
+     * Initiate the initial pairing process with the LNC proxy server using the
+     * provided pairing phrase.
+     */
+    async pair(pairingPhrase: string) {
+        this.credentials.pairingPhrase = pairingPhrase;
+        await this.connect();
+    }
+
+    /**
      * Disconnects from the proxy server
      */
     disconnect() {
         this.wasm.wasmClientDisconnect();
+    }
+
+    /**
+     * Persists the current connection credentials using password encryption.
+     * This automatically saves encrypted credentials to localStorage and creates
+     * a session if sessions are enabled.
+     */
+    async persistWithPassword(password: string): Promise<void> {
+        if (!this.credentials) {
+            throw new Error('No credentials store available');
+        }
+
+        // Check if we're using the new UnifiedCredentialStore or legacy store
+        if (
+            'unlock' in this.credentials &&
+            typeof this.credentials.unlock === 'function'
+        ) {
+            // New UnifiedCredentialStore - use repository pattern
+            const unlocked = await this.credentials.unlock({
+                method: 'password',
+                password: password
+            });
+
+            if (!unlocked) {
+                throw new Error('Failed to unlock credentials with password');
+            }
+
+            // Save credentials and create session
+            await this.credentials.createSessionAfterConnection?.();
+        } else {
+            // Legacy LncCredentialStore - just set password (it auto-persists)
+            (this.credentials as any).password = password;
+        }
+    }
+
+    /**
+     * Persists the current connection credentials using passkey encryption.
+     * This prompts the user to create/use a passkey, saves encrypted credentials
+     * to localStorage, and creates a session if sessions are enabled.
+     */
+    async persistWithPasskey(): Promise<void> {
+        if (!this.credentials) {
+            throw new Error('No credentials store available');
+        }
+
+        // Check if we're using the new UnifiedCredentialStore or legacy store
+        if (
+            'unlock' in this.credentials &&
+            typeof this.credentials.unlock === 'function'
+        ) {
+            // New UnifiedCredentialStore - use repository pattern
+            const unlocked = await this.credentials.unlock({
+                method: 'passkey',
+                createIfMissing: true
+            });
+
+            if (!unlocked) {
+                throw new Error('Failed to create/use passkey for credentials');
+            }
+
+            // Save credentials and create session
+            await this.credentials.createSessionAfterConnection?.();
+        } else {
+            throw new Error(
+                'Passkey authentication requires the new credential store (enable sessions or passkeys)'
+            );
+        }
     }
 
     /**

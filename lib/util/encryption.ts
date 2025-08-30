@@ -8,6 +8,7 @@ export const generateSalt = () => {
     let array = new Uint8Array(32);
     globalThis.crypto.getRandomValues(array);
     array = array.map((x) => validChars.charCodeAt(x % validChars.length));
+    // Note: Type cast needed because String.fromCharCode.apply expects number[] but Uint8Array is compatible
     const salt = String.fromCharCode.apply(null, array as any);
     return salt;
 };

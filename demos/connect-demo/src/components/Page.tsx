@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useCallback } from 'react';
 import { Button, Col, Container, Nav, Navbar, Row } from 'react-bootstrap';
 import { Link } from 'react-router-dom';
 import useLNC from '../hooks/useLNC';
@@ -9,7 +9,12 @@ interface Props {
 }
 
 const Page: React.FC<Props> = ({ children }) => {
-  const { lnc } = useLNC();
+  const { auth, logout } = useLNC();
+
+  const handleLogout = useCallback(async () => {
+    await logout();
+    window.location.reload();
+  }, [logout]);
 
   return (
     <>
@@ -28,14 +33,14 @@ const Page: React.FC<Props> = ({ children }) => {
           <Navbar.Toggle aria-controls="basic-navbar-nav" />
           <Navbar.Collapse id="basic-navbar-nav">
             <Nav className="ml-auto">
-              {lnc.isConnected ? (
+              {auth.isUnlocked ? (
                 <>
                   <Navbar.Text>Connected</Navbar.Text>
                   <a href="/">
-                    <Button variant="link">Logout</Button>
+                    <Button variant="link" onClick={handleLogout}>Logout</Button>
                   </a>
                 </>
-              ) : lnc.credentials.isPaired ? (
+              ) : auth.hasStoredCredentials ? (
                 <Link to="/login">
                   <Button>Login</Button>
                 </Link>

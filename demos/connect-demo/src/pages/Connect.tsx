@@ -5,7 +5,7 @@ import Page from '../components/Page';
 import useLNC from '../hooks/useLNC';
 
 const Connect: React.FC = () => {
-  const { lnc, connect } = useLNC();
+  const { lnc, pair, auth } = useLNC();
   const navigate = useNavigate();
   const [phrase, setPhrase] = useState('');
   const [password, setPassword] = useState('');
@@ -28,7 +28,7 @@ const Connect: React.FC = () => {
           if (!phrase || !password) throw new Error('Enter a phrase and password');
 
           // connect to the litd node via LNC
-          await connect(phrase, password);
+          await pair(phrase, { method: 'password', password });
 
           navigate('/');
         } catch (err) {
@@ -41,7 +41,32 @@ const Connect: React.FC = () => {
       };
       connectAsync();
     },
-    [phrase, password, navigate, connect],
+    [phrase, password, navigate, pair],
+  );
+
+  const handlePasskeyConnect = useCallback(() => {
+      // wrap LNC calls into an async function
+      const connectAsync = async () => {
+        try {
+          setLoading(true);
+          setError('');
+          if (!phrase) throw new Error('Enter a phrase');
+
+          // connect to the litd node via LNC
+          await pair(phrase, { method: 'passkey' });
+
+          navigate('/');
+        } catch (err) {
+          setError((err as Error).message);
+          // tslint:disable-next-line: no-console
+          console.error(err);
+        } finally {
+          setLoading(false);
+        }
+      };
+      connectAsync();
+    },
+    [phrase, navigate, pair],
   );
 
   return (
@@ -63,6 +88,14 @@ const Connect: React.FC = () => {
             Obtain a new pairing phrase from <code>litd</code> and enter it here
           </Form.Text>
         </Form.Group>
+
+        {auth.supportsPasskeys && (
+          <div className="mb-3">
+            <Button variant="primary" type="button" disabled={loading} onClick={handlePasskeyConnect}>
+              🔑 Create Passkey
+            </Button>
+          </div>
+        )}
         <Form.Group className="mb-3" controlId="formBasicPassword">
           <Form.Label>Create Password</Form.Label>
           <Form.Control
