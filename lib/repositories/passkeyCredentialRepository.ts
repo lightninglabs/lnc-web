@@ -66,10 +66,6 @@ export class PasskeyCredentialRepository extends BaseCredentialRepository {
         this.set(key, encrypted);
     }
 
-    async removeCredential(key: string): Promise<void> {
-        this.remove(key);
-    }
-
     isUnlocked(): boolean {
         return this.encryption.isUnlocked();
     }

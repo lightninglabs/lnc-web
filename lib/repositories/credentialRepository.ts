@@ -5,24 +5,30 @@ import { UnlockOptions } from '../types/lnc';
  */
 export interface CredentialRepository {
     /**
-     * Get a decrypted credential value
+     * Get a decrypted credential value (async due to encryption/decryption)
      */
     getCredential(key: string): Promise<string | undefined>;
 
     /**
-     * Set an encrypted credential value
+     * Set an encrypted credential value (async due to encryption)
      */
     setCredential(key: string, value: string): Promise<void>;
 
     /**
-     * Remove a credential
+     * Remove a credential (async for consistency and future extensibility)
+     * Default implementation provided in BaseCredentialRepository
      */
-    removeCredential(key: string): Promise<void>;
+    removeCredential?(key: string): Promise<void>;
 
     /**
-     * Check if a credential exists
+     * Check if a credential exists (sync for performance)
      */
     hasCredential(key: string): boolean;
+
+    /**
+     * Check if any credentials exist (sync for performance)
+     */
+    hasAnyCredentials(): boolean;
 
     /**
      * Unlock the repository for encryption/decryption
@@ -43,11 +49,6 @@ export interface CredentialRepository {
      * Clear all stored credentials
      */
     clear(): void;
-
-    /**
-     * Check if any credentials are stored
-     */
-    hasAnyCredentials(): boolean;
 }
 
 const STORAGE_PREFIX = 'lnc-web:';
@@ -65,10 +66,14 @@ export abstract class BaseCredentialRepository implements CredentialRepository {
 
     abstract getCredential(key: string): Promise<string | undefined>;
     abstract setCredential(key: string, value: string): Promise<void>;
-    abstract removeCredential(key: string): Promise<void>;
     abstract unlock(options: UnlockOptions): Promise<void>;
     abstract isUnlocked(): boolean;
     abstract lock(): void;
+
+    // Provide default async implementation for removeCredential
+    async removeCredential(key: string): Promise<void> {
+        this.remove(key);
+    }
 
     private get storageKey() {
         return `${STORAGE_PREFIX}${this.namespace}`;
