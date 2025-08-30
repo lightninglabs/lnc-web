@@ -233,8 +233,6 @@ export interface CredentialStore {
 export interface SessionCredentialStoreConfig {
     /** Session expiry time in milliseconds (default: 24 hours) */
     sessionDuration?: number;
-    /** Require user interaction for crypto operations (default: false) */
-    requireUserGesture?: boolean;
     /** Enable automatic session refresh based on activity (default: true) */
     enableActivityRefresh?: boolean;
     /** Minutes of activity required for refresh (default: 30) */

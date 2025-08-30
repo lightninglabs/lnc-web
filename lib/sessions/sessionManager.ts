@@ -39,7 +39,6 @@ export default class SessionManager {
         // Apply defaults for config
         this.config = {
             sessionDuration: config?.sessionDuration ?? 24 * 60 * 60 * 1000, // 24 hours
-            requireUserGesture: config?.requireUserGesture ?? false,
             enableActivityRefresh: config?.enableActivityRefresh ?? true,
             activityThreshold: config?.activityThreshold ?? 30, // minutes
             activityThrottleInterval: config?.activityThrottleInterval ?? 30, // seconds
@@ -56,13 +55,6 @@ export default class SessionManager {
      */
     async createSession(credentials: SessionCredentials): Promise<void> {
         try {
-            if (
-                this.config.requireUserGesture &&
-                !this.hasRecentUserGesture()
-            ) {
-                throw new Error('User gesture required for session creation');
-            }
-
             // 1. Generate session ID and device fingerprint
             const sessionId = this.generateSecureSessionId();
             const deviceFingerprint =
@@ -137,15 +129,6 @@ export default class SessionManager {
     async restoreSession(): Promise<SessionCredentials | undefined> {
         console.log('[SessionManager] Starting session restoration...');
         try {
-            if (
-                this.config.requireUserGesture &&
-                !this.hasRecentUserGesture()
-            ) {
-                throw new Error(
-                    'User gesture required for session restoration'
-                );
-            }
-
             // 1. Load session data using dedicated service
             const sessionData = await this.storage.load();
             if (!sessionData) {
@@ -330,14 +313,5 @@ export default class SessionManager {
         return Array.from(array, (byte) =>
             byte.toString(16).padStart(2, '0')
         ).join('');
-    }
-
-    /**
-     * Check if there has been a recent user gesture
-     */
-    private hasRecentUserGesture(): boolean {
-        // This is a simplified check - a full implementation would track
-        // user interactions and verify recency
-        return true;
     }
 }

@@ -18,7 +18,6 @@ export default class SessionRefreshManager {
         // Use default config for now - can be made configurable later
         this.config = {
             sessionDuration: 24 * 60 * 60 * 1000, // 24 hours
-            requireUserGesture: false,
             enableActivityRefresh: true,
             activityThreshold: 30, // minutes
             activityThrottleInterval: 30, // seconds
