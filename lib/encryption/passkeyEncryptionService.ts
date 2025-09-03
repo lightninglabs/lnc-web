@@ -10,9 +10,11 @@ export class PasskeyEncryptionService implements EncryptionService {
     private encryptionKey?: CryptoKey;
     private credentialId?: string;
     private namespace: string;
+    private displayName: string;
 
-    constructor(namespace: string = 'default') {
+    constructor(namespace: string, displayName?: string) {
         this.namespace = namespace;
+        this.displayName = displayName || `LNC User (${namespace})`;
     }
 
     async encrypt(data: string): Promise<string> {
@@ -187,8 +189,8 @@ export class PasskeyEncryptionService implements EncryptionService {
                 },
                 user: {
                     id: userId,
-                    name: `${this.namespace}-user`,
-                    displayName: `${this.namespace} User`
+                    name: this.displayName,
+                    displayName: this.displayName
                 },
                 pubKeyCredParams: [
                     { alg: -7, type: 'public-key' }, // ES256
@@ -291,11 +293,7 @@ export class PasskeyEncryptionService implements EncryptionService {
 
     private arrayBufferToBase64(buffer: ArrayBuffer): string {
         const bytes = new Uint8Array(buffer);
-        return btoa(
-            Array.from(bytes)
-                .map((b) => String.fromCharCode(b))
-                .join('')
-        );
+        return Buffer.from(bytes).toString('base64');
     }
 
     private base64ToArrayBuffer(base64: string): ArrayBuffer {
@@ -307,7 +305,7 @@ export class PasskeyEncryptionService implements EncryptionService {
             '='
         );
 
-        const binaryString = atob(padded);
+        const binaryString = Buffer.from(padded, 'base64').toString('binary');
         const bytes = new Uint8Array(binaryString.length);
         for (let i = 0; i < binaryString.length; i++) {
             bytes[i] = binaryString.charCodeAt(i);
@@ -326,8 +324,9 @@ export class PasskeyEncryptionService implements EncryptionService {
         // Create a 32-byte challenge by repeating and truncating the namespace hash
         const challenge = new Uint8Array(32);
         for (let i = 0; i < challenge.length; i++) {
-            challenge[i] =
-                namespaceBytes[i % namespaceBytes.length] ^ (i & 0xff);
+            // XOR namespace byte with position to add positional variation.
+            // This ensures different values even when namespace repeats
+            challenge[i] = namespaceBytes[i % namespaceBytes.length] ^ i % 256;
         }
 
         return challenge;

@@ -15,8 +15,8 @@ export class PasskeyStrategy implements AuthStrategy {
     readonly method = 'passkey' as const;
     private repository: PasskeyCredentialRepository;
 
-    constructor(namespace: string) {
-        const encryption = new PasskeyEncryptionService(namespace);
+    constructor(namespace: string, displayName: string) {
+        const encryption = new PasskeyEncryptionService(namespace, displayName);
         this.repository = new PasskeyCredentialRepository(
             namespace,
             encryption

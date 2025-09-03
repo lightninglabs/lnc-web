@@ -1,4 +1,5 @@
 import SessionManager from '../sessions/sessionManager';
+import SessionRefreshManager from '../sessions/sessionRefreshManager';
 import { SessionCredentials } from '../sessions/types';
 
 /**
@@ -6,7 +7,16 @@ import { SessionCredentials } from '../sessions/types';
  * Acts as a bridge between the credential store and session manager.
  */
 export class SessionCoordinator {
-    constructor(private sessionManager?: SessionManager) {}
+    private refreshManager?: SessionRefreshManager;
+
+    constructor(private sessionManager?: SessionManager) {
+        // Initialize refresh manager if session manager is available
+        if (this.sessionManager) {
+            this.refreshManager = new SessionRefreshManager(
+                this.sessionManager
+            );
+        }
+    }
 
     /**
      * Check if auto-restore is available
@@ -34,6 +44,8 @@ export class SessionCoordinator {
                 console.log(
                     '[SessionCoordinator] Session auto-restoration successful'
                 );
+                // Start refresh manager after successful auto-restoration
+                this.startRefreshManager();
             } else {
                 console.log(
                     '[SessionCoordinator] Session auto-restoration failed - no valid session'
@@ -64,6 +76,9 @@ export class SessionCoordinator {
         try {
             await this.sessionManager.createSession(credentials);
             console.log('[SessionCoordinator] Session created successfully');
+
+            // Start automatic refresh monitoring after successful session creation
+            this.startRefreshManager();
         } catch (error) {
             console.error(
                 '[SessionCoordinator] Failed to create session:',
@@ -120,6 +135,8 @@ export class SessionCoordinator {
      */
     clearSession(): void {
         if (this.sessionManager) {
+            // Stop refresh manager before clearing session
+            this.stopRefreshManager();
             this.sessionManager.clearSession();
             console.log('[SessionCoordinator] Session cleared');
         }
@@ -152,5 +169,43 @@ export class SessionCoordinator {
             return new Date(Date.now() + timeRemaining);
         }
         return undefined;
+    }
+
+    /**
+     * Start the refresh manager for automatic session refresh
+     */
+    private startRefreshManager(): void {
+        if (this.refreshManager && !this.refreshManager.isActive()) {
+            this.refreshManager.start();
+            console.log(
+                '[SessionCoordinator] Automatic session refresh started'
+            );
+        }
+    }
+
+    /**
+     * Stop the refresh manager
+     */
+    private stopRefreshManager(): void {
+        if (this.refreshManager && this.refreshManager.isActive()) {
+            this.refreshManager.stop();
+            console.log(
+                '[SessionCoordinator] Automatic session refresh stopped'
+            );
+        }
+    }
+
+    /**
+     * Get the refresh manager instance (for access to refresh state)
+     */
+    getRefreshManager(): SessionRefreshManager | undefined {
+        return this.refreshManager;
+    }
+
+    /**
+     * Check if automatic refresh is active
+     */
+    isAutoRefreshActive(): boolean {
+        return this.refreshManager?.isActive() ?? false;
     }
 }

@@ -93,9 +93,7 @@ export default class UnifiedCredentialStore implements CredentialStore {
     }
 
     get isPaired(): boolean {
-        const localKey = this.credentialCache.get('localKey');
-        const remoteKey = this.credentialCache.get('remoteKey');
-        return !!(localKey && remoteKey);
+        return this.strategyManager.hasAnyCredentials();
     }
 
     clear(memoryOnly?: boolean): void {
@@ -184,5 +182,32 @@ export default class UnifiedCredentialStore implements CredentialStore {
      */
     async createSessionAfterConnection(): Promise<void> {
         await this.authCoordinator.createSessionAfterConnection();
+    }
+
+    //
+    // Session refresh management
+    //
+
+    /**
+     * Check if automatic session refresh is currently active
+     */
+    isAutoRefreshActive(): boolean {
+        return this.sessionCoordinator.isAutoRefreshActive();
+    }
+
+    /**
+     * Get time since last user activity (for monitoring purposes)
+     */
+    getTimeSinceLastActivity(): number {
+        const refreshManager = this.sessionCoordinator.getRefreshManager();
+        return refreshManager?.getTimeSinceLastActivity() ?? 0;
+    }
+
+    /**
+     * Manually record user activity (useful for custom activity tracking)
+     */
+    recordActivity(): void {
+        const refreshManager = this.sessionCoordinator.getRefreshManager();
+        refreshManager?.recordActivity();
     }
 }

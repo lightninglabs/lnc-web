@@ -19,11 +19,13 @@ export class CredentialsEncrypter {
     ): Promise<EncryptedCredentials> {
         const credentialsKey =
             await this.cryptoService.generateRandomCredentialsKey();
+
         const { ciphertextB64, ivB64 } =
             await this.cryptoService.encryptCredentials(
                 credentialsKey,
                 JSON.stringify(credentials)
             );
+
         return { credentialsKey, ciphertextB64, ivB64 };
     }
 
@@ -35,6 +37,7 @@ export class CredentialsEncrypter {
             encrypted.ciphertextB64,
             encrypted.ivB64
         );
+
         return JSON.parse(json);
     }
 }

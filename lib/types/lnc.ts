@@ -122,6 +122,13 @@ export interface LncConfig {
      * Defaults to false for backward compatibility.
      */
     allowPasskeys?: boolean;
+    /**
+     * Custom display name for passkey creation. This will be used as the display name
+     * and user name when creating WebAuthn credentials. It may be shown to users,
+     * depending on the browser and operating system. If not specified, defaults
+     * to "LNC User (<namespace>)".
+     */
+    passkeyDisplayName?: string;
 }
 
 /**
@@ -230,7 +237,7 @@ export interface CredentialStore {
 /**
  * Configuration options for session-based credential management
  */
-export interface SessionCredentialStoreConfig {
+export interface SessionConfig {
     /** Session expiry time in milliseconds (default: 24 hours) */
     sessionDuration?: number;
     /** Enable automatic session refresh based on activity (default: true) */

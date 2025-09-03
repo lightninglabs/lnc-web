@@ -1,4 +1,4 @@
-import { SessionCredentialStoreConfig } from '../types/lnc';
+import { SessionConfig } from '../types/lnc';
 import SessionManager from './sessionManager';
 
 /**
@@ -12,21 +12,11 @@ export default class SessionRefreshManager {
     private activityListeners: { event: string; handler: () => void }[] = [];
     private activityThrottleTimer?: ReturnType<typeof setTimeout>;
     private isRunning = false;
-    private config: Required<SessionCredentialStoreConfig>;
+    private config: Required<SessionConfig>;
 
     constructor(private sessionManager: SessionManager) {
-        // Use default config for now - can be made configurable later
-        this.config = {
-            sessionDuration: 24 * 60 * 60 * 1000, // 24 hours
-            enableActivityRefresh: true,
-            activityThreshold: 30, // minutes
-            activityThrottleInterval: 30, // seconds
-            refreshTrigger: 4, // hours
-            refreshCheckInterval: 5, // minutes
-            pauseOnHidden: true,
-            maxRefreshes: 10,
-            maxSessionAge: 7 * 24 * 60 * 60 * 1000 // 7 days
-        };
+        // Store the config from the session manager
+        this.config = sessionManager.config;
     }
 
     /**

@@ -7,6 +7,7 @@ import {
   ClearOptions,
   CredentialStore,
   LncConfig,
+  SessionConfig,
   UnlockOptions,
 } from './types/lnc';
 import LncCredentialStore from './util/credentialStore';
@@ -70,9 +71,8 @@ export class CredentialOrchestrator {
             const namespace = config.namespace || 'default';
             const ttl = config.sessionTTL || 24 * 60 * 60 * 1000; // 24 hours default
 
-            const sessionConfig = {
+            const sessionConfig: SessionConfig = {
                 sessionDuration: ttl,
-                requireUserGesture: false,
                 enableActivityRefresh: true,
                 activityThreshold: 30,
                 activityThrottleInterval: 30,

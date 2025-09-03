@@ -14,7 +14,7 @@ if (!WebAssembly.instantiateStreaming) {
 export type {
     LncConfig,
     CredentialStore,
-    SessionCredentialStoreConfig,
+    SessionConfig,
     AuthenticationState,
     UnlockMethod,
     UnlockOptions,

@@ -1,4 +1,4 @@
-import { SessionCredentialStoreConfig } from '../types/lnc';
+import { SessionConfig } from '../types/lnc';
 import { CredentialsEncrypter } from './crypto/CredentialsEncrypter';
 import { KeyWrapper } from './crypto/KeyWrapper';
 import CryptoService from './cryptoService';
@@ -6,6 +6,19 @@ import { DeviceBinder } from './device/DeviceBinder';
 import { OriginKeyManager } from './origin/OriginKeyManager';
 import { SessionStorage } from './storage/SessionStorage';
 import { SessionCredentials, SessionData } from './types';
+
+// Default session configuration
+const DEFAULT_CONFIG: Required<SessionConfig> = {
+    sessionDuration: 24 * 60 * 60 * 1000, // 24 hours
+    enableActivityRefresh: true,
+    activityThreshold: 30, // minutes
+    activityThrottleInterval: 30, // seconds
+    refreshTrigger: 4, // hours
+    refreshCheckInterval: 5, // minutes
+    pauseOnHidden: true,
+    maxRefreshes: 10,
+    maxSessionAge: 7 * 24 * 60 * 60 * 1000 // 7 days
+};
 
 /**
  * Session manager handles creation, restoration, and management of passwordless sessions.
@@ -20,12 +33,10 @@ export default class SessionManager {
     private storage: SessionStorage;
     private cryptoService: CryptoService;
     private namespace: string;
-    private config: Required<SessionCredentialStoreConfig>;
 
-    constructor(
-        namespace: string = 'default',
-        config?: SessionCredentialStoreConfig
-    ) {
+    config: Required<SessionConfig>;
+
+    constructor(namespace: string, config?: SessionConfig) {
         this.namespace = namespace;
         this.cryptoService = new CryptoService();
 
@@ -36,18 +47,8 @@ export default class SessionManager {
         this.originKeyManager = new OriginKeyManager(namespace);
         this.storage = new SessionStorage(namespace);
 
-        // Apply defaults for config
-        this.config = {
-            sessionDuration: config?.sessionDuration ?? 24 * 60 * 60 * 1000, // 24 hours
-            enableActivityRefresh: config?.enableActivityRefresh ?? true,
-            activityThreshold: config?.activityThreshold ?? 30, // minutes
-            activityThrottleInterval: config?.activityThrottleInterval ?? 30, // seconds
-            refreshTrigger: config?.refreshTrigger ?? 4, // hours
-            refreshCheckInterval: config?.refreshCheckInterval ?? 5, // minutes
-            pauseOnHidden: config?.pauseOnHidden ?? true,
-            maxRefreshes: config?.maxRefreshes ?? 10,
-            maxSessionAge: config?.maxSessionAge ?? 7 * 24 * 60 * 60 * 1000 // 7 days
-        };
+        // Apply defaults for config and override with provided config
+        this.config = Object.assign({}, DEFAULT_CONFIG, config);
     }
 
     /**
@@ -100,7 +101,7 @@ export default class SessionManager {
             };
 
             // 7. Store in sessionStorage using the dedicated service
-            await this.storage.save(sessionData);
+            this.storage.save(sessionData);
             console.log('[SessionManager] ✅ Session created successfully!');
         } catch (error) {
             throw new Error(
@@ -130,7 +131,7 @@ export default class SessionManager {
         console.log('[SessionManager] Starting session restoration...');
         try {
             // 1. Load session data using dedicated service
-            const sessionData = await this.storage.load();
+            const sessionData = this.storage.load();
             if (!sessionData) {
                 console.log('[SessionManager] No session data found');
                 return undefined;
@@ -199,7 +200,7 @@ export default class SessionManager {
      */
     async refreshSession(): Promise<boolean> {
         try {
-            const sessionData = await this.storage.load();
+            const sessionData = this.storage.load();
             if (!sessionData) {
                 return false;
             }
@@ -220,7 +221,7 @@ export default class SessionManager {
             sessionData.refreshCount += 1;
 
             // Update storage using dedicated service
-            await this.storage.save(sessionData);
+            this.storage.save(sessionData);
 
             // Extend origin key if needed
             const originKeyData = await this.originKeyManager.loadOriginKey();
@@ -244,7 +245,7 @@ export default class SessionManager {
      * Get time until session expiry in milliseconds (SessionProvider interface)
      */
     getSessionTimeRemaining(): number {
-        const sessionData = this.storage.loadSync();
+        const sessionData = this.storage.load();
         if (!sessionData) {
             return 0;
         }
@@ -263,7 +264,7 @@ export default class SessionManager {
      * Check if there's an active session (SessionProvider interface)
      */
     hasActiveSession(): boolean {
-        const sessionData = this.storage.loadSync();
+        const sessionData = this.storage.load();
         return sessionData !== undefined && Date.now() < sessionData.expiresAt;
     }
 

@@ -139,27 +139,6 @@ export class OriginKeyManager {
         }
     }
 
-    static async isSupported(): Promise<boolean> {
-        try {
-            if (!window.indexedDB) {
-                return false;
-            }
-
-            // Test if we can store CryptoKey objects
-            const testKey = await crypto.subtle.generateKey(
-                { name: 'AES-GCM', length: 256 },
-                false,
-                ['encrypt', 'decrypt']
-            );
-
-            // Try to structure clone the key (required for IndexedDB storage)
-            const cloned = structuredClone(testKey);
-            return !!cloned;
-        } catch {
-            return false;
-        }
-    }
-
     private async openDB(): Promise<IDBDatabase> {
         return new Promise((resolve, reject) => {
             const request = indexedDB.open(this.dbName, this.dbVersion);

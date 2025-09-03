@@ -30,7 +30,12 @@ export class StrategyManager {
 
         // Register passkey strategy if passkeys are enabled
         if (config.allowPasskeys) {
-            this.strategies.set('passkey', new PasskeyStrategy(namespace));
+            const displayName =
+                config.passkeyDisplayName || `LNC User (${namespace})`;
+            this.strategies.set(
+                'passkey',
+                new PasskeyStrategy(namespace, displayName)
+            );
         }
 
         // Register session strategy if sessions are available
