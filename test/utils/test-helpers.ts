@@ -1,3 +1,8 @@
+import { Mocked } from 'vitest';
+import { lncGlobal } from '../../lib/lnc';
+import { WasmGlobal } from '../../lib/types/lnc';
+import { createWasmGlobalMock } from '../mocks/webassembly';
+
 /**
  * Generate random test data
  */
@@ -42,4 +47,56 @@ export const testData = {
     remoteKey: generateRandomKey(),
     serverHost: generateRandomHost(),
     namespace: 'test_namespace'
+};
+
+/**
+ * Type-safe global access helpers
+ */
+export const globalAccess = {
+    /**
+     * Set up a WASM global mock in the specified namespace
+     */
+    setupWasmGlobal(
+        namespace: string = 'default',
+        mock?: Mocked<WasmGlobal>
+    ): Mocked<WasmGlobal> {
+        const wasmMock = mock || createWasmGlobalMock();
+        this.setWasmGlobal(namespace, wasmMock);
+        return wasmMock;
+    },
+
+    /**
+     * Set the WASM global for a specific namespace
+     */
+    setWasmGlobal(namespace: string, value: WasmGlobal): void {
+        lncGlobal[namespace] = value;
+    },
+
+    /**
+     * Get the WASM global for a specific namespace
+     */
+    getWasmGlobal(namespace: string): Mocked<WasmGlobal> {
+        return lncGlobal[namespace] as Mocked<WasmGlobal>;
+    },
+
+    /**
+     * Clean up a namespace-specific global
+     */
+    clearWasmGlobal(namespace: string): void {
+        delete lncGlobal[namespace];
+    },
+
+    /**
+     * Get the window object (with proper typing for tests)
+     */
+    get window(): Window & typeof globalThis {
+        return lncGlobal.window || globalThis;
+    },
+
+    /**
+     * Set the window object for testing
+     */
+    set window(value: Window & typeof globalThis) {
+        lncGlobal.window = value;
+    }
 };
