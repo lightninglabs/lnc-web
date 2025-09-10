@@ -12,15 +12,26 @@ import { CredentialStore, LncConfig, WasmGlobal } from './types/lnc';
 import LncCredentialStore from './util/credentialStore';
 import { wasmLog as log } from './util/log';
 
+/**
+ * A reference to the global object that is extended with proper typing for the LNC
+ * functions that are injected by the WASM client and the Go object. This eliminates the
+ * need for casting `globalThis` to `any`.
+ */
+export const lncGlobal = globalThis as typeof globalThis & {
+    Go: new () => GoInstance;
+} & {
+    [key: string]: unknown;
+};
+
 /** The default values for the LncConfig options */
-const DEFAULT_CONFIG = {
+export const DEFAULT_CONFIG = {
     wasmClientCode: 'https://lightning.engineering/lnc-v0.3.4-alpha.wasm',
     namespace: 'default',
     serverHost: 'mailbox.terminal.lightning.today:443'
 } as Required<LncConfig>;
 
 export default class LNC {
-    go: any;
+    go: GoInstance;
     result?: {
         module: WebAssembly.Module;
         instance: WebAssembly.Instance;
@@ -58,9 +69,8 @@ export default class LNC {
                 this.credentials.pairingPhrase = config.pairingPhrase;
         }
 
-        // TODO: pull Go off of the global state
-        const g = global || window || self;
-        this.go = new g.Go();
+        // Pull Go off of the global object. This is injected by the wasm_exec.js file.
+        this.go = new lncGlobal.Go();
 
         this.lnd = new LndApi(createRpc, this);
         this.loop = new LoopApi(createRpc, this);
@@ -71,11 +81,11 @@ export default class LNC {
     }
 
     private get wasm() {
-        return globalThis[this._namespace] as WasmGlobal;
+        return lncGlobal[this._namespace] as WasmGlobal;
     }
 
     private set wasm(value: any) {
-        globalThis[this._namespace] = value;
+        lncGlobal[this._namespace] = value;
     }
 
     get isReady() {
