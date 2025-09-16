@@ -21,6 +21,13 @@ export class Logger {
     }
 
     /**
+     * Get the current log level
+     */
+    get level(): LogLevel {
+        return this._levelToOutput;
+    }
+
+    /**
      * creates a new Logger instance by inspecting the executing environment
      */
     static fromEnv(namespace: string): Logger {

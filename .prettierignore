@@ -1,11 +1,11 @@
 .github/**
 demos/**
 dist/**
+coverage/**
 lib/wasm_exec.js
 package-lock.json
 package.json
 README.md
-test/**
 tsconfig.json
 tslint.json
 webpack.config.js

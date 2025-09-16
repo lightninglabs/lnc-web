@@ -13,8 +13,7 @@
     "moduleResolution": "node",
     "resolveJsonModule": true,
     "isolatedModules": true,
-    "allowSyntheticDefaultImports": true,
-    "suppressImplicitAnyIndexErrors": true
+    "allowSyntheticDefaultImports": true
   },
   "include": [
     "lib"
