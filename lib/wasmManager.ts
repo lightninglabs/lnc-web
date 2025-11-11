@@ -54,14 +54,14 @@ export class WasmManager {
      * Get the WASM global object
      */
     private get wasm(): WasmGlobal {
-        return (globalThis as any)[this._namespace] as WasmGlobal;
+        return lncGlobal[this._namespace] as WasmGlobal;
     }
 
     /**
      * Set the WASM global object
      */
     private set wasm(value: WasmGlobal) {
-        (globalThis as any)[this._namespace] = value;
+        lncGlobal[this._namespace] = value;
     }
 
     /**

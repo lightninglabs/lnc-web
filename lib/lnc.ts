@@ -17,17 +17,6 @@ import {
 } from './types/lnc';
 import { WasmManager } from './wasmManager';
 
-/**
- * A reference to the global object that is extended with proper typing for the LNC
- * functions that are injected by the WASM client and the Go object. This eliminates the
- * need for casting `globalThis` to `any`.
- */
-export const lncGlobal = globalThis as typeof globalThis & {
-    Go: new () => GoInstance;
-} & {
-    [key: string]: unknown;
-};
-
 /** The default values for the LncConfig options */
 export const DEFAULT_CONFIG = {
     wasmClientCode: 'https://lightning.engineering/lnc-v0.3.4-alpha.wasm',
