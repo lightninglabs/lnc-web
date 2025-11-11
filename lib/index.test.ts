@@ -7,63 +7,80 @@ vi.mock('../../lib/wasm_exec', () => ({}));
 vi.mock('@lightninglabs/lnc-core');
 
 describe('Index Module', () => {
-    let originalInstantiateStreaming: any;
+  let originalInstantiateStreaming: any;
 
-    beforeEach(() => {
-        // Store original values
-        originalInstantiateStreaming =
-            globalThis.WebAssembly?.instantiateStreaming;
+  beforeEach(() => {
+    vi.resetModules();
+    // Store original values
+    originalInstantiateStreaming = globalThis.WebAssembly?.instantiateStreaming;
 
-        // Mock WebAssembly for testing
-        globalThis.WebAssembly = {
-            instantiateStreaming: vi.fn(),
-            instantiate: vi.fn(),
-            compile: vi.fn()
-        } as any;
+    // Mock WebAssembly for testing
+    globalThis.WebAssembly = {
+      instantiateStreaming: vi.fn(),
+      instantiate: vi.fn(),
+      compile: vi.fn()
+    } as any;
+  });
+
+  afterEach(() => {
+    // Restore original values
+    if (originalInstantiateStreaming) {
+      globalThis.WebAssembly.instantiateStreaming =
+        originalInstantiateStreaming;
+    }
+    vi.restoreAllMocks();
+  });
+
+  describe('WebAssembly Polyfill', () => {
+    it('should polyfill WebAssembly.instantiateStreaming when not available', async () => {
+      // Remove instantiateStreaming to test polyfill
+      delete (globalThis.WebAssembly as any).instantiateStreaming;
+      const instantiateMock = vi
+        .spyOn(globalThis.WebAssembly, 'instantiate')
+        .mockResolvedValue({ module: {}, instance: {} } as any);
+
+      // Import the index module to trigger the polyfill
+      await import('./index');
+
+      // Now WebAssembly.instantiateStreaming should exist
+      expect(typeof globalThis.WebAssembly?.instantiateStreaming).toBe(
+        'function'
+      );
+
+      const response = {
+        arrayBuffer: vi.fn().mockResolvedValue(new ArrayBuffer(8))
+      } as unknown as Response;
+
+      await globalThis.WebAssembly.instantiateStreaming(
+        Promise.resolve(response),
+        { env: {} }
+      );
+
+      expect(response.arrayBuffer).toHaveBeenCalled();
+      expect(instantiateMock).toHaveBeenCalledWith(expect.any(ArrayBuffer), {
+        env: {}
+      });
     });
 
-    afterEach(() => {
-        // Restore original values
-        if (originalInstantiateStreaming) {
-            globalThis.WebAssembly.instantiateStreaming =
-                originalInstantiateStreaming;
-        }
-        vi.restoreAllMocks();
+    it('should use existing WebAssembly.instantiateStreaming when available', async () => {
+      // Set up existing WebAssembly.instantiateStreaming
+      const existingInstantiateStreaming = vi.fn().mockResolvedValue({
+        module: {},
+        instance: {}
+      });
+
+      globalThis.WebAssembly = {
+        ...globalThis.WebAssembly,
+        instantiateStreaming: existingInstantiateStreaming
+      };
+
+      // Import the index module
+      await import('./index');
+
+      // The existing function should still be there
+      expect(globalThis.WebAssembly.instantiateStreaming).toBe(
+        existingInstantiateStreaming
+      );
     });
-
-    describe('WebAssembly Polyfill', () => {
-        it('should polyfill WebAssembly.instantiateStreaming when not available', async () => {
-            // Remove instantiateStreaming to test polyfill
-            delete (globalThis.WebAssembly as any).instantiateStreaming;
-
-            // Import the index module to trigger the polyfill
-            await import('./index');
-
-            // Now WebAssembly.instantiateStreaming should exist
-            expect(typeof globalThis.WebAssembly?.instantiateStreaming).toBe(
-                'function'
-            );
-        });
-
-        it('should use existing WebAssembly.instantiateStreaming when available', async () => {
-            // Set up existing WebAssembly.instantiateStreaming
-            const existingInstantiateStreaming = vi.fn().mockResolvedValue({
-                module: {},
-                instance: {}
-            });
-
-            globalThis.WebAssembly = {
-                ...globalThis.WebAssembly,
-                instantiateStreaming: existingInstantiateStreaming
-            };
-
-            // Import the index module
-            await import('./index');
-
-            // The existing function should still be there
-            expect(globalThis.WebAssembly.instantiateStreaming).toBe(
-                existingInstantiateStreaming
-            );
-        });
-    });
+  });
 });

@@ -33,7 +33,6 @@ const Connect: React.FC = () => {
           navigate('/');
         } catch (err) {
           setError((err as Error).message);
-          // tslint:disable-next-line: no-console
           console.error(err);
         } finally {
           setLoading(false);

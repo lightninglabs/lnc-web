@@ -1,348 +1,183 @@
 import {
-    FaradayApi,
-    LitApi,
-    LndApi,
-    LoopApi,
-    PoolApi,
-    snakeKeysToCamel,
-    TaprootAssetsApi
+  FaradayApi,
+  LitApi,
+  LndApi,
+  LoopApi,
+  PoolApi,
+  TaprootAssetsApi
 } from '@lightninglabs/lnc-core';
 import { createRpc } from './api/createRpc';
-import { CredentialStore, LncConfig, WasmGlobal } from './types/lnc';
-import LncCredentialStore from './util/credentialStore';
-import { wasmLog as log } from './util/log';
-
-/**
- * A reference to the global object that is extended with proper typing for the LNC
- * functions that are injected by the WASM client and the Go object. This eliminates the
- * need for casting `globalThis` to `any`.
- */
-export const lncGlobal = globalThis as typeof globalThis & {
-    Go: new () => GoInstance;
-} & {
-    [key: string]: unknown;
-};
+import { CredentialOrchestrator } from './credentialOrchestrator';
+import { PasskeyEncryptionService } from './encryption/passkeyEncryptionService';
+import {
+  ClearOptions,
+  CredentialStore,
+  LncConfig,
+  UnlockOptions
+} from './types/lnc';
+import { WasmManager } from './wasmManager';
 
 /** The default values for the LncConfig options */
 export const DEFAULT_CONFIG = {
-    wasmClientCode: 'https://lightning.engineering/lnc-v0.3.4-alpha.wasm',
-    namespace: 'default',
-    serverHost: 'mailbox.terminal.lightning.today:443'
+  wasmClientCode: 'https://lightning.engineering/lnc-v0.3.4-alpha.wasm',
+  namespace: 'default',
+  serverHost: 'mailbox.terminal.lightning.today:443'
 } as Required<LncConfig>;
 
 export default class LNC {
-    go: GoInstance;
-    result?: {
-        module: WebAssembly.Module;
-        instance: WebAssembly.Instance;
-    };
+  // API fields (same as before) - initialized in constructor via initializeApis()
+  lnd!: LndApi;
+  loop!: LoopApi;
+  pool!: PoolApi;
+  faraday!: FaradayApi;
+  tapd!: TaprootAssetsApi;
+  lit!: LitApi;
 
-    _wasmClientCode: any;
-    _namespace: string;
-    credentials: CredentialStore;
+  // Internal managers
+  private wasmManager: WasmManager;
+  private credentialOrchestrator: CredentialOrchestrator;
 
-    lnd: LndApi;
-    loop: LoopApi;
-    pool: PoolApi;
-    faraday: FaradayApi;
-    tapd: TaprootAssetsApi;
-    lit: LitApi;
+  constructor(lncConfig?: LncConfig) {
+    // Merge the passed in config with the defaults
+    const config = Object.assign({}, DEFAULT_CONFIG, lncConfig);
 
-    constructor(lncConfig?: LncConfig) {
-        // merge the passed in config with the defaults
-        const config = Object.assign({}, DEFAULT_CONFIG, lncConfig);
+    // Create managers
+    this.wasmManager = new WasmManager(config.namespace, config.wasmClientCode);
 
-        this._wasmClientCode = config.wasmClientCode;
-        this._namespace = config.namespace;
+    this.credentialOrchestrator = new CredentialOrchestrator(config);
 
-        if (config.credentialStore) {
-            this.credentials = config.credentialStore;
-        } else {
-            this.credentials = new LncCredentialStore(
-                config.namespace,
-                config.password
-            );
-            // don't overwrite an existing serverHost if we're already paired
-            if (!this.credentials.isPaired)
-                this.credentials.serverHost = config.serverHost;
-            if (config.pairingPhrase)
-                this.credentials.pairingPhrase = config.pairingPhrase;
-        }
+    // Set credential provider for WASM manager
+    this.wasmManager.setCredentialProvider(
+      this.credentialOrchestrator.getCredentialStore()
+    );
 
-        // Pull Go off of the global object. This is injected by the wasm_exec.js file.
-        this.go = new lncGlobal.Go();
+    // Initialize APIs (simple, no factory needed)
+    this.initializeApis();
+  }
 
-        this.lnd = new LndApi(createRpc, this);
-        this.loop = new LoopApi(createRpc, this);
-        this.pool = new PoolApi(createRpc, this);
-        this.faraday = new FaradayApi(createRpc, this);
-        this.tapd = new TaprootAssetsApi(createRpc, this);
-        this.lit = new LitApi(createRpc, this);
-    }
+  // Public credentials getter (maintains backward compatibility)
+  get credentials(): CredentialStore {
+    return this.credentialOrchestrator.getCredentialStore();
+  }
 
-    private get wasm() {
-        return lncGlobal[this._namespace] as WasmGlobal;
-    }
+  /**
+   * Initialize Lightning Network APIs
+   */
+  private initializeApis(): void {
+    this.lnd = new LndApi(createRpc, this);
+    this.loop = new LoopApi(createRpc, this);
+    this.pool = new PoolApi(createRpc, this);
+    this.faraday = new FaradayApi(createRpc, this);
+    this.tapd = new TaprootAssetsApi(createRpc, this);
+    this.lit = new LitApi(createRpc, this);
+  }
 
-    private set wasm(value: any) {
-        lncGlobal[this._namespace] = value;
-    }
+  // High-level facade methods that delegate to managers
 
-    get isReady() {
-        return (
-            this.wasm &&
-            this.wasm.wasmClientIsReady &&
-            this.wasm.wasmClientIsReady()
-        );
-    }
+  async performAutoLogin(): Promise<boolean> {
+    return this.credentialOrchestrator.performAutoLogin();
+  }
 
-    get isConnected() {
-        return (
-            this.wasm &&
-            this.wasm.wasmClientIsConnected &&
-            this.wasm.wasmClientIsConnected()
-        );
-    }
+  async clear(options?: ClearOptions): Promise<void> {
+    return this.credentialOrchestrator.clear(options);
+  }
 
-    get status() {
-        return (
-            this.wasm &&
-            this.wasm.wasmClientStatus &&
-            this.wasm.wasmClientStatus()
-        );
-    }
+  async getAuthenticationInfo() {
+    return this.credentialOrchestrator.getAuthenticationInfo();
+  }
 
-    get expiry(): Date {
-        return (
-            this.wasm &&
-            this.wasm.wasmClientGetExpiry &&
-            new Date(this.wasm.wasmClientGetExpiry() * 1000)
-        );
-    }
+  async unlock(options: UnlockOptions): Promise<boolean> {
+    return this.credentialOrchestrator.unlock(options);
+  }
 
-    get isReadOnly() {
-        return (
-            this.wasm &&
-            this.wasm.wasmClientIsReadOnly &&
-            this.wasm.wasmClientIsReadOnly()
-        );
-    }
+  get isUnlocked(): boolean {
+    return this.credentialOrchestrator.isUnlocked;
+  }
 
-    hasPerms(permission: string) {
-        return (
-            this.wasm &&
-            this.wasm.wasmClientHasPerms &&
-            this.wasm.wasmClientHasPerms(permission)
-        );
-    }
+  get isPaired(): boolean {
+    return this.credentialOrchestrator.isPaired;
+  }
 
-    /**
-     * Downloads the WASM client binary
-     */
-    async preload() {
-        this.result = await WebAssembly.instantiateStreaming(
-            fetch(this._wasmClientCode),
-            this.go.importObject
-        );
-        log.info('downloaded WASM file');
-    }
+  /**
+   * Check if passkeys are supported in the current environment
+   */
+  static async isPasskeySupported(): Promise<boolean> {
+    return await PasskeyEncryptionService.isSupported();
+  }
 
-    /**
-     * Loads keys from storage and runs the Wasm client binary
-     */
-    async run() {
-        // make sure the WASM client binary is downloaded first
-        if (!this.isReady) await this.preload();
+  /**
+   * Check if the current configuration supports passkeys
+   */
+  async supportsPasskeys(): Promise<boolean> {
+    return this.credentialOrchestrator.supportsPasskeys();
+  }
 
-        // create the namespace object in the global scope if it doesn't exist
-        // so that we can assign the WASM callbacks to it
-        if (typeof this.wasm !== 'object') {
-            this.wasm = {};
-        }
+  // WASM state getters (delegate to WasmManager)
+  get isReady(): boolean {
+    return this.wasmManager.isReady;
+  }
 
-        // assign the WASM callbacks to the namespace object if they haven't
-        // already been assigned by the consuming app
-        if (!this.wasm.onLocalPrivCreate) {
-            this.wasm.onLocalPrivCreate = (keyHex: string) => {
-                log.debug('local private key created: ' + keyHex);
-                this.credentials.localKey = keyHex;
-            };
-        }
-        if (!this.wasm.onRemoteKeyReceive) {
-            this.wasm.onRemoteKeyReceive = (keyHex: string) => {
-                log.debug('remote key received: ' + keyHex);
-                this.credentials.remoteKey = keyHex;
-            };
-        }
-        if (!this.wasm.onAuthData) {
-            this.wasm.onAuthData = (keyHex: string) => {
-                log.debug('auth data received: ' + keyHex);
-            };
-        }
+  get isConnected(): boolean {
+    return this.wasmManager.isConnected;
+  }
 
-        this.go.argv = [
-            'wasm-client',
-            '--debuglevel=debug,GOBN=info,GRPC=info',
-            '--namespace=' + this._namespace,
-            `--onlocalprivcreate=${this._namespace}.onLocalPrivCreate`,
-            `--onremotekeyreceive=${this._namespace}.onRemoteKeyReceive`,
-            `--onauthdata=${this._namespace}.onAuthData`
-        ];
+  get status(): string {
+    return this.wasmManager.status;
+  }
 
-        if (this.result) {
-            this.go.run(this.result.instance);
-            await WebAssembly.instantiate(
-                this.result.module,
-                this.go.importObject
-            );
-        } else {
-            throw new Error("Can't find WASM instance.");
-        }
-    }
+  get expiry(): Date {
+    return this.wasmManager.expiry;
+  }
 
-    /**
-     * Connects to the LNC proxy server
-     * @returns a promise that resolves when the connection is established
-     */
-    async connect() {
-        // do not attempt to connect multiple times
-        if (this.isConnected) return;
+  get isReadOnly(): boolean {
+    return this.wasmManager.isReadOnly;
+  }
 
-        // ensure the WASM binary is loaded
-        if (!this.isReady) {
-            await this.run();
-            await this.waitTilReady();
-        }
+  hasPerms(permission: string): boolean {
+    return this.wasmManager.hasPerms(permission);
+  }
 
-        const { pairingPhrase, localKey, remoteKey, serverHost } =
-            this.credentials;
+  // WASM lifecycle methods (delegate to WasmManager)
+  async preload(): Promise<void> {
+    return this.wasmManager.preload();
+  }
 
-        // connect to the server
-        this.wasm.wasmClientConnectServer(
-            serverHost,
-            false,
-            pairingPhrase,
-            localKey,
-            remoteKey
-        );
+  async run(): Promise<void> {
+    return this.wasmManager.run();
+  }
 
-        // add an event listener to disconnect if the page is unloaded
-        if (typeof window !== 'undefined') {
-            window.addEventListener('unload', this.wasm.wasmClientDisconnect);
-        } else {
-            log.info('No unload event listener added. window is not available');
-        }
+  async connect(): Promise<void> {
+    return this.wasmManager.connect();
+  }
 
-        // repeatedly check if the connection was successful
-        return new Promise<void>((resolve, reject) => {
-            let counter = 0;
-            const interval = setInterval(() => {
-                counter++;
-                if (this.isConnected) {
-                    clearInterval(interval);
-                    resolve();
-                    log.info('The WASM client is connected to the server');
+  async pair(pairingPhrase: string): Promise<void> {
+    return this.wasmManager.pair(pairingPhrase);
+  }
 
-                    // clear the in-memory credentials after connecting if the
-                    // credentials are persisted in local storage
-                    if (this.credentials.password) {
-                        this.credentials.clear(true);
-                    }
-                } else if (counter > 20) {
-                    clearInterval(interval);
-                    reject(
-                        new Error(
-                            'Failed to connect the WASM client to the proxy server'
-                        )
-                    );
-                }
-            }, 500);
-        });
-    }
+  disconnect(): void {
+    this.wasmManager.disconnect();
+  }
 
-    /**
-     * Disconnects from the proxy server
-     */
-    disconnect() {
-        this.wasm.wasmClientDisconnect();
-    }
+  // Credential persistence methods (delegate to CredentialOrchestrator)
+  async persistWithPassword(password: string): Promise<void> {
+    return this.credentialOrchestrator.persistWithPassword(password);
+  }
 
-    /**
-     * Waits until the WASM client is executed and ready to accept connection info
-     */
-    async waitTilReady() {
-        return new Promise<void>((resolve, reject) => {
-            let counter = 0;
-            const interval = setInterval(() => {
-                counter++;
-                if (this.isReady) {
-                    clearInterval(interval);
-                    resolve();
-                    log.info('The WASM client is ready');
-                } else if (counter > 20) {
-                    clearInterval(interval);
-                    reject(new Error('Failed to load the WASM client'));
-                }
-            }, 500);
-        });
-    }
+  async persistWithPasskey(): Promise<void> {
+    return this.credentialOrchestrator.persistWithPasskey();
+  }
 
-    /**
-     * Emulates a GRPC request but uses the WASM client instead to communicate with the LND node
-     * @param method the GRPC method to call on the service
-     * @param request The GRPC request message to send
-     */
-    request<TRes>(method: string, request?: object): Promise<TRes> {
-        return new Promise((resolve, reject) => {
-            log.debug(`${method} request`, request);
-            const reqJSON = JSON.stringify(request || {});
-            this.wasm.wasmClientInvokeRPC(
-                method,
-                reqJSON,
-                (response: string) => {
-                    try {
-                        const rawRes = JSON.parse(response);
-                        // log.debug(`${method} raw response`, rawRes);
-                        const res = snakeKeysToCamel(rawRes);
-                        log.debug(`${method} response`, res);
-                        resolve(res as TRes);
-                    } catch (error) {
-                        log.debug(`${method} raw response`, response);
-                        reject(new Error(response));
-                        return;
-                    }
-                }
-            );
-        });
-    }
+  // RPC methods (delegate to WasmManager)
+  request<TRes>(method: string, request?: object): Promise<TRes> {
+    return this.wasmManager.request<TRes>(method, request);
+  }
 
-    /**
-     * Subscribes to a GRPC server-streaming endpoint and executes the `onMessage` handler
-     * when a new message is received from the server
-     * @param method the GRPC method to call on the service
-     * @param request the GRPC request message to send
-     * @param onMessage the callback function to execute when a new message is received
-     * @param onError the callback function to execute when an error is received
-     */
-    subscribe<TRes>(
-        method: string,
-        request?: object,
-        onMessage?: (res: TRes) => void,
-        onError?: (res: Error) => void
-    ) {
-        log.debug(`${method} request`, request);
-        const reqJSON = JSON.stringify(request || {});
-        this.wasm.wasmClientInvokeRPC(method, reqJSON, (response: string) => {
-            try {
-                const rawRes = JSON.parse(response);
-                const res = snakeKeysToCamel(rawRes);
-                log.debug(`${method} response`, res);
-                if (onMessage) onMessage(res as TRes);
-            } catch (error) {
-                log.debug(`${method} error`, error);
-                const err = new Error(response);
-                if (onError) onError(err);
-            }
-        });
-    }
+  subscribe<TRes>(
+    method: string,
+    request?: object,
+    onMessage?: (res: TRes) => void,
+    onError?: (res: Error) => void
+  ): void {
+    return this.wasmManager.subscribe(method, request, onMessage, onError);
+  }
 }
