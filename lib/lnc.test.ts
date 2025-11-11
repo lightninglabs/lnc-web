@@ -10,6 +10,7 @@ import {
 import { createMockSetup, MockSetup } from '../test/utils/mock-factory';
 import { globalAccess, testData } from '../test/utils/test-helpers';
 import LNC from './lnc';
+import { PasskeyEncryptionService } from './encryption/passkeyEncryptionService';
 import { WasmGlobal } from './types/lnc';
 
 describe('LNC Core Class', () => {
@@ -877,6 +878,134 @@ describe('LNC Core Class', () => {
             // Verify credentials were updated (this indirectly tests the callbacks ran)
             expect(lnc.credentials.localKey).toBe('test_key');
             expect(lnc.credentials.remoteKey).toBe('test_remote_key');
+        });
+    });
+
+    describe('Delegated methods', () => {
+        it('should delegate performAutoLogin to the credential orchestrator', async () => {
+            const lnc = new LNC();
+            const orchestrator = (lnc as any).credentialOrchestrator;
+            const autoLoginSpy = vi
+                .spyOn(orchestrator, 'performAutoLogin')
+                .mockResolvedValue(true);
+
+            const result = await lnc.performAutoLogin();
+
+            expect(autoLoginSpy).toHaveBeenCalledWith();
+            expect(result).toBe(true);
+        });
+
+        it('should delegate clear to the credential orchestrator', async () => {
+            const lnc = new LNC();
+            const orchestrator = (lnc as any).credentialOrchestrator;
+            const clearSpy = vi
+                .spyOn(orchestrator, 'clear')
+                .mockResolvedValue(undefined);
+
+            await lnc.clear({ session: true });
+
+            expect(clearSpy).toHaveBeenCalledWith({ session: true });
+        });
+
+        it('should delegate getAuthenticationInfo to the credential orchestrator', async () => {
+            const lnc = new LNC();
+            const orchestrator = (lnc as any).credentialOrchestrator;
+            const authInfo = { isUnlocked: true } as any;
+            const authSpy = vi
+                .spyOn(orchestrator, 'getAuthenticationInfo')
+                .mockResolvedValue(authInfo);
+
+            const result = await lnc.getAuthenticationInfo();
+
+            expect(authSpy).toHaveBeenCalledWith();
+            expect(result).toBe(authInfo);
+        });
+
+        it('should delegate unlock to the credential orchestrator', async () => {
+            const lnc = new LNC();
+            const orchestrator = (lnc as any).credentialOrchestrator;
+            const unlockSpy = vi
+                .spyOn(orchestrator, 'unlock')
+                .mockResolvedValue(true);
+
+            const result = await lnc.unlock({ method: 'password' });
+
+            expect(unlockSpy).toHaveBeenCalledWith({ method: 'password' });
+            expect(result).toBe(true);
+        });
+
+        it('should expose isUnlocked getter from the credential orchestrator', () => {
+            const lnc = new LNC();
+            const orchestrator = (lnc as any).credentialOrchestrator;
+            vi.spyOn(orchestrator, 'isUnlocked', 'get').mockReturnValue(true);
+
+            expect(lnc.isUnlocked).toBe(true);
+        });
+
+        it('should expose isPaired getter from the credential orchestrator', () => {
+            const lnc = new LNC();
+            const orchestrator = (lnc as any).credentialOrchestrator;
+            vi.spyOn(orchestrator, 'isPaired', 'get').mockReturnValue(true);
+
+            expect(lnc.isPaired).toBe(true);
+        });
+
+        it('should delegate supportsPasskeys to the credential orchestrator', async () => {
+            const lnc = new LNC();
+            const orchestrator = (lnc as any).credentialOrchestrator;
+            const supportsSpy = vi
+                .spyOn(orchestrator, 'supportsPasskeys')
+                .mockResolvedValue(true);
+
+            const result = await lnc.supportsPasskeys();
+
+            expect(supportsSpy).toHaveBeenCalledWith();
+            expect(result).toBe(true);
+        });
+
+        it('should delegate persistWithPassword to the credential orchestrator', async () => {
+            const lnc = new LNC();
+            const orchestrator = (lnc as any).credentialOrchestrator;
+            const persistSpy = vi
+                .spyOn(orchestrator, 'persistWithPassword')
+                .mockResolvedValue(undefined);
+
+            await lnc.persistWithPassword('secret');
+
+            expect(persistSpy).toHaveBeenCalledWith('secret');
+        });
+
+        it('should delegate persistWithPasskey to the credential orchestrator', async () => {
+            const lnc = new LNC();
+            const orchestrator = (lnc as any).credentialOrchestrator;
+            const persistSpy = vi
+                .spyOn(orchestrator, 'persistWithPasskey')
+                .mockResolvedValue(undefined);
+
+            await lnc.persistWithPasskey();
+
+            expect(persistSpy).toHaveBeenCalledWith();
+        });
+
+        it('should delegate pair to the wasm manager', async () => {
+            const lnc = new LNC();
+            const wasmManager = (lnc as any).wasmManager;
+            const pairSpy = vi.spyOn(wasmManager, 'pair').mockResolvedValue(undefined);
+
+            await lnc.pair('phrase');
+
+            expect(pairSpy).toHaveBeenCalledWith('phrase');
+        });
+
+        it('should delegate isPasskeySupported to PasskeyEncryptionService', async () => {
+            const supportSpy = vi
+                .spyOn(PasskeyEncryptionService, 'isSupported')
+                .mockResolvedValue(true);
+
+            const result = await LNC.isPasskeySupported();
+
+            expect(supportSpy).toHaveBeenCalledWith();
+            expect(result).toBe(true);
         });
     });
 });

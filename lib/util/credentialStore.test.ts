@@ -483,4 +483,31 @@ describe('LncCredentialStore', () => {
             }).toThrow('Failed to load secure data');
         });
     });
+
+    describe('Private helper methods', () => {
+        it('should bypass save when localStorage is unavailable', () => {
+            const store = new LncCredentialStore();
+            const originalLocalStorage = globalThis.localStorage;
+
+            Object.defineProperty(globalThis, 'localStorage', {
+                value: undefined,
+                writable: true
+            });
+
+            expect(() => (store as any)._save()).not.toThrow();
+
+            Object.defineProperty(globalThis, 'localStorage', {
+                value: originalLocalStorage,
+                writable: true
+            });
+        });
+
+        it('should return empty string when encrypting without a password', () => {
+            const store = new LncCredentialStore();
+
+            const result = (store as any)._encrypt('sensitive');
+
+            expect(result).toBe('');
+        });
+    });
 });

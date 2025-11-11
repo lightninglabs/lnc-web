@@ -1,5 +1,11 @@
 import { SessionConfig } from '../types/lnc';
-import SessionManager from './sessionManager';
+
+import type SessionManager from './sessionManager';
+
+type SessionManagerDependency = Pick<
+    SessionManager,
+    'config' | 'getSessionTimeRemaining' | 'refreshSession'
+>;
 
 /**
  * Session refresh manager handles automatic session extension based on user activity.
@@ -13,10 +19,13 @@ export default class SessionRefreshManager {
     private activityThrottleTimer?: ReturnType<typeof setTimeout>;
     private isRunning = false;
     private config: Required<SessionConfig>;
+    private visibilityHandler?: () => void;
 
-    constructor(private sessionManager: SessionManager) {
+    constructor(private sessionManager: SessionManagerDependency) {
         // Store the config from the session manager
         this.config = sessionManager.config;
+        // Bind visibility handler once
+        this.visibilityHandler = this.handleVisibilityChange.bind(this);
     }
 
     /**
@@ -34,10 +43,10 @@ export default class SessionRefreshManager {
         this.resumeRefreshTimer();
 
         // Set up visibility change listener
-        if (this.config.pauseOnHidden) {
+        if (this.config.pauseOnHidden && this.visibilityHandler) {
             document.addEventListener(
                 'visibilitychange',
-                this.handleVisibilityChange.bind(this)
+                this.visibilityHandler
             );
         }
     }
@@ -53,10 +62,10 @@ export default class SessionRefreshManager {
         this.isRunning = false;
         this.cleanupTimersAndListeners();
 
-        if (this.config.pauseOnHidden) {
+        if (this.config.pauseOnHidden && this.visibilityHandler) {
             document.removeEventListener(
                 'visibilitychange',
-                this.handleVisibilityChange.bind(this)
+                this.visibilityHandler
             );
         }
     }

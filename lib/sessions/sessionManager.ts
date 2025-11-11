@@ -265,7 +265,7 @@ export default class SessionManager {
      */
     hasActiveSession(): boolean {
         const sessionData = this.storage.load();
-        return sessionData !== undefined && Date.now() < sessionData.expiresAt;
+        return sessionData != null && Date.now() < sessionData.expiresAt;
     }
 
     /**

@@ -118,20 +118,28 @@ export class CredentialOrchestrator {
      */
     async clear(options?: ClearOptions): Promise<void> {
         const { session = true, persisted = false } = options || {};
+        const unifiedStore = this.getUnifiedStore();
+        let clearedLegacyViaSession = false;
 
         if (session) {
             console.log(
                 '[CredentialOrchestrator] clearing session credentials'
             );
-            const unifiedStore = this.getUnifiedStore();
-            unifiedStore?.clearSession();
+            if (unifiedStore) {
+                unifiedStore.clearSession();
+            } else {
+                this.currentCredentialStore.clear();
+                clearedLegacyViaSession = true;
+            }
         }
 
         if (persisted) {
             console.log(
                 '[CredentialOrchestrator] clearing persisted credentials'
             );
-            this.currentCredentialStore.clear();
+            if (!clearedLegacyViaSession) {
+                this.currentCredentialStore.clear();
+            }
         }
     }
 
