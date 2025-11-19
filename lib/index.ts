@@ -2,6 +2,7 @@
 require('./wasm_exec');
 
 import LNC from './lnc';
+import { WasmManager } from './wasmManager';
 
 // polyfill
 if (!WebAssembly.instantiateStreaming) {
@@ -14,3 +15,4 @@ if (!WebAssembly.instantiateStreaming) {
 export type { LncConfig, CredentialStore } from './types/lnc';
 export * from '@lightninglabs/lnc-core';
 export default LNC;
+export { WasmManager };
