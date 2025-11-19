@@ -5,10 +5,10 @@ import LNC from './lnc';
 
 // polyfill
 if (!WebAssembly.instantiateStreaming) {
-    WebAssembly.instantiateStreaming = async (resp, importObject) => {
-        const source = await (await resp).arrayBuffer();
-        return await WebAssembly.instantiate(source, importObject);
-    };
+  WebAssembly.instantiateStreaming = async (resp, importObject) => {
+    const source = await (await resp).arrayBuffer();
+    return await WebAssembly.instantiate(source, importObject);
+  };
 }
 
 export type { LncConfig, CredentialStore } from './types/lnc';

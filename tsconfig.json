@@ -16,12 +16,6 @@
     "allowSyntheticDefaultImports": true,
     "types": ["node"]
   },
-  "include": [
-    "lib"
-  ],
-  "exclude": [
-    "node_modules",
-    "dist",
-    "**/*.test.ts"
-  ]
+  "include": ["lib"],
+  "exclude": ["node_modules", "dist", "**/*.test.ts"]
 }
