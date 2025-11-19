@@ -11,7 +11,11 @@ module.exports = {
         test: /\.ts?$/,
         loader: 'ts-loader',
         exclude: path.resolve(__dirname, '/node_modules'),
-        options: { allowTsInNodeModules: true }
+        options: {
+          allowTsInNodeModules: true,
+          // explicitly set the tsconfig file to use to avoid using the typecheck config
+          configFile: path.resolve(__dirname, 'tsconfig.json')
+        }
       }
     ]
   },
