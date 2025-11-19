@@ -1,6 +1,6 @@
 import { Mocked } from 'vitest';
-import { lncGlobal } from '../../lib/lnc';
 import { WasmGlobal } from '../../lib/types/lnc';
+import { lncGlobal } from '../../lib/wasmManager';
 import { createWasmGlobalMock } from '../mocks/webassembly';
 
 /**
