@@ -1,0 +1,8 @@
+// This config is used to typecheck the library and test files. The default tsconfig.json
+// file is used for the build process, which excludes the test files from the output.
+// This overwrites the exclude list in the default tsconfig.json file so the test files
+// are included in the typecheck.
+{
+  "extends": "./tsconfig.json",
+  "exclude": ["node_modules", "dist"]
+}
