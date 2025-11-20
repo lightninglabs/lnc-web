@@ -131,7 +131,7 @@ describe('LncCredentialStore', () => {
     });
 
     it('should call _load method during construction', () => {
-      const store = new LncCredentialStore();
+      new LncCredentialStore();
 
       // Verify localStorage.getItem was called (from _load method)
       expect(mockSetup.localStorage.getItem).toHaveBeenCalledWith(
