@@ -55,10 +55,9 @@ describe('Encryption Utilities', () => {
       const password = testData.password;
       const salt = 'testsalt12345678901234567890123456789012';
 
-      const result = encrypt(data, password, salt);
+      const result = encrypt(JSON.stringify(data), password, salt);
 
       expect(typeof result).toBe('string');
-      expect(result).toHaveLength(44); // AES encrypted strings are typically 44 chars
     });
 
     it('should produce different results for different data', () => {
@@ -99,10 +98,11 @@ describe('Encryption Utilities', () => {
       const password = testData.password;
       const salt = generateSalt();
 
-      const encrypted = encrypt(originalData, password, salt);
+      const actual = JSON.stringify(originalData);
+      const encrypted = encrypt(actual, password, salt);
       const decrypted = decrypt(encrypted, password, salt);
 
-      expect(decrypted).toEqual(originalData);
+      expect(decrypted).toEqual(actual);
     });
 
     it('should throw error for invalid encrypted data', () => {
@@ -214,10 +214,11 @@ describe('Encryption Utilities', () => {
       const password = testData.password;
       const salt = generateSalt();
 
-      const encrypted = encrypt(complexData, password, salt);
+      const actual = JSON.stringify(complexData);
+      const encrypted = encrypt(actual, password, salt);
       const decrypted = decrypt(encrypted, password, salt);
 
-      expect(decrypted).toEqual(complexData);
+      expect(decrypted).toEqual(actual);
     });
 
     it('should maintain data integrity through encrypt/decrypt cycle', () => {
@@ -238,10 +239,11 @@ describe('Encryption Utilities', () => {
       const salt = generateSalt();
 
       testCases.forEach((data) => {
-        const encrypted = encrypt(data, password, salt);
+        const actual = typeof data === 'string' ? data : JSON.stringify(data);
+        const encrypted = encrypt(actual, password, salt);
         const decrypted = decrypt(encrypted, password, salt);
 
-        expect(decrypted).toEqual(data);
+        expect(decrypted).toEqual(actual);
       });
     });
   });

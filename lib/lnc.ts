@@ -37,7 +37,7 @@ export default class LNC {
     instance: WebAssembly.Instance;
   };
 
-  _wasmClientCode: any;
+  _wasmClientCode: string;
   _namespace: string;
   credentials: CredentialStore;
 
@@ -84,7 +84,7 @@ export default class LNC {
     return lncGlobal[this._namespace] as WasmGlobal;
   }
 
-  private set wasm(value: any) {
+  private set wasm(value: WasmGlobal) {
     lncGlobal[this._namespace] = value;
   }
 
@@ -153,7 +153,7 @@ export default class LNC {
     // create the namespace object in the global scope if it doesn't exist
     // so that we can assign the WASM callbacks to it
     if (typeof this.wasm !== 'object') {
-      this.wasm = {};
+      this.wasm = {} as WasmGlobal;
     }
 
     // assign the WASM callbacks to the namespace object if they haven't
@@ -293,7 +293,7 @@ export default class LNC {
           const res = snakeKeysToCamel(rawRes);
           log.debug(`${method} response`, res);
           resolve(res as TRes);
-        } catch (error) {
+        } catch {
           log.debug(`${method} raw response`, response);
           reject(new Error(response));
           return;

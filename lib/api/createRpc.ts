@@ -1,5 +1,5 @@
-import LNC from '../lnc';
 import { subscriptionMethods } from '@lightninglabs/lnc-core';
+import LNC from '../lnc';
 
 // capitalize the first letter in the string
 const capitalize = (s: string) => s && s[0].toUpperCase() + s.slice(1);
@@ -11,7 +11,7 @@ const capitalize = (s: string) => s && s[0].toUpperCase() + s.slice(1);
 export function createRpc<T extends object>(packageName: string, lnc: LNC): T {
   const rpc = {};
   return new Proxy(rpc, {
-    get(target, key, c) {
+    get(target, key) {
       const methodName = capitalize(key.toString());
       // the full name of the method (ex: lnrpc.Lightning.OpenChannel)
       const method = `${packageName}.${methodName}`;
@@ -27,7 +27,7 @@ export function createRpc<T extends object>(packageName: string, lnc: LNC): T {
         };
       } else {
         // call request for unary methods
-        return async (request: object): Promise<any> => {
+        return async (request: object): Promise<unknown> => {
           return await lnc.request(method, request);
         };
       }

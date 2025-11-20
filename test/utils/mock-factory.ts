@@ -13,7 +13,7 @@ import { globalAccess } from './test-helpers';
 export interface MockSetup {
   localStorage: MockLocalStorage;
   wasmGlobal: WasmGlobal | null;
-  goInstance: any;
+  goInstance: ReturnType<typeof createGoInstanceMock>;
   namespace: string;
   cleanup: () => void;
 }
