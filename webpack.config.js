@@ -12,23 +12,20 @@ module.exports = {
         loader: 'ts-loader',
         exclude: path.resolve(__dirname, '/node_modules'),
         options: { allowTsInNodeModules: true }
-      },
-    ],
+      }
+    ]
   },
-  plugins: [
-	new NodePolyfillPlugin(),
-    new CleanWebpackPlugin()
-  ],
+  plugins: [new NodePolyfillPlugin(), new CleanWebpackPlugin()],
   resolve: {
-    extensions: ['.tsx', '.ts', '.js'],
+    extensions: ['.tsx', '.ts', '.js']
   },
   output: {
     filename: 'index.js',
     library: {
       name: '@lightninglabs/lnc-web',
-      type: "umd",  // see https://webpack.js.org/configuration/output/#outputlibrarytype
+      type: 'umd' // see https://webpack.js.org/configuration/output/#outputlibrarytype
     },
     globalObject: 'this',
-    path: path.resolve(__dirname, 'dist'),
-  },
+    path: path.resolve(__dirname, 'dist')
+  }
 };

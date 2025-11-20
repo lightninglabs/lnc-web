@@ -1,25 +1,20 @@
 {
-   "extends": ["tslint:recommended", "tslint-config-prettier"],
-   "rules": {
-        "max-line-length": {
-            "options": [120]
-        },
-        "new-parens": true,
-        "no-arg": true,
-        "no-bitwise": true,
-        "no-conditional-assignment": true,
-        "no-consecutive-blank-lines": true,
-        "no-console": {
-            "severity": "warning",
-            "options": ["debug", "info", "log", "time", "timeEnd", "trace"]
-        }
+  "extends": ["tslint:recommended", "tslint-config-prettier"],
+  "rules": {
+    "max-line-length": {
+      "options": [120]
     },
-    "linterOptions": {
-        "exclude": [
-            "dist",
-            "lib/types/**/*",
-            "lib/wasm_exec.js"
-        ]
+    "new-parens": true,
+    "no-arg": true,
+    "no-bitwise": true,
+    "no-conditional-assignment": true,
+    "no-consecutive-blank-lines": true,
+    "no-console": {
+      "severity": "warning",
+      "options": ["debug", "info", "log", "time", "timeEnd", "trace"]
     }
+  },
+  "linterOptions": {
+    "exclude": ["dist", "lib/types/**/*", "lib/wasm_exec.js"]
+  }
 }
-

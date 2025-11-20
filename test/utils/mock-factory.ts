@@ -1,7 +1,7 @@
 import { WasmGlobal } from '../../lib/types/lnc';
 import {
-    createGoInstanceMock,
-    createWasmGlobalMock
+  createGoInstanceMock,
+  createWasmGlobalMock
 } from '../../test/mocks/webassembly';
 import { MockLocalStorage } from '../mocks/localStorage';
 import { globalAccess } from './test-helpers';
@@ -11,11 +11,11 @@ import { globalAccess } from './test-helpers';
  */
 
 export interface MockSetup {
-    localStorage: MockLocalStorage;
-    wasmGlobal: WasmGlobal | null;
-    goInstance: any;
-    namespace: string;
-    cleanup: () => void;
+  localStorage: MockLocalStorage;
+  wasmGlobal: WasmGlobal | null;
+  goInstance: any;
+  namespace: string;
+  cleanup: () => void;
 }
 
 /**
@@ -23,43 +23,43 @@ export interface MockSetup {
  * the WASM global functions
  */
 export const createMockSetup = (
-    namespace: string = 'default',
-    includeWasmGlobal: boolean = true
+  namespace: string = 'default',
+  includeWasmGlobal: boolean = true
 ): MockSetup => {
-    // Create mocks
-    const localStorage = new MockLocalStorage();
-    const wasmGlobal = includeWasmGlobal ? createWasmGlobalMock() : null;
-    const goInstance = createGoInstanceMock();
+  // Create mocks
+  const localStorage = new MockLocalStorage();
+  const wasmGlobal = includeWasmGlobal ? createWasmGlobalMock() : null;
+  const goInstance = createGoInstanceMock();
 
-    // Store original values
-    const originalLocalStorage = globalThis.localStorage;
-    const originalNamespaceValue = globalAccess.getWasmGlobal(namespace);
+  // Store original values
+  const originalLocalStorage = globalThis.localStorage;
+  const originalNamespaceValue = globalAccess.getWasmGlobal(namespace);
 
-    // Setup mocks
+  // Setup mocks
+  Object.defineProperty(globalThis, 'localStorage', {
+    value: localStorage,
+    writable: true
+  });
+
+  // Cleanup function
+  const cleanup = () => {
     Object.defineProperty(globalThis, 'localStorage', {
-        value: localStorage,
-        writable: true
+      value: originalLocalStorage,
+      writable: true
     });
 
-    // Cleanup function
-    const cleanup = () => {
-        Object.defineProperty(globalThis, 'localStorage', {
-            value: originalLocalStorage,
-            writable: true
-        });
+    if (originalNamespaceValue !== undefined) {
+      globalAccess.setWasmGlobal(namespace, originalNamespaceValue);
+    } else {
+      globalAccess.clearWasmGlobal(namespace);
+    }
+  };
 
-        if (originalNamespaceValue !== undefined) {
-            globalAccess.setWasmGlobal(namespace, originalNamespaceValue);
-        } else {
-            globalAccess.clearWasmGlobal(namespace);
-        }
-    };
-
-    return {
-        localStorage,
-        wasmGlobal,
-        goInstance,
-        namespace,
-        cleanup
-    };
+  return {
+    localStorage,
+    wasmGlobal,
+    goInstance,
+    namespace,
+    cleanup
+  };
 };

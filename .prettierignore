@@ -3,9 +3,4 @@ demos/**
 dist/**
 coverage/**
 lib/wasm_exec.js
-package-lock.json
-package.json
 README.md
-tsconfig.json
-tslint.json
-webpack.config.js
