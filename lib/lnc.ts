@@ -30,6 +30,25 @@ export const DEFAULT_CONFIG = {
   serverHost: 'mailbox.terminal.lightning.today:443'
 } as Required<LncConfig>;
 
+// The default WasmGlobal object to use when the WASM client is not initialized
+const DEFAULT_WASM_GLOBAL: WasmGlobal = {
+  wasmClientIsReady: () => false,
+  wasmClientIsConnected: () => false,
+  wasmClientConnectServer: () => {
+    throw new Error('WASM client not initialized');
+  },
+  wasmClientDisconnect: () => {
+    throw new Error('WASM client not initialized');
+  },
+  wasmClientInvokeRPC: () => {
+    throw new Error('WASM client not initialized');
+  },
+  wasmClientHasPerms: () => false,
+  wasmClientIsReadOnly: () => false,
+  wasmClientStatus: () => 'uninitialized',
+  wasmClientGetExpiry: () => 0
+};
+
 export default class LNC {
   go: GoInstance;
   result?: {
@@ -37,7 +56,7 @@ export default class LNC {
     instance: WebAssembly.Instance;
   };
 
-  _wasmClientCode: any;
+  _wasmClientCode: string;
   _namespace: string;
   credentials: CredentialStore;
 
@@ -84,7 +103,7 @@ export default class LNC {
     return lncGlobal[this._namespace] as WasmGlobal;
   }
 
-  private set wasm(value: any) {
+  private set wasm(value: WasmGlobal) {
     lncGlobal[this._namespace] = value;
   }
 
@@ -153,7 +172,7 @@ export default class LNC {
     // create the namespace object in the global scope if it doesn't exist
     // so that we can assign the WASM callbacks to it
     if (typeof this.wasm !== 'object') {
-      this.wasm = {};
+      this.wasm = DEFAULT_WASM_GLOBAL;
     }
 
     // assign the WASM callbacks to the namespace object if they haven't
@@ -294,7 +313,7 @@ export default class LNC {
           log.debug(`${method} response`, res);
           resolve(res as TRes);
         } catch (error) {
-          log.debug(`${method} raw response`, response);
+          log.debug(`${method} parser error`, { response, error });
           reject(new Error(response));
           return;
         }

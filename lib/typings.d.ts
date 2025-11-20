@@ -1,4 +1,4 @@
-declare var global: any;
+declare const global: unknown;
 
 interface GoInstance {
   run(instance: WebAssembly.Instance): Promise<void>;
