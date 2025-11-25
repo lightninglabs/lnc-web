@@ -108,6 +108,21 @@ export interface LncConfig {
 }
 
 /**
+ * Available unlock methods
+ */
+export type UnlockMethod = 'password';
+
+/**
+ * Unlock options for different authentication methods
+ */
+export type UnlockOptions = {
+  method: 'password';
+  password: string;
+  salt?: string;
+  cipher?: string;
+};
+
+/**
  * The interface that must be implemented to provide `LNC` instances with storage
  * for its persistent data. These fields will be read and written to during the
  * authentication and connection process.
