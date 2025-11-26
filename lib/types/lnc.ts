@@ -28,8 +28,8 @@ export interface WasmGlobal {
    */
   wasmClientInvokeRPC: (
     rpcName: string,
-    request: any,
-    callback: (response: string) => any
+    request: string,
+    callback: (response: string) => void
   ) => void;
   /**
    * Returns true if client has specific permissions
@@ -79,7 +79,7 @@ export interface LncConfig {
    * Custom location for the WASM client code. Can be remote or local. If not
    * specified we’ll default to our instance on our CDN.
    */
-  wasmClientCode?: any; // URL or WASM client object
+  wasmClientCode?: string; // URL to WASM file
   /**
    * JavaScript namespace used for the main WASM calls. You can maintain multiple
    * connections if you use different namespaces. If not specified we'll default

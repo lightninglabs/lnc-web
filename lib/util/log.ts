@@ -47,25 +47,25 @@ export class Logger {
   /**
    * log a debug message
    */
-  debug = (message: string, ...args: any[]) =>
+  debug = (message: string, ...args: unknown[]) =>
     this._log(LogLevel.debug, message, args);
 
   /**
    * log an info message
    */
-  info = (message: string, ...args: any[]) =>
+  info = (message: string, ...args: unknown[]) =>
     this._log(LogLevel.info, message, args);
 
   /**
    * log a warn message
    */
-  warn = (message: string, ...args: any[]) =>
+  warn = (message: string, ...args: unknown[]) =>
     this._log(LogLevel.warn, message, args);
 
   /**
    * log an error message
    */
-  error = (message: string, ...args: any[]) =>
+  error = (message: string, ...args: unknown[]) =>
     this._log(LogLevel.error, message, args);
 
   /**
@@ -74,7 +74,7 @@ export class Logger {
    * @param message the message to log
    * @param args optional additional arguments to log
    */
-  private _log(level: LogLevel, message: string, args: any[]) {
+  private _log(level: LogLevel, message: string, args: unknown[]) {
     // don't log if the level to output is greater than the level of this message
     if (this._levelToOutput > level) return;
 
