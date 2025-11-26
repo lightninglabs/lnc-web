@@ -4,24 +4,12 @@ import {
   LndApi,
   LoopApi,
   PoolApi,
-  snakeKeysToCamel,
   TaprootAssetsApi
 } from '@lightninglabs/lnc-core';
 import { createRpc } from './api/createRpc';
-import { CredentialStore, LncConfig, WasmGlobal } from './types/lnc';
+import { CredentialStore, LncConfig } from './types/lnc';
 import LncCredentialStore from './util/credentialStore';
-import { wasmLog as log } from './util/log';
-
-/**
- * A reference to the global object that is extended with proper typing for the LNC
- * functions that are injected by the WASM client and the Go object. This eliminates the
- * need for casting `globalThis` to `any`.
- */
-export const lncGlobal = globalThis as typeof globalThis & {
-  Go: new () => GoInstance;
-} & {
-  [key: string]: unknown;
-};
+import { WasmManager } from './wasmManager';
 
 /** The default values for the LncConfig options */
 export const DEFAULT_CONFIG = {
@@ -30,34 +18,7 @@ export const DEFAULT_CONFIG = {
   serverHost: 'mailbox.terminal.lightning.today:443'
 } as Required<LncConfig>;
 
-// The default WasmGlobal object to use when the WASM client is not initialized
-const DEFAULT_WASM_GLOBAL: WasmGlobal = {
-  wasmClientIsReady: () => false,
-  wasmClientIsConnected: () => false,
-  wasmClientConnectServer: () => {
-    throw new Error('WASM client not initialized');
-  },
-  wasmClientDisconnect: () => {
-    throw new Error('WASM client not initialized');
-  },
-  wasmClientInvokeRPC: () => {
-    throw new Error('WASM client not initialized');
-  },
-  wasmClientHasPerms: () => false,
-  wasmClientIsReadOnly: () => false,
-  wasmClientStatus: () => 'uninitialized',
-  wasmClientGetExpiry: () => 0
-};
-
 export default class LNC {
-  go: GoInstance;
-  result?: {
-    module: WebAssembly.Module;
-    instance: WebAssembly.Instance;
-  };
-
-  _wasmClientCode: string;
-  _namespace: string;
   credentials: CredentialStore;
 
   lnd: LndApi;
@@ -67,12 +28,11 @@ export default class LNC {
   tapd: TaprootAssetsApi;
   lit: LitApi;
 
+  private wasmManager: WasmManager;
+
   constructor(lncConfig?: LncConfig) {
     // merge the passed in config with the defaults
     const config = Object.assign({}, DEFAULT_CONFIG, lncConfig);
-
-    this._wasmClientCode = config.wasmClientCode;
-    this._namespace = config.namespace;
 
     if (config.credentialStore) {
       this.credentials = config.credentialStore;
@@ -88,8 +48,12 @@ export default class LNC {
         this.credentials.pairingPhrase = config.pairingPhrase;
     }
 
-    // Pull Go off of the global object. This is injected by the wasm_exec.js file.
-    this.go = new lncGlobal.Go();
+    // Initialize WASM manager with namespace and client code
+    this.wasmManager = new WasmManager(
+      config.namespace || DEFAULT_CONFIG.namespace,
+      config.wasmClientCode || DEFAULT_CONFIG.wasmClientCode
+    );
+    this.wasmManager.setCredentialProvider(this.credentials);
 
     this.lnd = new LndApi(createRpc, this);
     this.loop = new LoopApi(createRpc, this);
@@ -99,117 +63,42 @@ export default class LNC {
     this.lit = new LitApi(createRpc, this);
   }
 
-  private get wasm() {
-    return lncGlobal[this._namespace] as WasmGlobal;
-  }
-
-  private set wasm(value: WasmGlobal) {
-    lncGlobal[this._namespace] = value;
-  }
-
   get isReady() {
-    return (
-      this.wasm && this.wasm.wasmClientIsReady && this.wasm.wasmClientIsReady()
-    );
+    return this.wasmManager.isReady;
   }
 
   get isConnected() {
-    return (
-      this.wasm &&
-      this.wasm.wasmClientIsConnected &&
-      this.wasm.wasmClientIsConnected()
-    );
+    return this.wasmManager.isConnected;
   }
 
   get status() {
-    return (
-      this.wasm && this.wasm.wasmClientStatus && this.wasm.wasmClientStatus()
-    );
+    return this.wasmManager.status;
   }
 
   get expiry(): Date {
-    return (
-      this.wasm &&
-      this.wasm.wasmClientGetExpiry &&
-      new Date(this.wasm.wasmClientGetExpiry() * 1000)
-    );
+    return this.wasmManager.expiry;
   }
 
   get isReadOnly() {
-    return (
-      this.wasm &&
-      this.wasm.wasmClientIsReadOnly &&
-      this.wasm.wasmClientIsReadOnly()
-    );
+    return this.wasmManager.isReadOnly;
   }
 
   hasPerms(permission: string) {
-    return (
-      this.wasm &&
-      this.wasm.wasmClientHasPerms &&
-      this.wasm.wasmClientHasPerms(permission)
-    );
+    return this.wasmManager.hasPerms(permission);
   }
 
   /**
    * Downloads the WASM client binary
    */
   async preload() {
-    this.result = await WebAssembly.instantiateStreaming(
-      fetch(this._wasmClientCode),
-      this.go.importObject
-    );
-    log.info('downloaded WASM file');
+    await this.wasmManager.preload();
   }
 
   /**
    * Loads keys from storage and runs the Wasm client binary
    */
   async run() {
-    // make sure the WASM client binary is downloaded first
-    if (!this.isReady) await this.preload();
-
-    // create the namespace object in the global scope if it doesn't exist
-    // so that we can assign the WASM callbacks to it
-    if (typeof this.wasm !== 'object') {
-      this.wasm = DEFAULT_WASM_GLOBAL;
-    }
-
-    // assign the WASM callbacks to the namespace object if they haven't
-    // already been assigned by the consuming app
-    if (!this.wasm.onLocalPrivCreate) {
-      this.wasm.onLocalPrivCreate = (keyHex: string) => {
-        log.debug('local private key created: ' + keyHex);
-        this.credentials.localKey = keyHex;
-      };
-    }
-    if (!this.wasm.onRemoteKeyReceive) {
-      this.wasm.onRemoteKeyReceive = (keyHex: string) => {
-        log.debug('remote key received: ' + keyHex);
-        this.credentials.remoteKey = keyHex;
-      };
-    }
-    if (!this.wasm.onAuthData) {
-      this.wasm.onAuthData = (keyHex: string) => {
-        log.debug('auth data received: ' + keyHex);
-      };
-    }
-
-    this.go.argv = [
-      'wasm-client',
-      '--debuglevel=debug,GOBN=info,GRPC=info',
-      '--namespace=' + this._namespace,
-      `--onlocalprivcreate=${this._namespace}.onLocalPrivCreate`,
-      `--onremotekeyreceive=${this._namespace}.onRemoteKeyReceive`,
-      `--onauthdata=${this._namespace}.onAuthData`
-    ];
-
-    if (this.result) {
-      this.go.run(this.result.instance);
-      await WebAssembly.instantiate(this.result.module, this.go.importObject);
-    } else {
-      throw new Error("Can't find WASM instance.");
-    }
+    await this.wasmManager.run();
   }
 
   /**
@@ -217,83 +106,21 @@ export default class LNC {
    * @returns a promise that resolves when the connection is established
    */
   async connect() {
-    // do not attempt to connect multiple times
-    if (this.isConnected) return;
-
-    // ensure the WASM binary is loaded
-    if (!this.isReady) {
-      await this.run();
-      await this.waitTilReady();
-    }
-
-    const { pairingPhrase, localKey, remoteKey, serverHost } = this.credentials;
-
-    // connect to the server
-    this.wasm.wasmClientConnectServer(
-      serverHost,
-      false,
-      pairingPhrase,
-      localKey,
-      remoteKey
-    );
-
-    // add an event listener to disconnect if the page is unloaded
-    if (typeof window !== 'undefined') {
-      window.addEventListener('unload', this.wasm.wasmClientDisconnect);
-    } else {
-      log.info('No unload event listener added. window is not available');
-    }
-
-    // repeatedly check if the connection was successful
-    return new Promise<void>((resolve, reject) => {
-      let counter = 0;
-      const interval = setInterval(() => {
-        counter++;
-        if (this.isConnected) {
-          clearInterval(interval);
-          resolve();
-          log.info('The WASM client is connected to the server');
-
-          // clear the in-memory credentials after connecting if the
-          // credentials are persisted in local storage
-          if (this.credentials.password) {
-            this.credentials.clear(true);
-          }
-        } else if (counter > 20) {
-          clearInterval(interval);
-          reject(
-            new Error('Failed to connect the WASM client to the proxy server')
-          );
-        }
-      }, 500);
-    });
+    await this.wasmManager.connect(this.credentials);
   }
 
   /**
    * Disconnects from the proxy server
    */
   disconnect() {
-    this.wasm.wasmClientDisconnect();
+    this.wasmManager.disconnect();
   }
 
   /**
    * Waits until the WASM client is executed and ready to accept connection info
    */
   async waitTilReady() {
-    return new Promise<void>((resolve, reject) => {
-      let counter = 0;
-      const interval = setInterval(() => {
-        counter++;
-        if (this.isReady) {
-          clearInterval(interval);
-          resolve();
-          log.info('The WASM client is ready');
-        } else if (counter > 20) {
-          clearInterval(interval);
-          reject(new Error('Failed to load the WASM client'));
-        }
-      }, 500);
-    });
+    await this.wasmManager.waitTilReady();
   }
 
   /**
@@ -302,23 +129,7 @@ export default class LNC {
    * @param request The GRPC request message to send
    */
   request<TRes>(method: string, request?: object): Promise<TRes> {
-    return new Promise((resolve, reject) => {
-      log.debug(`${method} request`, request);
-      const reqJSON = JSON.stringify(request || {});
-      this.wasm.wasmClientInvokeRPC(method, reqJSON, (response: string) => {
-        try {
-          const rawRes = JSON.parse(response);
-          // log.debug(`${method} raw response`, rawRes);
-          const res = snakeKeysToCamel(rawRes);
-          log.debug(`${method} response`, res);
-          resolve(res as TRes);
-        } catch (error) {
-          log.debug(`${method} parser error`, { response, error });
-          reject(new Error(response));
-          return;
-        }
-      });
-    });
+    return this.wasmManager.request<TRes>(method, request);
   }
 
   /**
@@ -335,19 +146,6 @@ export default class LNC {
     onMessage?: (res: TRes) => void,
     onError?: (res: Error) => void
   ) {
-    log.debug(`${method} request`, request);
-    const reqJSON = JSON.stringify(request || {});
-    this.wasm.wasmClientInvokeRPC(method, reqJSON, (response: string) => {
-      try {
-        const rawRes = JSON.parse(response);
-        const res = snakeKeysToCamel(rawRes);
-        log.debug(`${method} response`, res);
-        if (onMessage) onMessage(res as TRes);
-      } catch (error) {
-        log.debug(`${method} error`, error);
-        const err = new Error(response);
-        if (onError) onError(err);
-      }
-    });
+    this.wasmManager.subscribe(method, request, onMessage, onError);
   }
 }

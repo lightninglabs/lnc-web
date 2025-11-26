@@ -42,6 +42,26 @@ describe('Index Module', () => {
       expect(typeof globalThis.WebAssembly?.instantiateStreaming).toBe(
         'function'
       );
+
+      // Call the polyfilled function and ensure it delegates to WebAssembly.instantiate
+      const arrayBufferMock = vi.fn().mockResolvedValue(new ArrayBuffer(8));
+      const response = Promise.resolve({
+        arrayBuffer: arrayBufferMock
+      } as unknown as Response);
+
+      const instantiateSpy = vi
+        .spyOn(globalThis.WebAssembly, 'instantiate')
+        .mockResolvedValue({
+          exports: {}
+        });
+
+      await globalThis.WebAssembly.instantiateStreaming?.(
+        response as any,
+        { imports: true } as any
+      );
+
+      expect(arrayBufferMock).toHaveBeenCalledTimes(1);
+      expect(instantiateSpy).toHaveBeenCalledTimes(1);
     });
 
     it('should use existing WebAssembly.instantiateStreaming when available', async () => {
