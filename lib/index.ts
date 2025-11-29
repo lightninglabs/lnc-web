@@ -2,6 +2,7 @@
 require('./wasm_exec');
 
 import LNC from './lnc';
+import { CredentialOrchestrator } from './credentialOrchestrator';
 import { WasmManager } from './wasmManager';
 
 // polyfill
@@ -12,7 +13,13 @@ if (!WebAssembly.instantiateStreaming) {
   };
 }
 
-export type { LncConfig, CredentialStore } from './types/lnc';
+export type {
+  LncConfig,
+  CredentialStore,
+  UnlockMethod,
+  UnlockOptions
+} from './types/lnc';
+export type { AuthenticationInfo } from './stores/unifiedCredentialStore';
 export * from '@lightninglabs/lnc-core';
 export default LNC;
-export { WasmManager };
+export { CredentialOrchestrator, WasmManager };

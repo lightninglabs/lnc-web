@@ -7,8 +7,9 @@ import {
   TaprootAssetsApi
 } from '@lightninglabs/lnc-core';
 import { createRpc } from './api/createRpc';
-import { CredentialStore, LncConfig } from './types/lnc';
-import LncCredentialStore from './util/credentialStore';
+import { CredentialOrchestrator } from './credentialOrchestrator';
+import { AuthenticationInfo } from './stores/unifiedCredentialStore';
+import { CredentialStore, LncConfig, UnlockOptions } from './types/lnc';
 import { WasmManager } from './wasmManager';
 
 /** The default values for the LncConfig options */
@@ -19,7 +20,7 @@ export const DEFAULT_CONFIG = {
 } as Required<LncConfig>;
 
 export default class LNC {
-  credentials: CredentialStore;
+  private orchestrator: CredentialOrchestrator;
 
   lnd: LndApi;
   loop: LoopApi;
@@ -34,19 +35,8 @@ export default class LNC {
     // merge the passed in config with the defaults
     const config = Object.assign({}, DEFAULT_CONFIG, lncConfig);
 
-    if (config.credentialStore) {
-      this.credentials = config.credentialStore;
-    } else {
-      this.credentials = new LncCredentialStore(
-        config.namespace,
-        config.password
-      );
-      // don't overwrite an existing serverHost if we're already paired
-      if (!this.credentials.isPaired)
-        this.credentials.serverHost = config.serverHost;
-      if (config.pairingPhrase)
-        this.credentials.pairingPhrase = config.pairingPhrase;
-    }
+    // Create orchestrator which handles store creation
+    this.orchestrator = new CredentialOrchestrator(config);
 
     // Initialize WASM manager with namespace and client code
     this.wasmManager = new WasmManager(
@@ -61,6 +51,13 @@ export default class LNC {
     this.faraday = new FaradayApi(createRpc, this);
     this.tapd = new TaprootAssetsApi(createRpc, this);
     this.lit = new LitApi(createRpc, this);
+  }
+
+  /**
+   * Gets the credential store for accessing credential properties
+   */
+  get credentials(): CredentialStore {
+    return this.orchestrator.getCredentialStore();
   }
 
   get isReady() {
@@ -147,5 +144,56 @@ export default class LNC {
     onError?: (res: Error) => void
   ) {
     this.wasmManager.subscribe(method, request, onMessage, onError);
+  }
+
+  //
+  // Authentication methods (via CredentialOrchestrator)
+  //
+
+  /**
+   * Check if credentials are currently unlocked
+   */
+  get isUnlocked(): boolean {
+    return this.orchestrator.isUnlocked;
+  }
+
+  /**
+   * Check if credentials are paired (have been persisted previously)
+   */
+  get isPaired(): boolean {
+    return this.orchestrator.isPaired;
+  }
+
+  /**
+   * Unlock the credential store using the specified method
+   * @param options The unlock options (method and credentials)
+   * @returns Promise resolving to true if unlock was successful
+   */
+  async unlock(options: UnlockOptions): Promise<boolean> {
+    return this.orchestrator.unlock(options);
+  }
+
+  /**
+   * Persist credentials with password encryption.
+   * Call this after a successful connection to save credentials for future use.
+   * @param password The password to use for encryption
+   */
+  async persistWithPassword(password: string): Promise<void> {
+    return this.orchestrator.persistWithPassword(password);
+  }
+
+  /**
+   * Get authentication information including unlock state and stored credentials
+   */
+  async getAuthenticationInfo(): Promise<AuthenticationInfo> {
+    return this.orchestrator.getAuthenticationInfo();
+  }
+
+  /**
+   * Clear stored credentials
+   * @param memoryOnly If true, only clears in-memory credentials
+   */
+  clearCredentials(memoryOnly?: boolean): void {
+    this.orchestrator.clear(memoryOnly);
   }
 }
