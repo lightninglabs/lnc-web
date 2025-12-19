@@ -2,7 +2,8 @@ import { useCallback } from 'react';
 import LNC from '@lightninglabs/lnc-web';
 
 // create a singleton instance of LNC that will live for the lifetime of the app
-const lnc = new LNC({});
+// useUnifiedStore enables the new strategy-based authentication
+const lnc = new LNC({ useUnifiedStore: true });
 
 /**
  * A hook that exposes a single LNC instance of LNC to all component that need it.
@@ -15,13 +16,17 @@ const useLNC = () => {
     await lnc.connect();
     // verify we can fetch data
     await lnc.lnd.lightning.listChannels();
-    // set the password after confirming the connection works
-    lnc.credentials.password = password;
+    // persist credentials with password encryption after confirming the connection works
+    await lnc.persistWithPassword(password);
   }, []);
 
   /** Connects to LNC using the password to decrypt the stored keys */
   const login = useCallback(async (password: string) => {
-    lnc.credentials.password = password;
+    // unlock credentials using password
+    const unlocked = await lnc.unlock({ method: 'password', password });
+    if (!unlocked) {
+      throw new Error('Failed to unlock credentials. Check your password.');
+    }
     await lnc.connect();
   }, []);
 
