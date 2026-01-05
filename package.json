@@ -1,6 +1,6 @@
 {
   "name": "@lightninglabs/lnc-web",
-  "version": "0.3.4-alpha",
+  "version": "0.3.5-alpha",
   "description": "Lightning Node Connect npm module for web",
   "main": "./dist/index.js",
   "types": "./dist/index.d.ts",
@@ -59,7 +59,7 @@
     "webpack-cli": "5.1.4"
   },
   "dependencies": {
-    "@lightninglabs/lnc-core": "0.3.4-alpha",
+    "@lightninglabs/lnc-core": "0.3.5-alpha",
     "crypto-js": "4.2.0"
   },
   "browser": {
