@@ -10,6 +10,8 @@ import {
 import { createMockSetup, MockSetup } from '../test/utils/mock-factory';
 import { globalAccess, testData } from '../test/utils/test-helpers';
 import LNC from './lnc';
+import UnifiedCredentialStore from './stores/unifiedCredentialStore';
+import LncCredentialStore from './util/credentialStore';
 import { WasmGlobal } from './types/lnc';
 
 describe('LNC Core Class', () => {
@@ -859,6 +861,126 @@ describe('LNC Core Class', () => {
       // Verify credentials were updated (this indirectly tests the callbacks ran)
       expect(lnc.credentials.localKey).toBe('test_key');
       expect(lnc.credentials.remoteKey).toBe('test_remote_key');
+    });
+  });
+
+  describe('CredentialOrchestrator Integration', () => {
+    it('should use legacy LncCredentialStore by default', () => {
+      const lnc = new LNC({ namespace: 'test-legacy-default' });
+
+      expect(lnc.credentials).toBeInstanceOf(LncCredentialStore);
+    });
+
+    it('should use UnifiedCredentialStore when useUnifiedStore is true', () => {
+      const lnc = new LNC({
+        useUnifiedStore: true,
+        namespace: 'test-unified'
+      });
+
+      expect(lnc.credentials).toBeInstanceOf(UnifiedCredentialStore);
+    });
+
+    it('should use custom credential store when provided', () => {
+      const customStore = {
+        password: undefined,
+        pairingPhrase: '',
+        serverHost: '',
+        localKey: '',
+        remoteKey: '',
+        isPaired: false,
+        clear: vi.fn()
+      };
+
+      const lnc = new LNC({ credentialStore: customStore });
+
+      expect(lnc.credentials).toBe(customStore);
+    });
+  });
+
+  describe('Authentication Methods', () => {
+    it('should return isUnlocked from orchestrator', () => {
+      const lnc = new LNC({
+        namespace: 'test-is-unlocked'
+      });
+
+      expect(lnc.isUnlocked).toBe(false);
+    });
+
+    it('should return isPaired from orchestrator', () => {
+      const lnc = new LNC({
+        namespace: 'test-is-paired'
+      });
+
+      expect(lnc.isPaired).toBe(false);
+    });
+
+    it('should unlock credentials via orchestrator', async () => {
+      const lnc = new LNC({
+        useUnifiedStore: true,
+        namespace: 'test-unlock'
+      });
+
+      const result = await lnc.unlock({
+        method: 'password',
+        password: 'test-password'
+      });
+
+      expect(result).toBe(true);
+      expect(lnc.isUnlocked).toBe(true);
+    });
+
+    it('should persist credentials with password via orchestrator', async () => {
+      const lnc = new LNC({
+        useUnifiedStore: true,
+        namespace: 'test-persist'
+      });
+
+      // Set some credentials first
+      lnc.credentials.localKey = 'test-local-key';
+      lnc.credentials.remoteKey = 'test-remote-key';
+
+      await lnc.persistWithPassword('test-password');
+
+      expect(lnc.isUnlocked).toBe(true);
+    });
+
+    it('should get authentication info via orchestrator', async () => {
+      const lnc = new LNC({
+        useUnifiedStore: true,
+        namespace: 'test-auth-info'
+      });
+
+      const info = await lnc.getAuthenticationInfo();
+
+      expect(info).toEqual({
+        isUnlocked: false,
+        hasStoredCredentials: false,
+        preferredUnlockMethod: 'password'
+      });
+    });
+
+    it('should clear credentials via orchestrator', () => {
+      const lnc = new LNC({
+        useUnifiedStore: true,
+        namespace: 'test-clear'
+      });
+
+      lnc.credentials.localKey = 'test-key';
+      lnc.clearCredentials();
+
+      expect(lnc.credentials.localKey).toBe('');
+    });
+
+    it('should support memoryOnly flag in clearCredentials', () => {
+      const lnc = new LNC({
+        namespace: 'test-clear-memory'
+      });
+
+      const clearSpy = vi.spyOn(lnc.credentials, 'clear');
+
+      lnc.clearCredentials(true);
+
+      expect(clearSpy).toHaveBeenCalledWith(true);
     });
   });
 });
