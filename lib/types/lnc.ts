@@ -121,17 +121,31 @@ export interface LncConfig {
 /**
  * Available unlock methods
  */
-export type UnlockMethod = 'password';
+export type UnlockMethod = 'password' | 'passkey';
 
 /**
- * Unlock options for different authentication methods
+ * Unlock options for password-based authentication.
  */
-export type UnlockOptions = {
+export interface PasswordUnlockOptions {
   method: 'password';
   password: string;
   salt?: string;
   cipher?: string;
-};
+}
+
+/**
+ * Unlock options for passkey-based authentication.
+ */
+export interface PasskeyUnlockOptions {
+  method: 'passkey';
+  createIfMissing?: boolean;
+  credentialId?: string;
+}
+
+/**
+ * Unlock options for different authentication methods.
+ */
+export type UnlockOptions = PasswordUnlockOptions | PasskeyUnlockOptions;
 
 /**
  * The interface that must be implemented to provide `LNC` instances with storage
