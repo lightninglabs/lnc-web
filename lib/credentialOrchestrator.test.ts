@@ -27,7 +27,7 @@ describe('CredentialOrchestrator', () => {
   describe('constructor and store creation', () => {
     it('should create legacy store by default', () => {
       const orchestrator = new CredentialOrchestrator({});
-      const store = orchestrator.getCredentialStore();
+      const store = orchestrator.credentialStore;
 
       expect(store).toBeInstanceOf(LncCredentialStore);
     });
@@ -36,7 +36,7 @@ describe('CredentialOrchestrator', () => {
       const orchestrator = new CredentialOrchestrator({
         useUnifiedStore: true
       });
-      const store = orchestrator.getCredentialStore();
+      const store = orchestrator.credentialStore;
 
       expect(store).toBeInstanceOf(UnifiedCredentialStore);
     });
@@ -56,7 +56,7 @@ describe('CredentialOrchestrator', () => {
         credentialStore: customStore
       });
 
-      expect(orchestrator.getCredentialStore()).toBe(customStore);
+      expect(orchestrator.credentialStore).toBe(customStore);
     });
 
     it('should set serverHost from config for UnifiedCredentialStore', () => {
@@ -64,7 +64,7 @@ describe('CredentialOrchestrator', () => {
         useUnifiedStore: true,
         serverHost: 'test.server:443'
       });
-      const store = orchestrator.getCredentialStore();
+      const store = orchestrator.credentialStore;
 
       expect(store.serverHost).toBe('test.server:443');
     });
@@ -74,7 +74,7 @@ describe('CredentialOrchestrator', () => {
         useUnifiedStore: true,
         pairingPhrase: 'test-pairing-phrase'
       });
-      const store = orchestrator.getCredentialStore();
+      const store = orchestrator.credentialStore;
 
       expect(store.pairingPhrase).toBe('test-pairing-phrase');
     });
@@ -83,7 +83,7 @@ describe('CredentialOrchestrator', () => {
       const orchestrator = new CredentialOrchestrator({
         serverHost: 'test.server:443'
       });
-      const store = orchestrator.getCredentialStore();
+      const store = orchestrator.credentialStore;
 
       expect(store.serverHost).toBe('test.server:443');
     });
@@ -92,7 +92,7 @@ describe('CredentialOrchestrator', () => {
       const orchestrator = new CredentialOrchestrator({
         pairingPhrase: 'test-pairing-phrase'
       });
-      const store = orchestrator.getCredentialStore();
+      const store = orchestrator.credentialStore;
 
       expect(store.pairingPhrase).toBe('test-pairing-phrase');
     });
@@ -113,7 +113,7 @@ describe('CredentialOrchestrator', () => {
         useUnifiedStore: true,
         serverHost: 'new.server:443'
       });
-      const store = orchestrator.getCredentialStore();
+      const store = orchestrator.credentialStore;
 
       // Since isPaired checks strategy credentials, and we've set localKey,
       // the serverHost should not be overwritten
@@ -124,7 +124,7 @@ describe('CredentialOrchestrator', () => {
 
     it('should use default namespace when not provided', () => {
       const orchestrator = new CredentialOrchestrator({});
-      const store = orchestrator.getCredentialStore();
+      const store = orchestrator.credentialStore;
 
       // Verify the store was created (default namespace is 'default')
       expect(store).toBeDefined();
@@ -218,7 +218,7 @@ describe('CredentialOrchestrator', () => {
       });
 
       // Set some credentials first (simulating post-connection state)
-      const store = orchestrator.getCredentialStore();
+      const store = orchestrator.credentialStore;
       store.localKey = 'test-local-key';
       store.remoteKey = 'test-remote-key';
       store.serverHost = 'test.server:443';
@@ -235,7 +235,7 @@ describe('CredentialOrchestrator', () => {
       });
 
       // Set some credentials first
-      const store = orchestrator.getCredentialStore();
+      const store = orchestrator.credentialStore;
       store.localKey = 'test-local-key';
       store.remoteKey = 'test-remote-key';
 
@@ -258,12 +258,62 @@ describe('CredentialOrchestrator', () => {
       });
 
       // Mock unlock to fail by using a store with failing strategy
-      const store = orchestrator.getCredentialStore() as UnifiedCredentialStore;
+      const store = orchestrator.credentialStore as UnifiedCredentialStore;
       vi.spyOn(store, 'unlock').mockResolvedValue(false);
 
       await expect(
         orchestrator.persistWithPassword('test-password')
       ).rejects.toThrow('Failed to unlock credentials with password');
+    });
+  });
+
+  describe('persistWithPasskey', () => {
+    it('should persist credentials with passkey using UnifiedCredentialStore', async () => {
+      const orchestrator = new CredentialOrchestrator({
+        useUnifiedStore: true,
+        allowPasskeys: true,
+        namespace: 'test-persist-passkey'
+      });
+
+      const store = orchestrator.credentialStore as UnifiedCredentialStore;
+      store.localKey = 'test-local-key';
+      store.remoteKey = 'test-remote-key';
+
+      // Mock unlock to succeed
+      vi.spyOn(store, 'unlock').mockResolvedValue(true);
+
+      await orchestrator.persistWithPasskey();
+
+      expect(store.unlock).toHaveBeenCalledWith({
+        method: 'passkey',
+        createIfMissing: true
+      });
+    });
+
+    it('should throw error when used with legacy store', async () => {
+      const orchestrator = new CredentialOrchestrator({
+        namespace: 'test-persist-passkey-legacy'
+      });
+
+      await expect(orchestrator.persistWithPasskey()).rejects.toThrow(
+        'Passkey authentication requires UnifiedCredentialStore'
+      );
+    });
+
+    it('should throw if passkey unlock fails', async () => {
+      const orchestrator = new CredentialOrchestrator({
+        useUnifiedStore: true,
+        allowPasskeys: true,
+        namespace: 'test-persist-passkey-fail'
+      });
+
+      // Mock unlock to fail by using a store with failing strategy
+      const store = orchestrator.credentialStore as UnifiedCredentialStore;
+      vi.spyOn(store, 'unlock').mockResolvedValue(false);
+
+      await expect(orchestrator.persistWithPasskey()).rejects.toThrow(
+        'Failed to unlock credentials with passkey'
+      );
     });
   });
 
@@ -279,6 +329,8 @@ describe('CredentialOrchestrator', () => {
       expect(info).toEqual({
         isUnlocked: false,
         hasStoredCredentials: false,
+        supportsPasskeys: false,
+        hasPasskey: false,
         preferredUnlockMethod: 'password'
       });
     });
@@ -293,6 +345,8 @@ describe('CredentialOrchestrator', () => {
       expect(info).toEqual({
         isUnlocked: false,
         hasStoredCredentials: false,
+        supportsPasskeys: false,
+        hasPasskey: false,
         preferredUnlockMethod: 'password'
       });
     });
@@ -392,7 +446,7 @@ describe('CredentialOrchestrator', () => {
       });
 
       // Legacy store clears in-memory password after persisting
-      orchestrator.getCredentialStore().password = 'test-password';
+      orchestrator.credentialStore.password = 'test-password';
 
       // isUnlocked checks password, which is cleared after persist
       // This is expected legacy behavior - password is only kept in memory
@@ -408,7 +462,7 @@ describe('CredentialOrchestrator', () => {
         namespace: 'test-clear'
       });
 
-      const store = orchestrator.getCredentialStore();
+      const store = orchestrator.credentialStore;
       store.localKey = 'test-key';
 
       orchestrator.clear();
@@ -421,7 +475,7 @@ describe('CredentialOrchestrator', () => {
         namespace: 'test-clear-legacy'
       });
 
-      const store = orchestrator.getCredentialStore();
+      const store = orchestrator.credentialStore;
       store.localKey = 'test-key';
 
       orchestrator.clear();
@@ -435,7 +489,7 @@ describe('CredentialOrchestrator', () => {
         namespace: 'test-clear-memory'
       });
 
-      const store = orchestrator.getCredentialStore();
+      const store = orchestrator.credentialStore;
       const clearSpy = vi.spyOn(store, 'clear');
 
       orchestrator.clear(true);
@@ -450,7 +504,7 @@ describe('CredentialOrchestrator', () => {
         useUnifiedStore: true
       });
 
-      const store = orchestrator.getCredentialStore();
+      const store = orchestrator.credentialStore;
 
       expect(store).toBeInstanceOf(UnifiedCredentialStore);
     });
@@ -458,8 +512,8 @@ describe('CredentialOrchestrator', () => {
     it('should return same instance on multiple calls', () => {
       const orchestrator = new CredentialOrchestrator({});
 
-      const store1 = orchestrator.getCredentialStore();
-      const store2 = orchestrator.getCredentialStore();
+      const store1 = orchestrator.credentialStore;
+      const store2 = orchestrator.credentialStore;
 
       expect(store1).toBe(store2);
     });
@@ -497,7 +551,7 @@ describe('CredentialOrchestrator', () => {
         useUnifiedStore: true // This should be ignored
       });
 
-      expect(orchestrator.getCredentialStore()).toBe(customStore);
+      expect(orchestrator.credentialStore).toBe(customStore);
     });
   });
 });
