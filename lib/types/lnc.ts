@@ -116,6 +116,18 @@ export interface LncConfig {
    * testing in the demo app.
    */
   useUnifiedStore?: boolean;
+  /**
+   * When true, enables passkey-based authentication for credential encryption.
+   * Requires WebAuthn support in the browser.
+   * Default is false.
+   */
+  allowPasskeys?: boolean;
+  /**
+   * Display name shown to user during passkey creation.
+   * Used as the user.displayName in the WebAuthn credential.
+   * Defaults to "LNC User ({namespace})" if not provided.
+   */
+  passkeyDisplayName?: string;
 }
 
 /**
