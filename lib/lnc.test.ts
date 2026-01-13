@@ -871,9 +871,9 @@ describe('LNC Core Class', () => {
       expect(lnc.credentials).toBeInstanceOf(LncCredentialStore);
     });
 
-    it('should use UnifiedCredentialStore when useUnifiedStore is true', () => {
+    it('should use UnifiedCredentialStore when allowPasskeys is true', () => {
       const lnc = new LNC({
-        useUnifiedStore: true,
+        allowPasskeys: true,
         namespace: 'test-unified'
       });
 
@@ -916,7 +916,7 @@ describe('LNC Core Class', () => {
 
     it('should unlock credentials via orchestrator', async () => {
       const lnc = new LNC({
-        useUnifiedStore: true,
+        allowPasskeys: true,
         namespace: 'test-unlock'
       });
 
@@ -931,7 +931,7 @@ describe('LNC Core Class', () => {
 
     it('should persist credentials with password via orchestrator', async () => {
       const lnc = new LNC({
-        useUnifiedStore: true,
+        allowPasskeys: true,
         namespace: 'test-persist'
       });
 
@@ -946,7 +946,7 @@ describe('LNC Core Class', () => {
 
     it('should get authentication info via orchestrator', async () => {
       const lnc = new LNC({
-        useUnifiedStore: true,
+        allowPasskeys: true,
         namespace: 'test-auth-info'
       });
 
@@ -963,7 +963,7 @@ describe('LNC Core Class', () => {
 
     it('should clear credentials via orchestrator', () => {
       const lnc = new LNC({
-        useUnifiedStore: true,
+        allowPasskeys: true,
         namespace: 'test-clear'
       });
 
@@ -987,7 +987,7 @@ describe('LNC Core Class', () => {
 
     it('should clear credentials via clear method', () => {
       const lnc = new LNC({
-        useUnifiedStore: true,
+        allowPasskeys: true,
         namespace: 'test-clear-method'
       });
 
@@ -1011,7 +1011,6 @@ describe('LNC Core Class', () => {
 
     it('should persist credentials with passkey', async () => {
       const lnc = new LNC({
-        useUnifiedStore: true,
         allowPasskeys: true,
         namespace: 'test-persist-passkey-lnc'
       });
@@ -1034,7 +1033,7 @@ describe('LNC Core Class', () => {
 
     it('should call pair method correctly', async () => {
       const lnc = new LNC({
-        useUnifiedStore: true,
+        allowPasskeys: true,
         namespace: 'test-pair-lnc'
       });
 

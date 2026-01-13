@@ -106,17 +106,6 @@ export interface LncConfig {
    */
   credentialStore?: CredentialStore;
   /**
-   * When true, uses the new UnifiedCredentialStore with strategy-based
-   * authentication instead of the legacy LncCredentialStore.
-   * This enables password authentication via the new architecture.
-   * Default is false for backward compatibility.
-   *
-   * This is a temporary flag to enable the new password flow. It will be removed
-   * in a future PR when Passkeys are implemented. It is added here just to enable
-   * testing in the demo app.
-   */
-  useUnifiedStore?: boolean;
-  /**
    * When true, enables passkey-based authentication for credential encryption.
    * Requires WebAuthn support in the browser.
    * Default is false.

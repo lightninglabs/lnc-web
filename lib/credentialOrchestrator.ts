@@ -38,9 +38,9 @@ export class CredentialOrchestrator {
       return config.credentialStore;
     }
 
-    // Use UnifiedCredentialStore when explicitly requested
-    // (Later PRs will add: || config.enableSessions || config.allowPasskeys)
-    if (config.useUnifiedStore) {
+    // Use UnifiedCredentialStore when passkeys are enabled
+    // (Later PRs will add: || config.enableSessions)
+    if (config.allowPasskeys) {
       return this.createUnifiedStore(config);
     }
 
@@ -161,7 +161,7 @@ export class CredentialOrchestrator {
     if (!unifiedStore) {
       throw new Error(
         'Passkey authentication requires UnifiedCredentialStore. ' +
-          'Please configure LNC with useUnifiedStore: true and allowPasskeys: true'
+          'Please configure LNC with allowPasskeys: true'
       );
     }
 

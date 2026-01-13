@@ -32,9 +32,9 @@ describe('CredentialOrchestrator', () => {
       expect(store).toBeInstanceOf(LncCredentialStore);
     });
 
-    it('should create UnifiedCredentialStore when useUnifiedStore is true', () => {
+    it('should create UnifiedCredentialStore when allowPasskeys is true', () => {
       const orchestrator = new CredentialOrchestrator({
-        useUnifiedStore: true
+        allowPasskeys: true
       });
       const store = orchestrator.credentialStore;
 
@@ -61,7 +61,7 @@ describe('CredentialOrchestrator', () => {
 
     it('should set serverHost from config for UnifiedCredentialStore', () => {
       const orchestrator = new CredentialOrchestrator({
-        useUnifiedStore: true,
+        allowPasskeys: true,
         serverHost: 'test.server:443'
       });
       const store = orchestrator.credentialStore;
@@ -71,7 +71,7 @@ describe('CredentialOrchestrator', () => {
 
     it('should set pairingPhrase from config for UnifiedCredentialStore', () => {
       const orchestrator = new CredentialOrchestrator({
-        useUnifiedStore: true,
+        allowPasskeys: true,
         pairingPhrase: 'test-pairing-phrase'
       });
       const store = orchestrator.credentialStore;
@@ -110,7 +110,7 @@ describe('CredentialOrchestrator', () => {
       );
 
       const orchestrator = new CredentialOrchestrator({
-        useUnifiedStore: true,
+        allowPasskeys: true,
         serverHost: 'new.server:443'
       });
       const store = orchestrator.credentialStore;
@@ -134,7 +134,7 @@ describe('CredentialOrchestrator', () => {
   describe('unlock', () => {
     it('should unlock UnifiedCredentialStore with password', async () => {
       const orchestrator = new CredentialOrchestrator({
-        useUnifiedStore: true,
+        allowPasskeys: true,
         namespace: 'test-unlock'
       });
 
@@ -213,7 +213,7 @@ describe('CredentialOrchestrator', () => {
   describe('persistWithPassword', () => {
     it('should persist with UnifiedCredentialStore', async () => {
       const orchestrator = new CredentialOrchestrator({
-        useUnifiedStore: true,
+        allowPasskeys: true,
         namespace: 'test-persist'
       });
 
@@ -253,7 +253,7 @@ describe('CredentialOrchestrator', () => {
 
     it('should throw if unlock fails during persist', async () => {
       const orchestrator = new CredentialOrchestrator({
-        useUnifiedStore: true,
+        allowPasskeys: true,
         namespace: 'test-persist-fail'
       });
 
@@ -270,7 +270,6 @@ describe('CredentialOrchestrator', () => {
   describe('persistWithPasskey', () => {
     it('should persist credentials with passkey using UnifiedCredentialStore', async () => {
       const orchestrator = new CredentialOrchestrator({
-        useUnifiedStore: true,
         allowPasskeys: true,
         namespace: 'test-persist-passkey'
       });
@@ -302,7 +301,6 @@ describe('CredentialOrchestrator', () => {
 
     it('should throw if passkey unlock fails', async () => {
       const orchestrator = new CredentialOrchestrator({
-        useUnifiedStore: true,
         allowPasskeys: true,
         namespace: 'test-persist-passkey-fail'
       });
@@ -320,7 +318,7 @@ describe('CredentialOrchestrator', () => {
   describe('getAuthenticationInfo', () => {
     it('should return auth info from UnifiedCredentialStore', async () => {
       const orchestrator = new CredentialOrchestrator({
-        useUnifiedStore: true,
+        allowPasskeys: true,
         namespace: 'test-auth-info'
       });
 
@@ -353,7 +351,7 @@ describe('CredentialOrchestrator', () => {
 
     it('should show isUnlocked true after unlock', async () => {
       const orchestrator = new CredentialOrchestrator({
-        useUnifiedStore: true,
+        allowPasskeys: true,
         namespace: 'test-unlocked-info'
       });
 
@@ -370,7 +368,7 @@ describe('CredentialOrchestrator', () => {
   describe('isPaired', () => {
     it('should return false when not paired (UnifiedCredentialStore)', () => {
       const orchestrator = new CredentialOrchestrator({
-        useUnifiedStore: true,
+        allowPasskeys: true,
         namespace: 'test-not-paired'
       });
 
@@ -411,7 +409,7 @@ describe('CredentialOrchestrator', () => {
   describe('isUnlocked', () => {
     it('should return false initially (UnifiedCredentialStore)', () => {
       const orchestrator = new CredentialOrchestrator({
-        useUnifiedStore: true,
+        allowPasskeys: true,
         namespace: 'test-not-unlocked'
       });
 
@@ -428,7 +426,7 @@ describe('CredentialOrchestrator', () => {
 
     it('should return true after unlock (UnifiedCredentialStore)', async () => {
       const orchestrator = new CredentialOrchestrator({
-        useUnifiedStore: true,
+        allowPasskeys: true,
         namespace: 'test-unlocked'
       });
 
@@ -458,7 +456,7 @@ describe('CredentialOrchestrator', () => {
   describe('clear', () => {
     it('should clear credentials (UnifiedCredentialStore)', async () => {
       const orchestrator = new CredentialOrchestrator({
-        useUnifiedStore: true,
+        allowPasskeys: true,
         namespace: 'test-clear'
       });
 
@@ -485,7 +483,7 @@ describe('CredentialOrchestrator', () => {
 
     it('should support memoryOnly flag', () => {
       const orchestrator = new CredentialOrchestrator({
-        useUnifiedStore: true,
+        allowPasskeys: true,
         namespace: 'test-clear-memory'
       });
 
@@ -501,7 +499,7 @@ describe('CredentialOrchestrator', () => {
   describe('getCredentialStore', () => {
     it('should return the underlying credential store', () => {
       const orchestrator = new CredentialOrchestrator({
-        useUnifiedStore: true
+        allowPasskeys: true
       });
 
       const store = orchestrator.credentialStore;
@@ -535,7 +533,7 @@ describe('CredentialOrchestrator', () => {
       expect(persisted.salt).toBeDefined();
     });
 
-    it('should prioritize custom credentialStore over useUnifiedStore', () => {
+    it('should prioritize custom credentialStore over allowPasskeys', () => {
       const customStore: CredentialStore = {
         password: undefined,
         pairingPhrase: '',
@@ -548,7 +546,7 @@ describe('CredentialOrchestrator', () => {
 
       const orchestrator = new CredentialOrchestrator({
         credentialStore: customStore,
-        useUnifiedStore: true // This should be ignored
+        allowPasskeys: true // This should be ignored
       });
 
       expect(orchestrator.credentialStore).toBe(customStore);
