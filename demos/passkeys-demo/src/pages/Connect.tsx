@@ -1,11 +1,11 @@
 import React, { useCallback, useEffect, useState } from 'react';
-import { Alert, Button, Form } from 'react-bootstrap';
+import { Alert, Button, Col, Form, Row } from 'react-bootstrap';
 import { useNavigate } from 'react-router-dom';
 import Page from '../components/Page';
 import useLNC from '../hooks/useLNC';
 
 const Connect: React.FC = () => {
-  const { lnc, connect } = useLNC();
+  const { lnc, pair, auth } = useLNC();
   const navigate = useNavigate();
   const [phrase, setPhrase] = useState('');
   const [password, setPassword] = useState('');
@@ -28,7 +28,7 @@ const Connect: React.FC = () => {
           if (!phrase || !password) throw new Error('Enter a phrase and password');
 
           // connect to the litd node via LNC
-          await connect(phrase, password);
+          await pair(phrase, { method: 'password', password });
 
           navigate('/');
         } catch (err) {
@@ -41,8 +41,31 @@ const Connect: React.FC = () => {
       };
       connectAsync();
     },
-    [phrase, password, navigate, connect],
+    [phrase, password, navigate, pair]
   );
+
+  const handlePasskeyConnect = useCallback(() => {
+    // wrap LNC calls into an async function
+    const connectAsync = async () => {
+      try {
+        setLoading(true);
+        setError('');
+        if (!phrase) throw new Error('Enter a phrase');
+
+        // connect to the litd node via LNC
+        await pair(phrase, { method: 'passkey' });
+
+        navigate('/');
+      } catch (err) {
+        setError((err as Error).message);
+        // tslint:disable-next-line: no-console
+        console.error(err);
+      } finally {
+        setLoading(false);
+      }
+    };
+    connectAsync();
+  }, [phrase, navigate, pair]);
 
   return (
     <Page>
@@ -51,7 +74,7 @@ const Connect: React.FC = () => {
       {error && <Alert variant="danger">{error}</Alert>}
 
       <Form onSubmit={handleSubmit}>
-        <Form.Group className="mb-3" controlId="formBasicEmail">
+        <Form.Group className="mb-5" controlId="formBasicEmail">
           <Form.Label>Pairing Phrase</Form.Label>
           <Form.Control
             autoComplete="off"
@@ -63,23 +86,59 @@ const Connect: React.FC = () => {
             Obtain a new pairing phrase from <code>litd</code> and enter it here
           </Form.Text>
         </Form.Group>
-        <Form.Group className="mb-3" controlId="formBasicPassword">
-          <Form.Label>Create Password</Form.Label>
-          <Form.Control
-            type="password"
-            autoComplete="new-password"
-            value={password}
-            onChange={e => setPassword(e.target.value)}
-            disabled={loading}
-          />
+
+        <Form.Group className="mb-4">
+          <Form.Label as="p" className="fw-semibold mb-1">
+            Choose a method to secure the connection credentials
+          </Form.Label>
           <Form.Text className="text-muted">
-            lnc-web stores connection data in localStorage. This password will be used to
-            encrypt the data at rest.
+            You can either use a passkey (recommended) or create a password.
           </Form.Text>
         </Form.Group>
-        <Button variant="primary" type="submit" disabled={loading}>
-          Submit
-        </Button>
+
+        <Row className="mb-3">
+          {auth.supportsPasskeys && (
+            <Col md={6} className="mb-3">
+              <div className="border rounded p-3 h-100">
+                <h5 className="mb-2">Use a Passkey</h5>
+                <p className="text-muted small">
+                  Store your connection in a passkey managed by your browser or device. No password
+                  to remember.
+                </p>
+                <Button
+                  variant="primary"
+                  type="button"
+                  disabled={loading}
+                  onClick={handlePasskeyConnect}
+                >
+                  🔑 Continue with Passkey
+                </Button>
+              </div>
+            </Col>
+          )}
+
+          <Col md={6} className="mb-3">
+            <div className="border rounded p-3 h-100">
+              <h5 className="mb-2">Use a Password</h5>
+              <Form.Group className="mb-3" controlId="formBasicPassword">
+                <Form.Control
+                  type="password"
+                  autoComplete="new-password"
+                  value={password}
+                  onChange={e => setPassword(e.target.value)}
+                  disabled={loading}
+                />
+                <Form.Text className="text-muted">
+                  lnc-web stores connection data in localStorage. This password will be used to
+                  encrypt the data at rest.
+                </Form.Text>
+              </Form.Group>
+              <Button variant="primary" type="submit" disabled={loading}>
+                Continue with Password
+              </Button>
+            </div>
+          </Col>
+        </Row>
       </Form>
     </Page>
   );

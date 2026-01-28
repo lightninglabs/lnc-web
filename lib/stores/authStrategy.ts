@@ -29,4 +29,7 @@ export interface AuthStrategy {
 
   /** Clear the strategy's state */
   clear(): void;
+
+  /** Strategy-specific methods that may be implemented */
+  hasStoredAuthData?(): boolean; // For passkeys
 }

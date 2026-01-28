@@ -27,7 +27,7 @@ const createMockCredentialCache = () => {
 
 let mockCredentialCache = createMockCredentialCache();
 
-// Mock strategy
+// Mock strategies
 const mockPasswordStrategy = {
   method: 'password',
   isSupported: true,
@@ -36,6 +36,19 @@ const mockPasswordStrategy = {
   getCredential: vi.fn(),
   setCredential: vi.fn(),
   hasAnyCredentials: false,
+  hasStoredAuthData: vi.fn(),
+  clear: vi.fn()
+};
+
+const mockPasskeyStrategy = {
+  method: 'passkey',
+  isSupported: true,
+  isUnlocked: false,
+  unlock: vi.fn(),
+  getCredential: vi.fn(),
+  setCredential: vi.fn(),
+  hasAnyCredentials: false,
+  hasStoredAuthData: vi.fn(),
   clear: vi.fn()
 };
 
@@ -70,7 +83,11 @@ describe('UnifiedCredentialStore', () => {
     mockStrategyManager.preferredMethod = 'password';
     mockStrategyManager.clearAll.mockReturnValue(undefined);
     mockStrategyManager.supportedUnlockMethods = ['password'];
-    mockStrategyManager.getStrategy.mockReturnValue(mockPasswordStrategy);
+    mockStrategyManager.getStrategy.mockImplementation((method: string) => {
+      if (method === 'passkey') return mockPasskeyStrategy;
+      if (method === 'password') return mockPasswordStrategy;
+      return undefined;
+    });
 
     mockPasswordStrategy.isSupported = true;
     mockPasswordStrategy.isUnlocked = false;
@@ -78,6 +95,15 @@ describe('UnifiedCredentialStore', () => {
     mockPasswordStrategy.getCredential.mockResolvedValue(undefined);
     mockPasswordStrategy.setCredential.mockResolvedValue(undefined);
     mockPasswordStrategy.hasAnyCredentials = false;
+    mockPasswordStrategy.hasStoredAuthData.mockReturnValue(false);
+
+    mockPasskeyStrategy.isSupported = true;
+    mockPasskeyStrategy.isUnlocked = false;
+    mockPasskeyStrategy.unlock.mockResolvedValue(true);
+    mockPasskeyStrategy.getCredential.mockResolvedValue(undefined);
+    mockPasskeyStrategy.setCredential.mockResolvedValue(undefined);
+    mockPasskeyStrategy.hasAnyCredentials = false;
+    mockPasskeyStrategy.hasStoredAuthData.mockReturnValue(false);
 
     store = new UnifiedCredentialStore(baseConfig);
   });
@@ -237,17 +263,17 @@ describe('UnifiedCredentialStore', () => {
     it('should reset unlock state', async () => {
       // First unlock
       await store.unlock({ method: 'password', password: 'test' });
-      expect(store.isUnlocked()).toBe(true);
+      expect(store.isUnlocked).toBe(true);
 
       // Then clear
       store.clear();
-      expect(store.isUnlocked()).toBe(false);
+      expect(store.isUnlocked).toBe(false);
     });
   });
 
   describe('isUnlocked()', () => {
     it('should return false initially', () => {
-      expect(store.isUnlocked()).toBe(false);
+      expect(store.isUnlocked).toBe(false);
     });
 
     it('should return true after successful unlock', async () => {
@@ -255,7 +281,7 @@ describe('UnifiedCredentialStore', () => {
 
       await store.unlock({ method: 'password', password: 'test' });
 
-      expect(store.isUnlocked()).toBe(true);
+      expect(store.isUnlocked).toBe(true);
     });
 
     it('should return false after failed unlock', async () => {
@@ -263,7 +289,7 @@ describe('UnifiedCredentialStore', () => {
 
       await store.unlock({ method: 'password', password: 'wrong' });
 
-      expect(store.isUnlocked()).toBe(false);
+      expect(store.isUnlocked).toBe(false);
     });
   });
 
@@ -322,7 +348,7 @@ describe('UnifiedCredentialStore', () => {
       });
 
       expect(result).toBe(false);
-      expect(store.isUnlocked()).toBe(false);
+      expect(store.isUnlocked).toBe(false);
     });
 
     it('should handle unlock error', async () => {
@@ -380,8 +406,27 @@ describe('UnifiedCredentialStore', () => {
       expect(info).toEqual({
         isUnlocked: false,
         hasStoredCredentials: true,
+        supportsPasskeys: true,
+        hasPasskey: false,
         preferredUnlockMethod: 'password'
       });
+    });
+
+    it('should default supportsPasskeys/hasPasskey to false when passkey strategy is missing', async () => {
+      mockStrategyManager.hasAnyCredentials = false;
+      mockStrategyManager.preferredMethod = 'password';
+
+      mockStrategyManager.getStrategy.mockImplementation((method: string) => {
+        if (method === 'passkey') return undefined;
+        if (method === 'password') return mockPasswordStrategy;
+        return undefined;
+      });
+
+      const info = await store.getAuthenticationInfo();
+
+      expect(info.supportsPasskeys).toBe(false);
+      expect(info.hasPasskey).toBe(false);
+      expect(info.preferredUnlockMethod).toBe('password');
     });
 
     it('should reflect unlocked state', async () => {
@@ -500,7 +545,7 @@ describe('UnifiedCredentialStore', () => {
   describe('Integration tests', () => {
     it('should support full authentication workflow', async () => {
       // Initially not unlocked
-      expect(store.isUnlocked()).toBe(false);
+      expect(store.isUnlocked).toBe(false);
       const info1 = await store.getAuthenticationInfo();
       expect(info1.isUnlocked).toBe(false);
 
@@ -515,7 +560,7 @@ describe('UnifiedCredentialStore', () => {
         password: 'test-password'
       });
       expect(unlockResult).toBe(true);
-      expect(store.isUnlocked()).toBe(true);
+      expect(store.isUnlocked).toBe(true);
 
       // Check auth info after unlock
       const info2 = await store.getAuthenticationInfo();
@@ -531,7 +576,7 @@ describe('UnifiedCredentialStore', () => {
 
       // Clear
       store.clear();
-      expect(store.isUnlocked()).toBe(false);
+      expect(store.isUnlocked).toBe(false);
     });
   });
 });

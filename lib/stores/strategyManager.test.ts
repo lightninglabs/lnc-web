@@ -1,5 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { log } from '../util/log';
+import { PasskeyStrategy } from './passkeyStrategy';
 import { PasswordStrategy } from './passwordStrategy';
 import { StrategyManager } from './strategyManager';
 
@@ -13,9 +14,23 @@ const mockPasswordStrategy = {
   clear: vi.fn()
 };
 
+// Mock passkey strategy
+const mockPasskeyStrategy = {
+  method: 'passkey',
+  isSupported: true,
+  isUnlocked: false,
+  hasAnyCredentials: false,
+  hasStoredAuthData: vi.fn(),
+  clear: vi.fn()
+};
+
 // Mock strategy constructors
 vi.mock('./passwordStrategy', () => ({
   PasswordStrategy: vi.fn().mockImplementation(() => mockPasswordStrategy)
+}));
+
+vi.mock('./passkeyStrategy', () => ({
+  PasskeyStrategy: vi.fn().mockImplementation(() => mockPasskeyStrategy)
 }));
 
 // Mock log methods
@@ -34,6 +49,10 @@ describe('StrategyManager', () => {
     mockPasswordStrategy.isUnlocked = false;
     mockPasswordStrategy.hasAnyCredentials = false;
     mockPasswordStrategy.hasStoredAuthData.mockReturnValue(false);
+    mockPasskeyStrategy.isSupported = true;
+    mockPasskeyStrategy.isUnlocked = false;
+    mockPasskeyStrategy.hasAnyCredentials = false;
+    mockPasskeyStrategy.hasStoredAuthData.mockReturnValue(false);
   });
 
   afterEach(() => {
@@ -65,6 +84,55 @@ describe('StrategyManager', () => {
         '[StrategyManager] Registered strategies: password'
       );
     });
+
+    it('should register passkey strategy when allowPasskeys is true', () => {
+      strategyManager = new StrategyManager({
+        ...baseConfig,
+        allowPasskeys: true
+      });
+
+      expect(PasskeyStrategy).toHaveBeenCalledWith(
+        'test-namespace',
+        'LNC User (test-namespace)'
+      );
+      expect(strategyManager.getStrategy('passkey')).toBe(mockPasskeyStrategy);
+    });
+
+    it('should use custom passkeyDisplayName when provided', () => {
+      strategyManager = new StrategyManager({
+        ...baseConfig,
+        allowPasskeys: true,
+        passkeyDisplayName: 'Custom Display Name'
+      });
+
+      expect(PasskeyStrategy).toHaveBeenCalledWith(
+        'test-namespace',
+        'Custom Display Name'
+      );
+    });
+
+    it('should not register passkey strategy when allowPasskeys is false', () => {
+      strategyManager = new StrategyManager({
+        ...baseConfig,
+        allowPasskeys: false
+      });
+
+      expect(PasskeyStrategy).not.toHaveBeenCalled();
+      expect(strategyManager.getStrategy('passkey')).toBeUndefined();
+    });
+
+    it('should log both strategies when passkeys enabled', () => {
+      const spy = vi.spyOn(log, 'info');
+
+      strategyManager = new StrategyManager({
+        ...baseConfig,
+        allowPasskeys: true
+      });
+
+      expect(spy).toHaveBeenCalledWith(
+        '[StrategyManager] Registered strategies: password, passkey'
+      );
+    });
   });
 
   describe('getStrategy()', () => {
@@ -79,8 +147,16 @@ describe('StrategyManager', () => {
     });
 
     it('should return undefined for unregistered method', () => {
-      // Cast to any since 'passkey' is not a valid UnlockMethod yet
-      expect(strategyManager.getStrategy('passkey' as any)).toBeUndefined();
+      expect(strategyManager.getStrategy('passkey')).toBeUndefined();
+    });
+
+    it('should return passkey strategy when registered', () => {
+      strategyManager = new StrategyManager({
+        ...baseConfig,
+        allowPasskeys: true
+      });
+
+      expect(strategyManager.getStrategy('passkey')).toBe(mockPasskeyStrategy);
     });
   });
 
@@ -104,6 +180,19 @@ describe('StrategyManager', () => {
 
       expect(methods).toEqual([]);
     });
+
+    it('should include passkey when registered and supported', () => {
+      strategyManager = new StrategyManager({
+        ...baseConfig,
+        allowPasskeys: true
+      });
+      mockPasswordStrategy.isSupported = true;
+      mockPasskeyStrategy.isSupported = true;
+
+      const methods = strategyManager.supportedMethods;
+
+      expect(methods).toEqual(['password', 'passkey']);
+    });
   });
 
   describe('preferredMethod', () => {
@@ -111,10 +200,46 @@ describe('StrategyManager', () => {
       strategyManager = new StrategyManager(baseConfig);
     });
 
-    it('should return password as the preferred method', () => {
+    it('should return password when only password has credentials', () => {
+      mockPasswordStrategy.hasAnyCredentials = true;
+
       const method = strategyManager.preferredMethod;
 
       expect(method).toBe('password');
+    });
+
+    it('should return password as default when no credentials exist', () => {
+      mockPasswordStrategy.hasAnyCredentials = false;
+
+      const method = strategyManager.preferredMethod;
+
+      expect(method).toBe('password');
+    });
+
+    it('should return passkey when passkey has credentials', () => {
+      strategyManager = new StrategyManager({
+        ...baseConfig,
+        allowPasskeys: true
+      });
+      mockPasskeyStrategy.hasAnyCredentials = true;
+      mockPasswordStrategy.hasAnyCredentials = false;
+
+      const method = strategyManager.preferredMethod;
+
+      expect(method).toBe('passkey');
+    });
+
+    it('should prefer passkey over password when both have credentials', () => {
+      strategyManager = new StrategyManager({
+        ...baseConfig,
+        allowPasskeys: true
+      });
+      mockPasskeyStrategy.hasAnyCredentials = true;
+      mockPasswordStrategy.hasAnyCredentials = true;
+
+      const method = strategyManager.preferredMethod;
+
+      expect(method).toBe('passkey');
     });
   });
 
@@ -149,6 +274,18 @@ describe('StrategyManager', () => {
       strategyManager.clearAll();
 
       expect(mockPasswordStrategy.clear).toHaveBeenCalled();
+    });
+
+    it('should clear passkey strategy when registered', () => {
+      strategyManager = new StrategyManager({
+        ...baseConfig,
+        allowPasskeys: true
+      });
+
+      strategyManager.clearAll();
+
+      expect(mockPasswordStrategy.clear).toHaveBeenCalled();
+      expect(mockPasskeyStrategy.clear).toHaveBeenCalled();
     });
 
     it('should log clear operation', () => {

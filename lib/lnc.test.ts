@@ -871,9 +871,9 @@ describe('LNC Core Class', () => {
       expect(lnc.credentials).toBeInstanceOf(LncCredentialStore);
     });
 
-    it('should use UnifiedCredentialStore when useUnifiedStore is true', () => {
+    it('should use UnifiedCredentialStore when allowPasskeys is true', () => {
       const lnc = new LNC({
-        useUnifiedStore: true,
+        allowPasskeys: true,
         namespace: 'test-unified'
       });
 
@@ -916,7 +916,7 @@ describe('LNC Core Class', () => {
 
     it('should unlock credentials via orchestrator', async () => {
       const lnc = new LNC({
-        useUnifiedStore: true,
+        allowPasskeys: true,
         namespace: 'test-unlock'
       });
 
@@ -931,7 +931,7 @@ describe('LNC Core Class', () => {
 
     it('should persist credentials with password via orchestrator', async () => {
       const lnc = new LNC({
-        useUnifiedStore: true,
+        allowPasskeys: true,
         namespace: 'test-persist'
       });
 
@@ -946,7 +946,7 @@ describe('LNC Core Class', () => {
 
     it('should get authentication info via orchestrator', async () => {
       const lnc = new LNC({
-        useUnifiedStore: true,
+        allowPasskeys: true,
         namespace: 'test-auth-info'
       });
 
@@ -955,13 +955,15 @@ describe('LNC Core Class', () => {
       expect(info).toEqual({
         isUnlocked: false,
         hasStoredCredentials: false,
+        supportsPasskeys: false,
+        hasPasskey: false,
         preferredUnlockMethod: 'password'
       });
     });
 
     it('should clear credentials via orchestrator', () => {
       const lnc = new LNC({
-        useUnifiedStore: true,
+        allowPasskeys: true,
         namespace: 'test-clear'
       });
 
@@ -981,6 +983,68 @@ describe('LNC Core Class', () => {
       lnc.clearCredentials(true);
 
       expect(clearSpy).toHaveBeenCalledWith(true);
+    });
+
+    it('should clear credentials via clear method', () => {
+      const lnc = new LNC({
+        allowPasskeys: true,
+        namespace: 'test-clear-method'
+      });
+
+      lnc.credentials.localKey = 'test-key';
+      lnc.clear();
+
+      expect(lnc.credentials.localKey).toBe('');
+    });
+
+    it('should support memoryOnly flag in clear method', () => {
+      const lnc = new LNC({
+        namespace: 'test-clear-method-memory'
+      });
+
+      const clearSpy = vi.spyOn(lnc.credentials, 'clear');
+
+      lnc.clear(true);
+
+      expect(clearSpy).toHaveBeenCalledWith(true);
+    });
+
+    it('should persist credentials with passkey', async () => {
+      const lnc = new LNC({
+        allowPasskeys: true,
+        namespace: 'test-persist-passkey-lnc'
+      });
+
+      // Set some credentials first
+      lnc.credentials.localKey = 'test-local-key';
+      lnc.credentials.remoteKey = 'test-remote-key';
+
+      // Mock the store unlock to succeed
+      const store = lnc.credentials as UnifiedCredentialStore;
+      vi.spyOn(store, 'unlock').mockResolvedValue(true);
+
+      await lnc.persistWithPasskey();
+
+      expect(store.unlock).toHaveBeenCalledWith({
+        method: 'passkey',
+        createIfMissing: true
+      });
+    });
+
+    it('should call pair method correctly', async () => {
+      const lnc = new LNC({
+        allowPasskeys: true,
+        namespace: 'test-pair-lnc'
+      });
+
+      const runSpy = vi.spyOn(lnc, 'run').mockResolvedValue();
+      const connectSpy = vi.spyOn(lnc, 'connect').mockResolvedValue();
+
+      await lnc.pair('test-pairing-phrase');
+
+      expect(lnc.credentials.pairingPhrase).toBe('test-pairing-phrase');
+      expect(runSpy).toHaveBeenCalled();
+      expect(connectSpy).toHaveBeenCalled();
     });
   });
 });

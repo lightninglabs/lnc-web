@@ -106,32 +106,47 @@ export interface LncConfig {
    */
   credentialStore?: CredentialStore;
   /**
-   * When true, uses the new UnifiedCredentialStore with strategy-based
-   * authentication instead of the legacy LncCredentialStore.
-   * This enables password authentication via the new architecture.
-   * Default is false for backward compatibility.
-   *
-   * This is a temporary flag to enable the new password flow. It will be removed
-   * in a future PR when Passkeys are implemented. It is added here just to enable
-   * testing in the demo app.
+   * When true, enables passkey-based authentication for credential encryption.
+   * Requires WebAuthn support in the browser.
+   * Default is false.
    */
-  useUnifiedStore?: boolean;
+  allowPasskeys?: boolean;
+  /**
+   * Display name shown to user during passkey creation.
+   * Used as the user.displayName in the WebAuthn credential.
+   * Defaults to "LNC User ({namespace})" if not provided.
+   */
+  passkeyDisplayName?: string;
 }
 
 /**
  * Available unlock methods
  */
-export type UnlockMethod = 'password';
+export type UnlockMethod = 'password' | 'passkey';
 
 /**
- * Unlock options for different authentication methods
+ * Unlock options for password-based authentication.
  */
-export type UnlockOptions = {
+export interface PasswordUnlockOptions {
   method: 'password';
   password: string;
   salt?: string;
   cipher?: string;
-};
+}
+
+/**
+ * Unlock options for passkey-based authentication.
+ */
+export interface PasskeyUnlockOptions {
+  method: 'passkey';
+  createIfMissing?: boolean;
+  credentialId?: string;
+}
+
+/**
+ * Unlock options for different authentication methods.
+ */
+export type UnlockOptions = PasswordUnlockOptions | PasskeyUnlockOptions;
 
 /**
  * The interface that must be implemented to provide `LNC` instances with storage

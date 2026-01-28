@@ -1,6 +1,7 @@
 import { LncConfig, UnlockMethod } from '../types/lnc';
 import { log } from '../util/log';
 import { AuthStrategy } from './authStrategy';
+import { PasskeyStrategy } from './passkeyStrategy';
 import { PasswordStrategy } from './passwordStrategy';
 
 /**
@@ -24,11 +25,23 @@ export class StrategyManager {
   }
 
   /**
-   * Determine the preferred unlock method based on availability and priority.
-   * Note: Session and passkey preference logic will be added in later PRs.
+   * Determine the preferred unlock method based on which strategy has stored credentials.
+   * Priority: passkey > password (passkey is more secure when available)
    */
   get preferredMethod(): UnlockMethod {
-    // For now, only password is available. Session and passkey will be added in later PRs.
+    // Check if passkey strategy has credentials (highest priority)
+    const passkeyStrategy = this.strategies.get('passkey');
+    if (passkeyStrategy?.hasAnyCredentials) {
+      return 'passkey';
+    }
+
+    // Check if password strategy has credentials
+    const passwordStrategy = this.strategies.get('password');
+    if (passwordStrategy?.hasAnyCredentials) {
+      return 'password';
+    }
+
+    // Default to password if no credentials exist yet
     return 'password';
   }
 
@@ -68,14 +81,25 @@ export class StrategyManager {
 
   /**
    * Register authentication strategies based on configuration.
-   * Note: Only password strategy is available in this PR.
-   * Passkey and session strategies are added in later PRs.
+   * Password strategy is always available.
+   * Passkey strategy is registered when allowPasskeys is true.
+   * Session strategy will be added in a later PR.
    */
   private registerStrategies(config: LncConfig): void {
     const namespace = config.namespace || 'default';
 
     // Always register password strategy (available in all configurations)
     this.strategies.set('password', new PasswordStrategy(namespace));
+
+    // Register passkey strategy if enabled
+    if (config.allowPasskeys) {
+      const displayName =
+        config.passkeyDisplayName || `LNC User (${namespace})`;
+      this.strategies.set(
+        'passkey',
+        new PasskeyStrategy(namespace, displayName)
+      );
+    }
 
     log.info(
       `[StrategyManager] Registered strategies: ${Array.from(
