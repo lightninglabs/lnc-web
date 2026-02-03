@@ -454,6 +454,40 @@ describe('LncCredentialStore', () => {
   });
 
   describe('LocalStorage Operations', () => {
+    it('should no-op save when localStorage is unavailable', () => {
+      const store = new LncCredentialStore();
+      const originalLocalStorage = globalThis.localStorage;
+
+      Object.defineProperty(globalThis, 'localStorage', {
+        value: undefined,
+        writable: true
+      });
+
+      expect(() => {
+        (store as any)._save();
+      }).not.toThrow();
+
+      Object.defineProperty(globalThis, 'localStorage', {
+        value: originalLocalStorage,
+        writable: true
+      });
+    });
+
+    it('should return empty string when encrypting without value or password', () => {
+      const store = new LncCredentialStore();
+
+      expect((store as any)._encrypt('')).toBe('');
+
+      store.password = testData.password;
+      expect((store as any)._encrypt('')).toBe('');
+    });
+
+    it('should return empty string when encrypting without a password', () => {
+      const store = new LncCredentialStore();
+
+      expect((store as any)._encrypt('value')).toBe('');
+    });
+
     it('should throw error when localStorage setItem fails', () => {
       const store = new LncCredentialStore();
 

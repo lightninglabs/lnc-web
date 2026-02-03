@@ -1,8 +1,10 @@
+import SessionManager from '../sessions/sessionManager';
 import { LncConfig, UnlockMethod } from '../types/lnc';
 import { log } from '../util/log';
 import { AuthStrategy } from './authStrategy';
 import { PasskeyStrategy } from './passkeyStrategy';
 import { PasswordStrategy } from './passwordStrategy';
+import { SessionStrategy } from './sessionStrategy';
 
 /**
  * Manages authentication strategies and their lifecycle.
@@ -11,27 +13,31 @@ import { PasswordStrategy } from './passwordStrategy';
 export class StrategyManager {
   private strategies = new Map<UnlockMethod, AuthStrategy>();
 
-  constructor(config: LncConfig) {
-    this.registerStrategies(config);
+  constructor(config: LncConfig, sessionManager?: SessionManager) {
+    this.registerStrategies(config, sessionManager);
   }
 
   /**
    * Check if any strategy has stored credentials
    */
   get hasAnyCredentials(): boolean {
-    return Array.from(this.strategies.values()).some(
-      (strategy) => strategy.hasAnyCredentials
+    return Array.from(this.strategies.entries()).some(
+      ([method, strategy]) => method !== 'session' && strategy.hasAnyCredentials
     );
   }
 
   /**
    * Determine the preferred unlock method based on which strategy has stored credentials.
-   * Priority: passkey > password (passkey is more secure when available)
+   * Priority: session > passkey > password
    */
   get preferredMethod(): UnlockMethod {
-    // Check if passkey strategy has credentials (highest priority)
+    const sessionStrategy = this.strategies.get('session');
+    if (sessionStrategy?.hasAnyCredentials || sessionStrategy?.isUnlocked) {
+      return 'session';
+    }
+
     const passkeyStrategy = this.strategies.get('passkey');
-    if (passkeyStrategy?.hasAnyCredentials) {
+    if (passkeyStrategy?.isSupported && passkeyStrategy.hasStoredAuthData?.()) {
       return 'passkey';
     }
 
@@ -83,9 +89,12 @@ export class StrategyManager {
    * Register authentication strategies based on configuration.
    * Password strategy is always available.
    * Passkey strategy is registered when allowPasskeys is true.
-   * Session strategy will be added in a later PR.
+   * Session strategy is registered when sessionManager is provided.
    */
-  private registerStrategies(config: LncConfig): void {
+  private registerStrategies(
+    config: LncConfig,
+    sessionManager?: SessionManager
+  ): void {
     const namespace = config.namespace || 'default';
 
     // Always register password strategy (available in all configurations)
@@ -99,6 +108,10 @@ export class StrategyManager {
         'passkey',
         new PasskeyStrategy(namespace, displayName)
       );
+    }
+
+    if (sessionManager) {
+      this.strategies.set('session', new SessionStrategy(sessionManager));
     }
 
     log.info(

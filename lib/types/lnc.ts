@@ -106,6 +106,17 @@ export interface LncConfig {
    */
   credentialStore?: CredentialStore;
   /**
+   * Enable session-based authentication. When enabled, credentials are stored
+   * in sessionStorage for passwordless login during the browser session.
+   * Defaults to false for backward compatibility.
+   */
+  enableSessions?: boolean;
+  /**
+   * Session duration in milliseconds. Only used when enableSessions is true.
+   * Defaults to 24 hours (24 * 60 * 60 * 1000).
+   */
+  sessionDuration?: number;
+  /**
    * When true, enables passkey-based authentication for credential encryption.
    * Requires WebAuthn support in the browser.
    * Default is false.
@@ -120,9 +131,29 @@ export interface LncConfig {
 }
 
 /**
+ * Authentication information returned by getAuthenticationInfo()
+ */
+export interface AuthenticationInfo {
+  /** True if any authentication method has been successfully applied */
+  isUnlocked: boolean;
+  /** True if any long-term credentials are stored */
+  hasStoredCredentials: boolean;
+  /** True if a valid session exists for passwordless login */
+  hasActiveSession: boolean;
+  /** Remaining session time in milliseconds */
+  sessionTimeRemaining: number;
+  /** True if passkeys are supported in this environment */
+  supportsPasskeys: boolean;
+  /** True if a passkey credential is available */
+  hasPasskey: boolean;
+  /** The recommended unlock method based on current state */
+  preferredUnlockMethod: UnlockMethod;
+}
+
+/**
  * Available unlock methods
  */
-export type UnlockMethod = 'password' | 'passkey';
+export type UnlockMethod = 'password' | 'passkey' | 'session';
 
 /**
  * Unlock options for password-based authentication.
@@ -144,9 +175,19 @@ export interface PasskeyUnlockOptions {
 }
 
 /**
+ * Unlock options for session-based authentication.
+ */
+export interface SessionUnlockOptions {
+  method: 'session';
+}
+
+/**
  * Unlock options for different authentication methods.
  */
-export type UnlockOptions = PasswordUnlockOptions | PasskeyUnlockOptions;
+export type UnlockOptions =
+  | PasswordUnlockOptions
+  | PasskeyUnlockOptions
+  | SessionUnlockOptions;
 
 /**
  * The interface that must be implemented to provide `LNC` instances with storage
@@ -188,4 +229,14 @@ export interface CredentialStore {
 export interface SessionConfig {
   /** Session duration in milliseconds (default: 24 hours) */
   sessionDuration?: number;
+}
+
+/**
+ * Options for clearing credentials
+ */
+export interface ClearOptions {
+  /** clear the short-term credentials saved in session storage (default: true) */
+  session?: boolean;
+  /** clear the long-term pairing credentials saved in local storage (default: false) */
+  persisted?: boolean;
 }
