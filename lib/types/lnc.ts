@@ -181,3 +181,11 @@ export interface CredentialStore {
    */
   clear(memoryOnly?: boolean): void;
 }
+
+/**
+ * Configuration options for session-based credential management
+ */
+export interface SessionConfig {
+  /** Session duration in milliseconds (default: 24 hours) */
+  sessionDuration?: number;
+}

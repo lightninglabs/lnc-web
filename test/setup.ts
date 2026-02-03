@@ -7,9 +7,11 @@ import { MockLocalStorage } from './mocks/localStorage';
 
 // Create a global MockLocalStorage instance
 const localStorageMock = new MockLocalStorage();
+const sessionStorageMock = new MockLocalStorage();
 
 // Directly assign localStorage to globalThis for Node test environment
 globalThis.localStorage = localStorageMock;
+globalThis.sessionStorage = sessionStorageMock;
 
 // Mock crypto API
 const cryptoMock = {
@@ -68,6 +70,7 @@ beforeEach(() => {
   vi.clearAllMocks();
   // Reset localStorage mock (clears storage and resets spy history)
   localStorageMock.reset();
+  sessionStorageMock.reset();
   // Clear other mocks
   cryptoMock.getRandomValues.mockClear();
   webAssemblyMock.instantiateStreaming.mockClear();
