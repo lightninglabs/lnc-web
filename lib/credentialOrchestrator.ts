@@ -1,16 +1,18 @@
-import UnifiedCredentialStore, {
-  AuthenticationInfo
-} from './stores/unifiedCredentialStore';
-import { CredentialStore, LncConfig, UnlockOptions } from './types/lnc';
+import { PasskeyEncryptionService } from './encryption/passkeyEncryptionService';
+import SessionManager from './sessions/sessionManager';
+import UnifiedCredentialStore from './stores/unifiedCredentialStore';
+import {
+  ClearOptions,
+  CredentialStore,
+  LncConfig,
+  UnlockOptions
+} from './types/lnc';
 import LncCredentialStore from './util/credentialStore';
 import { log } from './util/log';
 
 /**
  * Orchestrates credential management and authentication operations.
  * Handles credential store creation, authentication, and persistence.
- *
- * This is a minimal implementation for password authentication.
- * Session and passkey support will be added in PR 9.
  */
 export class CredentialOrchestrator {
   private currentCredentialStore: CredentialStore;
@@ -27,6 +29,25 @@ export class CredentialOrchestrator {
   }
 
   /**
+   * Check if credentials are unlocked
+   */
+  get isUnlocked(): boolean {
+    const unifiedStore = this.getUnifiedStore();
+    if (unifiedStore) {
+      return unifiedStore.isUnlocked;
+    }
+    // Fallback: check if password is set (legacy credential store)
+    return !!this.currentCredentialStore.password;
+  }
+
+  /**
+   * Check if credentials are paired
+   */
+  get isPaired(): boolean {
+    return this.currentCredentialStore.isPaired;
+  }
+
+  /**
    * Create the appropriate credential store based on configuration
    */
   private createCredentialStore(config: LncConfig): CredentialStore {
@@ -38,23 +59,29 @@ export class CredentialOrchestrator {
       return config.credentialStore;
     }
 
-    // Use UnifiedCredentialStore when passkeys are enabled
-    // (Later PRs will add: || config.enableSessions)
-    if (config.allowPasskeys) {
+    // Use UnifiedCredentialStore for advanced features
+    if (config.enableSessions || config.allowPasskeys) {
       return this.createUnifiedStore(config);
     }
 
-    // Use legacy credential store for basic functionality (default)
+    // Use legacy credential store for basic functionality
     return this.createLegacyStore(config);
   }
 
   /**
-   * Create a UnifiedCredentialStore
+   * Create a UnifiedCredentialStore with optional session management
    */
   private createUnifiedStore(config: LncConfig): UnifiedCredentialStore {
-    log.info('[CredentialOrchestrator] Creating UnifiedCredentialStore');
+    let sessionManager: SessionManager | undefined;
+    if (config.enableSessions) {
+      const namespace = config.namespace || 'default';
+      const sessionConfig = config.sessionDuration
+        ? { sessionDuration: config.sessionDuration }
+        : undefined;
+      sessionManager = new SessionManager(namespace, sessionConfig);
+    }
 
-    const store = new UnifiedCredentialStore(config);
+    const store = new UnifiedCredentialStore(config, sessionManager);
 
     // Set initial values from config
     if (!store.isPaired && config.serverHost) {
@@ -90,7 +117,67 @@ export class CredentialOrchestrator {
   }
 
   /**
-   * Unlock the credential store using the specified method
+   * Perform auto-login if possible
+   */
+  async performAutoLogin(): Promise<boolean> {
+    const unifiedStore = this.getUnifiedStore();
+    if (unifiedStore) {
+      return (
+        (await unifiedStore.canAutoRestore()) &&
+        (await unifiedStore.tryAutoRestore())
+      );
+    }
+    return false;
+  }
+
+  /**
+   * Clear stored credentials
+   */
+  clear(options?: ClearOptions): void {
+    const { session = true, persisted = false } = options || {};
+    const unifiedStore = this.getUnifiedStore();
+    let clearedLegacyViaSession = false;
+
+    if (session) {
+      log.info('[CredentialOrchestrator] clearing session credentials');
+      if (unifiedStore) {
+        unifiedStore.clearSession();
+      } else {
+        this.currentCredentialStore.clear();
+        clearedLegacyViaSession = true;
+      }
+    }
+
+    if (persisted) {
+      log.info('[CredentialOrchestrator] clearing persisted credentials');
+      if (!clearedLegacyViaSession) {
+        this.currentCredentialStore.clear();
+      }
+    }
+  }
+
+  /**
+   * Get authentication information
+   */
+  async getAuthenticationInfo() {
+    const unifiedStore = this.getUnifiedStore();
+    if (unifiedStore) {
+      return await unifiedStore.getAuthenticationInfo();
+    }
+    // Fallback for legacy credential store
+    return {
+      isUnlocked: !!this.currentCredentialStore.password,
+      hasStoredCredentials: this.currentCredentialStore.isPaired,
+      hasActiveSession: false,
+      sessionTimeRemaining: 0,
+      supportsPasskeys: false,
+      hasPasskey: false,
+      preferredUnlockMethod: 'password' as const
+    };
+  }
+
+  /**
+   * Unlock the credential store
    */
   async unlock(options: UnlockOptions): Promise<boolean> {
     const unifiedStore = this.getUnifiedStore();
@@ -115,120 +202,75 @@ export class CredentialOrchestrator {
   }
 
   /**
+   * Check if passkeys are supported
+   */
+  async supportsPasskeys(): Promise<boolean> {
+    const unifiedStore = this.getUnifiedStore();
+    if (unifiedStore) {
+      const authInfo = await unifiedStore.getAuthenticationInfo();
+      return authInfo.supportsPasskeys;
+    }
+    return false;
+  }
+
+  /**
    * Persist credentials with password encryption
-   * This is the main method to save credentials after a successful connection.
    */
   async persistWithPassword(password: string): Promise<void> {
-    const unifiedStore = this.getUnifiedStore();
+    if (!this.currentCredentialStore) {
+      throw new Error('No credentials store available');
+    }
 
-    if (unifiedStore) {
-      // UnifiedCredentialStore: unlock then persist
-      const unlocked = await unifiedStore.unlock({
+    const store = this.currentCredentialStore;
+    if (store instanceof UnifiedCredentialStore) {
+      const unlocked = await store.unlock({
         method: 'password',
         password
       });
 
       if (!unlocked) {
-        const authInfo = await unifiedStore.getAuthenticationInfo();
-        throw new Error(
-          `Failed to unlock credentials with password. ` +
-            `Authentication state: isUnlocked=${authInfo.isUnlocked}, ` +
-            `hasStoredCredentials=${authInfo.hasStoredCredentials}, ` +
-            `preferredUnlockMethod=${authInfo.preferredUnlockMethod}`
-        );
+        throw new Error('Failed to unlock credentials with password');
       }
 
-      await unifiedStore.persistCredentials();
-      log.info(
-        '[CredentialOrchestrator] Credentials persisted with UnifiedCredentialStore'
-      );
+      await store.createSessionAfterConnection();
     } else {
-      // Legacy: just set password (it auto-persists)
-      this.currentCredentialStore.password = password;
-      log.info(
-        '[CredentialOrchestrator] Credentials persisted with legacy store'
-      );
+      // Legacy LncCredentialStore - just set password (it auto-persists)
+      store.password = password;
     }
   }
 
   /**
-   * Persist credentials with passkey authentication.
-   * This is the main method to save credentials after a successful connection using passkeys.
+   * Persist credentials with passkey encryption
    */
   async persistWithPasskey(): Promise<void> {
-    const unifiedStore = this.getUnifiedStore();
+    if (!this.currentCredentialStore) {
+      throw new Error('No credentials store available');
+    }
 
-    if (!unifiedStore) {
+    const store = this.currentCredentialStore;
+    if (store instanceof UnifiedCredentialStore) {
+      const unlocked = await store.unlock({
+        method: 'passkey',
+        createIfMissing: true
+      });
+
+      if (!unlocked) {
+        throw new Error('Failed to create/use passkey for credentials');
+      }
+
+      await store.createSessionAfterConnection();
+    } else {
       throw new Error(
-        'Passkey authentication requires UnifiedCredentialStore. ' +
-          'Please configure LNC with allowPasskeys: true'
+        'Passkey authentication requires the new credential store (enable sessions or passkeys)'
       );
     }
-
-    // Unlock with passkey and create if missing
-    const unlocked = await unifiedStore.unlock({
-      method: 'passkey',
-      createIfMissing: true
-    });
-
-    if (!unlocked) {
-      const authInfo = await unifiedStore.getAuthenticationInfo();
-      throw new Error(
-        `Failed to unlock credentials with passkey. ` +
-          `Authentication state: isUnlocked=${authInfo.isUnlocked}, ` +
-          `hasStoredCredentials=${authInfo.hasStoredCredentials}, ` +
-          `supportsPasskeys=${authInfo.supportsPasskeys}`
-      );
-    }
-
-    await unifiedStore.persistCredentials();
-    log.info('[CredentialOrchestrator] Credentials persisted with passkey');
   }
 
   /**
-   * Get authentication information
+   * Check if passkeys are supported in the current environment
    */
-  async getAuthenticationInfo(): Promise<AuthenticationInfo> {
-    const unifiedStore = this.getUnifiedStore();
-    if (unifiedStore) {
-      return await unifiedStore.getAuthenticationInfo();
-    }
-
-    // Fallback for legacy credential store
-    return {
-      isUnlocked: !!this.currentCredentialStore.password,
-      hasStoredCredentials: this.currentCredentialStore.isPaired,
-      supportsPasskeys: false,
-      hasPasskey: false,
-      preferredUnlockMethod: 'password' as const
-    };
-  }
-
-  /**
-   * Check if credentials are unlocked
-   */
-  get isUnlocked(): boolean {
-    const unifiedStore = this.getUnifiedStore();
-    if (unifiedStore) {
-      return unifiedStore.isUnlocked;
-    }
-    // Legacy: check if password is set
-    return !!this.currentCredentialStore.password;
-  }
-
-  /**
-   * Check if credentials are paired
-   */
-  get isPaired(): boolean {
-    return this.currentCredentialStore.isPaired;
-  }
-
-  /**
-   * Clear stored credentials
-   */
-  clear(memoryOnly?: boolean): void {
-    this.currentCredentialStore.clear(memoryOnly);
-    log.info('[CredentialOrchestrator] Credentials cleared', { memoryOnly });
+  static async isPasskeySupported(): Promise<boolean> {
+    return await PasskeyEncryptionService.isSupported();
   }
 
   /**

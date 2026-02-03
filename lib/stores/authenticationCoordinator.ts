@@ -12,7 +12,7 @@ import { StrategyManager } from './strategyManager';
 /**
  * Default session duration in milliseconds (24 hours)
  */
-const DEFAULT_SESSION_DURATION = 24 * 60 * 60 * 1000;
+export const DEFAULT_SESSION_DURATION = 24 * 60 * 60 * 1000;
 
 /**
  * The keys that will be persisted to the credential store.

@@ -9,6 +9,7 @@ import {
 } from 'vitest';
 import { createMockSetup, MockSetup } from '../test/utils/mock-factory';
 import { globalAccess, testData } from '../test/utils/test-helpers';
+import { PasskeyEncryptionService } from './encryption/passkeyEncryptionService';
 import LNC from './lnc';
 import UnifiedCredentialStore from './stores/unifiedCredentialStore';
 import LncCredentialStore from './util/credentialStore';
@@ -952,13 +953,55 @@ describe('LNC Core Class', () => {
 
       const info = await lnc.getAuthenticationInfo();
 
-      expect(info).toEqual({
+      expect(info).toMatchObject({
         isUnlocked: false,
         hasStoredCredentials: false,
-        supportsPasskeys: false,
-        hasPasskey: false,
+        hasActiveSession: false,
+        sessionTimeRemaining: 0,
         preferredUnlockMethod: 'password'
       });
+    });
+
+    it('should perform auto login via orchestrator', async () => {
+      const lnc = new LNC({
+        namespace: 'test-auto-login'
+      });
+      const orchestrator = (lnc as any).orchestrator;
+      const autoLoginSpy = vi
+        .spyOn(orchestrator, 'performAutoLogin')
+        .mockResolvedValue(true);
+
+      const result = await lnc.performAutoLogin();
+
+      expect(autoLoginSpy).toHaveBeenCalled();
+      expect(result).toBe(true);
+    });
+
+    it('should check passkey support via orchestrator', async () => {
+      const lnc = new LNC({
+        allowPasskeys: true,
+        namespace: 'test-supports-passkeys'
+      });
+      const orchestrator = (lnc as any).orchestrator;
+      const supportsSpy = vi
+        .spyOn(orchestrator, 'supportsPasskeys')
+        .mockResolvedValue(true);
+
+      const result = await lnc.supportsPasskeys();
+
+      expect(supportsSpy).toHaveBeenCalled();
+      expect(result).toBe(true);
+    });
+
+    it('should check static passkey support', async () => {
+      const supportSpy = vi
+        .spyOn(PasskeyEncryptionService, 'isSupported')
+        .mockResolvedValue(true);
+
+      const result = await LNC.isPasskeySupported();
+
+      expect(supportSpy).toHaveBeenCalled();
+      expect(result).toBe(true);
     });
 
     it('should clear credentials via orchestrator', () => {
@@ -968,7 +1011,7 @@ describe('LNC Core Class', () => {
       });
 
       lnc.credentials.localKey = 'test-key';
-      lnc.clearCredentials();
+      lnc.clearCredentials({ persisted: true });
 
       expect(lnc.credentials.localKey).toBe('');
     });
@@ -992,7 +1035,7 @@ describe('LNC Core Class', () => {
       });
 
       lnc.credentials.localKey = 'test-key';
-      lnc.clear();
+      lnc.clear({ persisted: true });
 
       expect(lnc.credentials.localKey).toBe('');
     });

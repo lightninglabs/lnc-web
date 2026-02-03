@@ -1,10 +1,10 @@
 import { describe, expect, it, vi } from 'vitest';
+import { log } from '../util/log';
 import { AuthenticationCoordinator } from './authenticationCoordinator';
+import { AuthStrategy } from './authStrategy';
 import { CredentialCache } from './credentialCache';
 import { SessionCoordinator } from './sessionCoordinator';
 import { StrategyManager } from './strategyManager';
-import { AuthStrategy } from './authStrategy';
-import { log } from '../util/log';
 
 const createStrategy = (method: AuthStrategy['method']) => ({
   method,
@@ -33,7 +33,7 @@ const createSessionCoordinator = (overrides?: Partial<SessionCoordinator>) => {
         serverHost: 'server',
         expiresAt: Date.now()
       }),
-      config: { sessionTTL: 1000 }
+      config: { sessionDuration: 1000 }
     })
   };
 
