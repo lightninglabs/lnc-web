@@ -9,7 +9,12 @@ interface Props {
 }
 
 const Page: React.FC<Props> = ({ children }) => {
-  const { lnc } = useLNC();
+  const { lnc, logout } = useLNC();
+
+  const handleLogout = async () => {
+    await logout();
+    window.location.reload();
+  };
 
   return (
     <>
@@ -31,9 +36,9 @@ const Page: React.FC<Props> = ({ children }) => {
               {lnc.isConnected ? (
                 <>
                   <Navbar.Text>Connected</Navbar.Text>
-                  <a href="/">
-                    <Button variant="link">Logout</Button>
-                  </a>
+                  <Button variant="link" onClick={handleLogout}>
+                    Logout
+                  </Button>
                 </>
               ) : lnc.credentials.isPaired ? (
                 <Link to="/login">
