@@ -22,7 +22,7 @@ export class CredentialOrchestrator {
   /**
    * Get the credential store (for public access via LNC getter)
    */
-  getCredentialStore(): CredentialStore {
+  get credentialStore(): CredentialStore {
     return this.currentCredentialStore;
   }
 
@@ -38,9 +38,9 @@ export class CredentialOrchestrator {
       return config.credentialStore;
     }
 
-    // Use UnifiedCredentialStore when explicitly requested
-    // (Later PRs will add: || config.enableSessions || config.allowPasskeys)
-    if (config.useUnifiedStore) {
+    // Use UnifiedCredentialStore when passkeys are enabled
+    // (Later PRs will add: || config.enableSessions)
+    if (config.allowPasskeys) {
       return this.createUnifiedStore(config);
     }
 
@@ -152,6 +152,40 @@ export class CredentialOrchestrator {
   }
 
   /**
+   * Persist credentials with passkey authentication.
+   * This is the main method to save credentials after a successful connection using passkeys.
+   */
+  async persistWithPasskey(): Promise<void> {
+    const unifiedStore = this.getUnifiedStore();
+
+    if (!unifiedStore) {
+      throw new Error(
+        'Passkey authentication requires UnifiedCredentialStore. ' +
+          'Please configure LNC with allowPasskeys: true'
+      );
+    }
+
+    // Unlock with passkey and create if missing
+    const unlocked = await unifiedStore.unlock({
+      method: 'passkey',
+      createIfMissing: true
+    });
+
+    if (!unlocked) {
+      const authInfo = await unifiedStore.getAuthenticationInfo();
+      throw new Error(
+        `Failed to unlock credentials with passkey. ` +
+          `Authentication state: isUnlocked=${authInfo.isUnlocked}, ` +
+          `hasStoredCredentials=${authInfo.hasStoredCredentials}, ` +
+          `supportsPasskeys=${authInfo.supportsPasskeys}`
+      );
+    }
+
+    await unifiedStore.persistCredentials();
+    log.info('[CredentialOrchestrator] Credentials persisted with passkey');
+  }
+
+  /**
    * Get authentication information
    */
   async getAuthenticationInfo(): Promise<AuthenticationInfo> {
@@ -164,6 +198,8 @@ export class CredentialOrchestrator {
     return {
       isUnlocked: !!this.currentCredentialStore.password,
       hasStoredCredentials: this.currentCredentialStore.isPaired,
+      supportsPasskeys: false,
+      hasPasskey: false,
       preferredUnlockMethod: 'password' as const
     };
   }
@@ -174,7 +210,7 @@ export class CredentialOrchestrator {
   get isUnlocked(): boolean {
     const unifiedStore = this.getUnifiedStore();
     if (unifiedStore) {
-      return unifiedStore.isUnlocked();
+      return unifiedStore.isUnlocked;
     }
     // Legacy: check if password is set
     return !!this.currentCredentialStore.password;

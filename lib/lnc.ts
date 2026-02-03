@@ -57,7 +57,7 @@ export default class LNC {
    * Gets the credential store for accessing credential properties
    */
   get credentials(): CredentialStore {
-    return this.orchestrator.getCredentialStore();
+    return this.orchestrator.credentialStore;
   }
 
   get isReady() {
@@ -174,12 +174,34 @@ export default class LNC {
   }
 
   /**
+   * Pair with an LNC node using a pairing phrase and set up authentication.
+   * After pairing, credentials need to be persisted using persistWithPassword or persistWithPasskey.
+   * @param pairingPhrase The pairing phrase from litd
+   */
+  async pair(pairingPhrase: string): Promise<void> {
+    // Set the pairing phrase
+    this.credentials.pairingPhrase = pairingPhrase;
+
+    // Run and connect
+    await this.run();
+    await this.connect();
+  }
+
+  /**
    * Persist credentials with password encryption.
    * Call this after a successful connection to save credentials for future use.
    * @param password The password to use for encryption
    */
   async persistWithPassword(password: string): Promise<void> {
     return this.orchestrator.persistWithPassword(password);
+  }
+
+  /**
+   * Persist credentials with passkey authentication.
+   * Call this after a successful connection to save credentials for future use using a passkey.
+   */
+  async persistWithPasskey(): Promise<void> {
+    return this.orchestrator.persistWithPasskey();
   }
 
   /**
@@ -192,6 +214,15 @@ export default class LNC {
   /**
    * Clear stored credentials
    * @param memoryOnly If true, only clears in-memory credentials
+   */
+  clear(memoryOnly?: boolean): void {
+    this.orchestrator.clear(memoryOnly);
+  }
+
+  /**
+   * Clear stored credentials (alias for clear)
+   * @param memoryOnly If true, only clears in-memory credentials
+   * @deprecated Use clear() instead
    */
   clearCredentials(memoryOnly?: boolean): void {
     this.orchestrator.clear(memoryOnly);

@@ -25,6 +25,8 @@ const KEYS_TO_PERSIST: (keyof CredentialStore)[] = [
 export interface AuthenticationInfo {
   isUnlocked: boolean;
   hasStoredCredentials: boolean;
+  supportsPasskeys: boolean;
+  hasPasskey: boolean;
   preferredUnlockMethod: UnlockMethod;
 }
 
@@ -130,7 +132,7 @@ export default class UnifiedCredentialStore implements CredentialStore {
   /**
    * Check if any strategy is currently unlocked
    */
-  isUnlocked(): boolean {
+  get isUnlocked(): boolean {
     return this._isUnlocked;
   }
 
@@ -180,9 +182,15 @@ export default class UnifiedCredentialStore implements CredentialStore {
    * Get authentication information
    */
   async getAuthenticationInfo(): Promise<AuthenticationInfo> {
+    const passkeyStrategy = this.strategyManager.getStrategy('passkey');
+    const supportsPasskeys = passkeyStrategy?.isSupported ?? false;
+    const hasPasskey = passkeyStrategy?.hasStoredAuthData?.() ?? false;
+
     return {
       isUnlocked: this._isUnlocked,
       hasStoredCredentials: this.strategyManager.hasAnyCredentials,
+      supportsPasskeys,
+      hasPasskey,
       preferredUnlockMethod: this.strategyManager.preferredMethod
     };
   }
