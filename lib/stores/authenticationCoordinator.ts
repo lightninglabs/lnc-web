@@ -26,6 +26,7 @@ const KEYS_TO_PERSIST: (keyof CredentialStore)[] = [
 
 /**
  * Coordinates authentication operations across strategies, cache, and sessions.
+ * Handles unlock logic, credential persistence, and authentication state management.
  */
 export class AuthenticationCoordinator {
   private activeStrategy?: AuthStrategy;
@@ -37,6 +38,7 @@ export class AuthenticationCoordinator {
     private credentialCache: CredentialCache,
     private sessionCoordinator: SessionCoordinator
   ) {
+    // Store the promise so we can wait for it later
     this.initializeCachePromise = this.initializeCache();
   }
 
@@ -70,6 +72,7 @@ export class AuthenticationCoordinator {
    */
   async unlock(options: UnlockOptions): Promise<boolean> {
     try {
+      // Get the appropriate strategy for this unlock method
       const strategy = this.strategyManager.getStrategy(options.method);
       if (!strategy) {
         log.error(
@@ -78,6 +81,7 @@ export class AuthenticationCoordinator {
         return false;
       }
 
+      // Unlock the strategy
       const success = await strategy.unlock(options);
       if (!success) {
         log.error(
@@ -86,9 +90,20 @@ export class AuthenticationCoordinator {
         return false;
       }
 
+      // Set this as the active strategy
       this.activeStrategy = strategy;
+      log.info(
+        `[AuthenticationCoordinator] Successfully unlocked with ${options.method} strategy`
+      );
 
+      // Load existing credentials from the strategy's storage
       await this.loadCredentialsFromStrategy(strategy);
+      log.info(
+        '[AuthenticationCoordinator] loaded credentials from strategy',
+        this.credentialCache.snapshot()
+      );
+
+      // Persist any cached credentials (from initial connection) to the strategy
       await this.persistCachedCredentials(strategy);
 
       if (
@@ -112,26 +127,29 @@ export class AuthenticationCoordinator {
   }
 
   /**
-   * Get authentication information based on the current state of the credential store
+   * Get authentication information
    */
   async getAuthenticationInfo(): Promise<AuthenticationInfo> {
+    // Wait for session restoration to complete before returning auth info
     await this.waitForSessionRestoration();
 
+    // Check if any strategy has stored credentials
     const hasStoredCredentials = this.strategyManager.hasAnyCredentials;
-    const hasActiveSession = this.sessionCoordinator.hasActiveSession;
-    const sessionTimeRemaining =
-      await this.sessionCoordinator.getTimeRemaining();
 
+    const sessionStrategy = this.strategyManager.getStrategy('session');
+    const hasActiveSession = sessionStrategy?.isUnlocked ?? false;
+    const isUnlocked = this.isUnlocked;
+
+    // Check passkey support and availability
     const passkeyStrategy = this.strategyManager.getStrategy('passkey');
     const supportsPasskeys = !!passkeyStrategy && passkeyStrategy.isSupported;
     const hasPasskey =
       supportsPasskeys && passkeyStrategy?.hasStoredAuthData?.() === true;
 
     return {
-      isUnlocked: this.isUnlocked,
+      isUnlocked,
       hasStoredCredentials,
       hasActiveSession,
-      sessionTimeRemaining,
       supportsPasskeys,
       hasPasskey,
       preferredUnlockMethod: this.strategyManager.preferredMethod
@@ -152,20 +170,22 @@ export class AuthenticationCoordinator {
     }
 
     try {
-      const restored = await sessionStrategy.unlock({ method: 'session' });
-      if (!restored) {
-        return false;
-      }
-
-      const sessionCredentials = await this.sessionCoordinator
-        .getSessionManager()
-        ?.restoreSession();
-
-      if (sessionCredentials) {
-        this.credentialCache.hydrateFromSession(sessionCredentials);
-        this.sessionRestored = true;
-        this.activeStrategy = sessionStrategy;
-        return true;
+      // Use the session strategy to validate and restore
+      const restored = await sessionStrategy.unlock({
+        method: 'session'
+      });
+      if (restored) {
+        // Get the session data through the coordinator
+        const sessionCredentials = await this.sessionCoordinator
+          .getSessionManager()
+          ?.restoreSession();
+        if (sessionCredentials) {
+          this.credentialCache.hydrateFromSession(sessionCredentials);
+          this.sessionRestored = true;
+          // Set the session strategy as active since restoration succeeded
+          this.activeStrategy = sessionStrategy;
+          return true;
+        }
       }
     } catch (error) {
       log.error('[AuthenticationCoordinator] Auto-restore failed:', error);
@@ -175,12 +195,18 @@ export class AuthenticationCoordinator {
   }
 
   /**
-   * Create a new session after a connection is established
+   * Create session after successful connection
    */
   async createSessionAfterConnection(): Promise<void> {
+    log.info(
+      '[AuthenticationCoordinator] Creating session after connection...'
+    );
+
+    // Save any credentials that were received during connection
     for (const key of KEYS_TO_PERSIST) {
       const value = this.credentialCache.get(key);
       if (value) {
+        log.info(`[AuthenticationCoordinator] Saving ${key} to strategy...`);
         await this.saveCredentialToStrategy(key, value);
       }
     }
@@ -194,6 +220,10 @@ export class AuthenticationCoordinator {
         serverHost: this.getCachedCredential('serverHost')
       });
     }
+
+    log.info(
+      '[AuthenticationCoordinator] Session creation after connection complete'
+    );
   }
 
   /**
@@ -203,28 +233,36 @@ export class AuthenticationCoordinator {
     return this.credentialCache.get(key) || '';
   }
 
+  //
+  // Private methods
+  //
+
   /**
    * Initialize the credential cache
    */
   private async initializeCache(): Promise<void> {
+    // Try to auto-restore from session first
     await this.tryAutoRestore();
 
+    // If not restored and we have an active strategy, load from strategy
     if (!this.sessionRestored && this.activeStrategy) {
       await this.loadCredentialsFromStrategy(this.activeStrategy);
     }
   }
 
   /**
-   * Wait for the session to be restored
+   * Wait for session restoration to complete
    */
   private async waitForSessionRestoration(): Promise<void> {
     if (!this.sessionCoordinator.isSessionAvailable || this.sessionRestored) {
       return;
     }
 
+    // If initializeCache is still running, wait for it
     if (this.initializeCachePromise) {
       await this.initializeCachePromise;
     } else {
+      // Otherwise, try to restore manually
       await this.tryAutoRestore();
     }
   }
@@ -244,6 +282,9 @@ export class AuthenticationCoordinator {
       if (value) {
         try {
           await strategy.setCredential(key, value);
+          log.info(
+            `[AuthenticationCoordinator] Persisted ${key} to ${strategy.method} storage`
+          );
         } catch (error) {
           log.error(
             `[AuthenticationCoordinator] Failed to persist ${key}:`,
@@ -255,7 +296,7 @@ export class AuthenticationCoordinator {
   }
 
   /**
-   * Load the credentials from the strategy
+   * Load credentials from a strategy's storage into the cache
    */
   private async loadCredentialsFromStrategy(
     strategy: AuthStrategy
@@ -273,17 +314,22 @@ export class AuthenticationCoordinator {
         );
       }
     }
+    log.info(
+      '[AuthenticationCoordinator] loaded credentials from strategy',
+      this.activeStrategy?.method,
+      this.credentialCache.snapshot()
+    );
   }
 
   /**
-   * Save the credential to the strategy
+   * Save a credential to the active strategy
    */
   private async saveCredentialToStrategy(
     key: string,
     value: string
   ): Promise<void> {
-    if (!this.activeStrategy || this.activeStrategy.method === 'session') {
-      return;
+    if (!this.activeStrategy) {
+      return; // No active strategy yet - will be saved when unlocked
     }
 
     try {

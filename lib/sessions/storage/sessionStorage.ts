@@ -3,28 +3,27 @@ import { SessionData } from '../types';
 
 const STORAGE_PREFIX = 'lnc-session:';
 
+const isValidWrappedKey = (key: unknown): boolean => {
+  if (!key || typeof key !== 'object') return false;
+  const k = key as Record<string, unknown>;
+  return typeof k.keyB64 === 'string' && typeof k.ivB64 === 'string';
+};
+
 const isValidSessionData = (data: SessionData): boolean => {
   if (
     !data ||
     typeof data.sessionId !== 'string' ||
+    typeof data.deviceFingerprint !== 'string' ||
     typeof data.createdAt !== 'number' ||
     typeof data.expiresAt !== 'number' ||
-    typeof data.refreshCount !== 'number'
+    typeof data.refreshCount !== 'number' ||
+    typeof data.encryptedCredentials !== 'string' ||
+    typeof data.credentialsIV !== 'string'
   ) {
     return false;
   }
 
-  const credentials = data.credentials;
-  if (!credentials || typeof credentials !== 'object') {
-    return false;
-  }
-
-  return (
-    typeof credentials.localKey === 'string' &&
-    typeof credentials.remoteKey === 'string' &&
-    typeof credentials.pairingPhrase === 'string' &&
-    typeof credentials.serverHost === 'string'
-  );
+  return isValidWrappedKey(data.device) && isValidWrappedKey(data.origin);
 };
 
 /**

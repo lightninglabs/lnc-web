@@ -31,11 +31,13 @@ export class StrategyManager {
    * Priority: session > passkey > password
    */
   get preferredMethod(): UnlockMethod {
+    // Check for active session first
     const sessionStrategy = this.strategies.get('session');
     if (sessionStrategy?.hasAnyCredentials || sessionStrategy?.isUnlocked) {
       return 'session';
     }
 
+    // Prefer passkey if available and has stored data
     const passkeyStrategy = this.strategies.get('passkey');
     if (passkeyStrategy?.isSupported && passkeyStrategy.hasStoredAuthData?.()) {
       return 'passkey';
@@ -110,6 +112,7 @@ export class StrategyManager {
       );
     }
 
+    // Register session strategy if sessions are available
     if (sessionManager) {
       this.strategies.set('session', new SessionStrategy(sessionManager));
     }

@@ -5,6 +5,7 @@ import { log } from '../util/log';
 
 /**
  * Coordinates session-related operations and lifecycle management.
+ * Acts as a bridge between the credential store and session manager.
  */
 export class SessionCoordinator {
   private refreshManager?: SessionRefreshManager;
@@ -106,7 +107,13 @@ export class SessionCoordinator {
       const success = !!credentials;
 
       if (success) {
+        log.info('[SessionCoordinator] Session auto-restoration successful');
+        // Start refresh manager after successful auto-restoration
         this.startRefreshManager();
+      } else {
+        log.info(
+          '[SessionCoordinator] Session auto-restoration failed - no valid session'
+        );
       }
 
       return success;
@@ -117,7 +124,7 @@ export class SessionCoordinator {
   }
 
   /**
-   * Create a new session
+   * Create a new session with credentials
    */
   async createSession(credentials: SessionCredentials): Promise<void> {
     if (!this.sessionManager) {
@@ -129,6 +136,9 @@ export class SessionCoordinator {
 
     try {
       await this.sessionManager.createSession(credentials);
+      log.info('[SessionCoordinator] Session created successfully');
+
+      // Start automatic refresh monitoring after successful session creation
       this.startRefreshManager();
     } catch (error) {
       log.error('[SessionCoordinator] Failed to create session:', error);
@@ -136,13 +146,22 @@ export class SessionCoordinator {
     }
   }
 
+  /**
+   * Refresh the current session
+   */
   async refreshSession(): Promise<boolean> {
     if (!this.sessionManager) {
       return false;
     }
 
     try {
-      return await this.sessionManager.refreshSession();
+      const success = await this.sessionManager.refreshSession();
+      if (success) {
+        log.info('[SessionCoordinator] Session refreshed successfully');
+      } else {
+        log.info('[SessionCoordinator] Session refresh failed');
+      }
+      return success;
     } catch (error) {
       log.error('[SessionCoordinator] Session refresh error:', error);
       return false;
@@ -158,6 +177,21 @@ export class SessionCoordinator {
     }
 
     return this.sessionManager.sessionTimeRemaining;
+  }
+
+  /**
+   * Get session expiry time (for coordination with other components)
+   */
+  getSessionExpiry(): Date | undefined {
+    if (!this.sessionManager) {
+      return undefined;
+    }
+
+    const timeRemaining = this.sessionManager.sessionTimeRemaining;
+    if (timeRemaining > 0) {
+      return new Date(Date.now() + timeRemaining);
+    }
+    return undefined;
   }
 
   /**

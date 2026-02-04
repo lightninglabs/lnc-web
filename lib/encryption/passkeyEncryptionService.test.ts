@@ -25,7 +25,14 @@ const mockCryptoSubtle = {
   decrypt: vi.fn(),
   importKey: vi.fn(),
   deriveKey: vi.fn(),
-  digest: vi.fn()
+  digest: vi.fn().mockImplementation(async (_algorithm: string, data: any) => {
+    const view = new Uint8Array(data as ArrayBuffer);
+    const hash = new Uint8Array(32);
+    for (let i = 0; i < hash.length; i++) {
+      hash[i] = view[i % view.length] ^ (i * 7);
+    }
+    return hash.buffer;
+  })
 };
 
 const mockCrypto = {
@@ -39,7 +46,7 @@ const mockTextEncoder = vi.fn().mockImplementation(() => ({
 }));
 
 const mockTextDecoder = vi.fn().mockImplementation(() => ({
-  decode: () => 'decoded-text'
+  decode: (_buffer: ArrayBuffer) => 'decoded-text'
 }));
 
 // Mock global objects
@@ -123,18 +130,6 @@ describe('PasskeyEncryptionService', () => {
     );
     mockCryptoSubtle.importKey.mockResolvedValue({});
     mockCryptoSubtle.deriveKey.mockResolvedValue(mockEncryptionKey);
-    // Mock digest to return a deterministic 32-byte hash.
-    mockCryptoSubtle.digest.mockImplementation(
-      (_algorithm: string, data: ArrayBuffer) => {
-        const input = new Uint8Array(data);
-        const hash = new Uint8Array(32);
-        for (let i = 0; i < 32; i++) {
-          // Simple deterministic hash based on input.
-          hash[i] = (input[i % input.length] + i) % 256;
-        }
-        return Promise.resolve(hash.buffer);
-      }
-    );
 
     mockPublicKeyCredential.isUserVerifyingPlatformAuthenticatorAvailable.mockResolvedValue(
       true
@@ -282,9 +277,7 @@ describe('PasskeyEncryptionService', () => {
       expect(service.isUnlocked).toBe(true);
       expect(mockNavigator.credentials.get).toHaveBeenCalled();
     });
-
-    it('should authenticate with existing passkey when createIfMissing is true and credentialId succeeds', async () => {
-      const createSpy = vi.spyOn(service as any, 'createNewPasskey');
+    it('should authenticate with existing passkey when credentialId and createIfMissing are true', async () => {
       const options = {
         method: 'passkey' as const,
         credentialId: testCredentialId,
@@ -293,11 +286,11 @@ describe('PasskeyEncryptionService', () => {
 
       await service.unlock(options);
 
-      expect(service.isUnlocked).toBe(true);
+      // Should authenticate with existing passkey (line 122)
       expect(mockNavigator.credentials.get).toHaveBeenCalled();
-      expect(createSpy).not.toHaveBeenCalled();
+      // Should NOT create a new passkey since authentication succeeded
       expect(mockNavigator.credentials.create).not.toHaveBeenCalled();
-      createSpy.mockRestore();
+      expect(service.isUnlocked).toBe(true);
     });
 
     it('should try existing passkey first then create new when createIfMissing is true', async () => {
@@ -382,7 +375,7 @@ describe('PasskeyEncryptionService', () => {
     });
   });
 
-  describe('isUnlocked()', () => {
+  describe('isUnlocked', () => {
     it('should return true when unlocked with encryption key', () => {
       service['encryptionKey'] = mockEncryptionKey;
       service['isUnlockedState'] = true;
@@ -418,7 +411,7 @@ describe('PasskeyEncryptionService', () => {
     });
   });
 
-  describe('method getter', () => {
+  describe('method', () => {
     it('should return passkey method', () => {
       expect(service.method).toBe('passkey');
     });
@@ -431,6 +424,7 @@ describe('PasskeyEncryptionService', () => {
 
     it('should return false for other methods', () => {
       expect(service.canHandle('password')).toBe(false);
+      expect(service.canHandle('session')).toBe(false);
     });
   });
 
@@ -714,6 +708,7 @@ describe('PasskeyEncryptionService', () => {
     it('should handle method checks correctly', () => {
       expect(service.canHandle('passkey')).toBe(true);
       expect(service.canHandle('password')).toBe(false);
+      expect(service.canHandle('session')).toBe(false);
       expect(service.method).toBe('passkey');
     });
 

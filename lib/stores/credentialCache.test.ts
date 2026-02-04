@@ -1,9 +1,18 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { log } from '../util/log';
 import { CredentialCache } from './credentialCache';
+import { SessionCredentials } from '../sessions/types';
 
 // Mock log methods to avoid noise in tests
 vi.spyOn(log, 'info').mockImplementation(() => {});
+
+// Test data factory
+const createTestSessionCredentials = (): SessionCredentials => ({
+  localKey: 'test-local-key',
+  remoteKey: 'test-remote-key',
+  pairingPhrase: 'test-pairing-phrase',
+  serverHost: 'test-server-host.example.com:443'
+});
 
 describe('CredentialCache', () => {
   let cache: CredentialCache;
@@ -106,11 +115,12 @@ describe('CredentialCache', () => {
       expect(cache.has(key)).toBe(true);
     });
 
-    it('should return false after clearing', () => {
+    it('should return false after removing a key', () => {
       const key = 'test-key';
       const value = 'test-value';
 
       cache.set(key, value);
+      // Note: CredentialCache doesn't have a remove method, so we test with clear
       cache.clear();
 
       expect(cache.has(key)).toBe(false);
@@ -201,58 +211,104 @@ describe('CredentialCache', () => {
       result.set('new-key', 'new-value');
 
       expect(cache.has('new-key')).toBe(false);
+      expect(cache.size).toBe(1);
     });
   });
 
   describe('hydrate()', () => {
-    it('should populate cache from credentials record', () => {
-      const credentials = {
-        localKey: 'test-local-key',
-        remoteKey: 'test-remote-key',
-        pairingPhrase: 'test-pairing-phrase',
-        serverHost: 'test-server-host.example.com:443'
+    it('should populate cache from a credential record', () => {
+      const creds = {
+        localKey: 'local',
+        remoteKey: 'remote',
+        pairingPhrase: 'phrase'
       };
 
-      cache.hydrate(credentials);
+      cache.hydrate(creds);
 
-      expect(cache.size).toBe(4);
-      expect(cache.get('localKey')).toBe(credentials.localKey);
-      expect(cache.get('remoteKey')).toBe(credentials.remoteKey);
-      expect(cache.get('pairingPhrase')).toBe(credentials.pairingPhrase);
-      expect(cache.get('serverHost')).toBe(credentials.serverHost);
+      expect(cache.get('localKey')).toBe('local');
+      expect(cache.get('remoteKey')).toBe('remote');
+      expect(cache.get('pairingPhrase')).toBe('phrase');
+      expect(cache.size).toBe(3);
     });
 
-    it('should log hydration with keys', () => {
-      const credentials = {
-        key1: 'value1',
-        key2: 'value2'
-      };
+    it('should log hydration details', () => {
+      const creds = { a: '1', b: '2' };
 
-      cache.hydrate(credentials);
+      cache.hydrate(creds);
 
       expect(log.info).toHaveBeenCalledWith(
         '[CredentialCache] Hydrated with credentials:',
-        { keys: ['key1', 'key2'] }
+        { keys: ['a', 'b'] }
+      );
+    });
+  });
+
+  describe('hydrateFromSession()', () => {
+    it('should populate cache with session credentials', () => {
+      const sessionCredentials = createTestSessionCredentials();
+
+      cache.hydrateFromSession(sessionCredentials);
+
+      expect(cache.get('localKey')).toBe(sessionCredentials.localKey);
+      expect(cache.get('remoteKey')).toBe(sessionCredentials.remoteKey);
+      expect(cache.get('pairingPhrase')).toBe(sessionCredentials.pairingPhrase);
+      expect(cache.get('serverHost')).toBe(sessionCredentials.serverHost);
+      expect(cache.size).toBe(4);
+    });
+
+    it('should log hydration operation', () => {
+      const sessionCredentials = createTestSessionCredentials();
+      const spy = vi.spyOn(log, 'info');
+
+      cache.hydrateFromSession(sessionCredentials);
+
+      expect(spy).toHaveBeenCalledWith(
+        '[CredentialCache] Hydrated from session:',
+        {
+          hasLocalKey: !!sessionCredentials.localKey,
+          hasRemoteKey: !!sessionCredentials.remoteKey,
+          hasPairingPhrase: !!sessionCredentials.pairingPhrase,
+          serverHost: sessionCredentials.serverHost
+        }
       );
     });
 
-    it('should overwrite existing values', () => {
-      cache.set('localKey', 'old-value');
+    it('should overwrite existing credentials when hydrating', () => {
+      // Set some existing credentials
+      cache.set('localKey', 'old-local-key');
+      cache.set('remoteKey', 'old-remote-key');
+      cache.set('existing-key', 'existing-value');
 
-      cache.hydrate({
-        localKey: 'new-value',
-        remoteKey: 'remote-value'
-      });
+      const sessionCredentials = createTestSessionCredentials();
 
-      expect(cache.get('localKey')).toBe('new-value');
-      expect(cache.get('remoteKey')).toBe('remote-value');
-      expect(cache.size).toBe(2);
+      cache.hydrateFromSession(sessionCredentials);
+
+      // Session credentials should be set
+      expect(cache.get('localKey')).toBe(sessionCredentials.localKey);
+      expect(cache.get('remoteKey')).toBe(sessionCredentials.remoteKey);
+      expect(cache.get('pairingPhrase')).toBe(sessionCredentials.pairingPhrase);
+      expect(cache.get('serverHost')).toBe(sessionCredentials.serverHost);
+
+      // Existing non-session credential should remain
+      expect(cache.get('existing-key')).toBe('existing-value');
+      expect(cache.size).toBe(5); // 4 session + 1 existing
     });
 
-    it('should handle empty credentials record', () => {
-      cache.hydrate({});
+    it('should handle empty session credentials', () => {
+      const emptySession: SessionCredentials = {
+        localKey: '',
+        remoteKey: '',
+        pairingPhrase: '',
+        serverHost: ''
+      };
 
-      expect(cache.hasAny()).toBe(false);
+      cache.hydrateFromSession(emptySession);
+
+      expect(cache.get('localKey')).toBe('');
+      expect(cache.get('remoteKey')).toBe('');
+      expect(cache.get('pairingPhrase')).toBe('');
+      expect(cache.get('serverHost')).toBe('');
+      expect(cache.size).toBe(4);
     });
   });
 
@@ -337,7 +393,7 @@ describe('CredentialCache', () => {
     });
   });
 
-  describe('size()', () => {
+  describe('size', () => {
     it('should return 0 for empty cache', () => {
       expect(cache.size).toBe(0);
     });
@@ -451,18 +507,13 @@ describe('CredentialCache', () => {
         'test-phrase'
       ]);
 
-      // Hydrate (should overwrite existing)
-      const newCredentials = {
-        localKey: 'new-local-key',
-        remoteKey: 'new-remote-key',
-        pairingPhrase: 'new-pairing-phrase',
-        serverHost: 'new-server-host.example.com:443'
-      };
-      cache.hydrate(newCredentials);
+      // Hydrate from session (should overwrite existing)
+      const sessionCredentials = createTestSessionCredentials();
+      cache.hydrateFromSession(sessionCredentials);
 
-      expect(cache.size).toBe(4);
-      expect(cache.get('localKey')).toBe(newCredentials.localKey);
-      expect(cache.get('serverHost')).toBe(newCredentials.serverHost);
+      expect(cache.size).toBe(4); // 4 session fields
+      expect(cache.get('localKey')).toBe(sessionCredentials.localKey);
+      expect(cache.get('serverHost')).toBe(sessionCredentials.serverHost);
 
       // Snapshot
       const snapshot = cache.snapshot();

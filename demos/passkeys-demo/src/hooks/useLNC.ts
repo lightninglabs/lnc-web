@@ -9,6 +9,8 @@ const lnc = new LNC({
   sessionDuration: 30 * 60 * 1000 // 30 minutes for testing
 });
 
+(globalThis as any).lnc = lnc;
+
 /**
  * A hook that exposes a single LNC instance of LNC to all component that need it.
  * It also returns a couple helper functions to simplify the usage of LNC
@@ -21,22 +23,24 @@ const useLNC = () => {
     sessionTimeRemaining: 0,
     supportsPasskeys: false,
     hasPasskey: false,
-    preferredUnlockMethod: 'password'
+    preferredUnlockMethod: 'password',
   });
 
   useEffect(() => {
     const initializeAuthInfo = async () => {
       try {
-        // Get authentication info directly on lnc object
+        // Clean API: getAuthenticationInfo directly on lnc object
         const authInfo = await lnc.getAuthenticationInfo();
         if (authInfo) {
           setAuth(authInfo);
+          console.log('[useLNC] setAuthInfo', authInfo);
         }
       } catch (error) {
         console.error('[useLNC] Failed to initialize auth info:', error);
       }
     };
 
+    console.log('[useLNC] initializing auth info');
     initializeAuthInfo();
   }, []);
 
@@ -63,7 +67,8 @@ const useLNC = () => {
   }, []);
 
   const logout = useCallback(async () => {
-    await lnc.clear();
+    console.log('[logout] clearing session');
+    lnc.clear();
   }, []);
 
   return { lnc, pair, login, auth, logout };

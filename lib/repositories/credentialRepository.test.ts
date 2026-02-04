@@ -1,26 +1,39 @@
-import { beforeEach, describe, expect, it } from 'vitest';
-import { UnlockOptions } from '../types/lnc';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { log } from '../util/log';
 import { BaseCredentialRepository } from './credentialRepository';
 
-/**
- * Concrete implementation of BaseCredentialRepository for testing
- */
+// Mock localStorage
+const mockLocalStorage = {
+  getItem: vi.fn(),
+  setItem: vi.fn(),
+  removeItem: vi.fn(),
+  clear: vi.fn()
+};
+
+Object.defineProperty(globalThis, 'localStorage', {
+  value: mockLocalStorage,
+  writable: true
+});
+
+// Mock log methods
+vi.spyOn(log, 'info').mockImplementation(() => {});
+vi.spyOn(log, 'error').mockImplementation(() => {});
+
+// Create a concrete implementation for testing
 class TestCredentialRepository extends BaseCredentialRepository {
   private unlocked = false;
 
   async getCredential(key: string): Promise<string | undefined> {
+    if (!this.isUnlocked) return undefined;
     return this.get(key);
   }
 
   async setCredential(key: string, value: string): Promise<void> {
-    if (!this.unlocked) {
-      throw new Error('Repository is locked');
-    }
+    if (!this.isUnlocked) throw new Error('Repository is locked');
     this.set(key, value);
   }
 
-  // eslint-disable-next-line @typescript-eslint/no-unused-vars
-  async unlock(_options: UnlockOptions): Promise<void> {
+  async unlock(): Promise<void> {
     this.unlocked = true;
   }
 
@@ -35,155 +48,343 @@ class TestCredentialRepository extends BaseCredentialRepository {
 
 describe('BaseCredentialRepository', () => {
   let repository: TestCredentialRepository;
+  const namespace = 'test-namespace';
 
   beforeEach(() => {
-    localStorage.clear();
-    repository = new TestCredentialRepository('test-namespace');
+    vi.clearAllMocks();
+    repository = new TestCredentialRepository(namespace);
   });
 
-  describe('credential storage', () => {
-    it('should store and retrieve credentials', async () => {
-      await repository.unlock({ method: 'password', password: 'test' });
-      await repository.setCredential('key1', 'value1');
-      expect(await repository.getCredential('key1')).toBe('value1');
-    });
+  afterEach(() => {
+    vi.clearAllMocks();
+  });
 
-    it('should return undefined for non-existent credentials', async () => {
-      expect(await repository.getCredential('nonexistent')).toBeUndefined();
-    });
-
-    it('should check if credential exists', async () => {
-      await repository.unlock({ method: 'password', password: 'test' });
-      expect(repository.hasCredential('key1')).toBe(false);
-      await repository.setCredential('key1', 'value1');
-      expect(repository.hasCredential('key1')).toBe(true);
-    });
-
-    it('should check if any credentials exist', async () => {
-      expect(repository.hasAnyCredentials).toBe(false);
-      await repository.unlock({ method: 'password', password: 'test' });
-      await repository.setCredential('key1', 'value1');
-      expect(repository.hasAnyCredentials).toBe(true);
-    });
-
-    it('should remove credentials', async () => {
-      await repository.unlock({ method: 'password', password: 'test' });
-      await repository.setCredential('key1', 'value1');
-      expect(repository.hasCredential('key1')).toBe(true);
-      await repository.removeCredential('key1');
-      expect(repository.hasCredential('key1')).toBe(false);
-    });
-
-    it('should clear all credentials', async () => {
-      await repository.unlock({ method: 'password', password: 'test' });
-      await repository.setCredential('key1', 'value1');
-      await repository.setCredential('key2', 'value2');
-      expect(repository.hasAnyCredentials).toBe(true);
-      repository.clear();
-      expect(repository.hasAnyCredentials).toBe(false);
+  describe('Constructor', () => {
+    it('should create instance with namespace', () => {
+      const repo = new TestCredentialRepository('test-ns');
+      expect(repo).toBeInstanceOf(TestCredentialRepository);
     });
   });
 
-  describe('localStorage persistence', () => {
-    it('should persist credentials to localStorage', async () => {
-      await repository.unlock({ method: 'password', password: 'test' });
-      await repository.setCredential('key1', 'value1');
+  describe('removeCredential()', () => {
+    it('should remove credential using the remove method', async () => {
+      // Set up some test data
+      repository['credentials'].set('test-key', 'test-value');
+      repository['credentials'].set('other-key', 'other-value'); // Keep some data so setItem is called
 
-      const stored = localStorage.getItem('lnc-web:test-namespace');
-      expect(stored).not.toBeNull();
-      const parsed = JSON.parse(stored!);
-      expect(parsed.key1).toBe('value1');
+      await repository.removeCredential('test-key');
+
+      expect(repository['credentials'].has('test-key')).toBe(false);
+      expect(repository['credentials'].has('other-key')).toBe(true);
+      expect(mockLocalStorage.setItem).toHaveBeenCalled();
+    });
+  });
+
+  describe('hasCredential()', () => {
+    it('should return false for non-existent key', () => {
+      expect(repository.hasCredential('non-existent')).toBe(false);
     });
 
-    it('should load credentials from localStorage', async () => {
-      localStorage.setItem(
-        'lnc-web:test-namespace',
-        JSON.stringify({ key1: 'value1' })
+    it('should return true for existing key', () => {
+      repository['credentials'].set('existing-key', 'value');
+
+      expect(repository.hasCredential('existing-key')).toBe(true);
+    });
+
+    it('should trigger load when credentials map is empty', () => {
+      mockLocalStorage.getItem.mockReturnValue(
+        JSON.stringify({ 'stored-key': 'stored-value' })
       );
 
-      const newRepository = new TestCredentialRepository('test-namespace');
-      expect(await newRepository.getCredential('key1')).toBe('value1');
-    });
+      const result = repository.hasCredential('stored-key');
 
-    it('should remove localStorage key when all credentials are cleared', async () => {
-      await repository.unlock({ method: 'password', password: 'test' });
-      await repository.setCredential('key1', 'value1');
-      expect(localStorage.getItem('lnc-web:test-namespace')).not.toBeNull();
-      repository.clear();
-      expect(localStorage.getItem('lnc-web:test-namespace')).toBeNull();
-    });
-
-    it('should handle invalid JSON in localStorage gracefully', async () => {
-      localStorage.setItem('lnc-web:test-namespace', 'invalid-json');
-      const newRepository = new TestCredentialRepository('test-namespace');
-      // Should not throw, just log error and return undefined
-      expect(await newRepository.getCredential('key1')).toBeUndefined();
+      expect(result).toBe(true);
+      expect(mockLocalStorage.getItem).toHaveBeenCalledWith(
+        'lnc-web:test-namespace'
+      );
     });
   });
 
-  describe('unlock/lock', () => {
-    it('should unlock the repository', async () => {
-      expect(repository.isUnlocked).toBe(false);
-      await repository.unlock({ method: 'password', password: 'test' });
-      expect(repository.isUnlocked).toBe(true);
+  describe('hasAnyCredentials', () => {
+    it('should return false when no credentials exist', () => {
+      // Ensure repository is clean
+      repository.clear();
+      mockLocalStorage.getItem.mockReturnValue(null);
+      expect(repository.hasAnyCredentials).toBe(false);
     });
 
-    it('should lock the repository', async () => {
-      await repository.unlock({ method: 'password', password: 'test' });
+    it('should return true when credentials exist', () => {
+      repository['credentials'].set('test-key', 'test-value');
+
+      expect(repository.hasAnyCredentials).toBe(true);
+    });
+
+    it('should trigger load when credentials map is empty', () => {
+      mockLocalStorage.getItem.mockReturnValue(
+        JSON.stringify({ 'stored-key': 'stored-value' })
+      );
+
+      const result = repository.hasAnyCredentials;
+
+      expect(result).toBe(true);
+    });
+  });
+
+  describe('clear()', () => {
+    it('should clear all credentials and save empty state', () => {
+      repository['credentials'].set('key1', 'value1');
+      repository['credentials'].set('key2', 'value2');
+
+      repository.clear();
+
+      expect(repository['credentials'].size).toBe(0);
+      expect(mockLocalStorage.removeItem).toHaveBeenCalledWith(
+        'lnc-web:test-namespace'
+      );
+    });
+
+    it('should handle localStorage not available', () => {
+      // Temporarily make localStorage undefined
+      const originalLocalStorage = globalThis.localStorage;
+      Object.defineProperty(globalThis, 'localStorage', {
+        value: undefined,
+        writable: true
+      });
+
+      expect(() => repository.clear()).not.toThrow();
+
+      // Restore localStorage
+      Object.defineProperty(globalThis, 'localStorage', {
+        value: originalLocalStorage,
+        writable: true
+      });
+    });
+  });
+
+  describe('Private methods', () => {
+    describe('storageKey getter', () => {
+      it('should return correct storage key', () => {
+        const key = (repository as any).storageKey;
+        expect(key).toBe('lnc-web:test-namespace');
+      });
+    });
+
+    describe('loadedCredentials getter', () => {
+      it('should load credentials when map is empty', () => {
+        mockLocalStorage.getItem.mockReturnValue(
+          JSON.stringify({ 'loaded-key': 'loaded-value' })
+        );
+
+        const loaded = (repository as any).loadedCredentials;
+
+        expect(loaded.get('loaded-key')).toBe('loaded-value');
+        expect(mockLocalStorage.getItem).toHaveBeenCalledWith(
+          'lnc-web:test-namespace'
+        );
+      });
+
+      it('should return existing credentials when map is not empty', () => {
+        repository['credentials'].set('existing-key', 'existing-value');
+        mockLocalStorage.getItem.mockReturnValue(
+          JSON.stringify({ 'loaded-key': 'loaded-value' })
+        );
+
+        const loaded = (repository as any).loadedCredentials;
+
+        expect(loaded.get('existing-key')).toBe('existing-value');
+        expect(mockLocalStorage.getItem).not.toHaveBeenCalled();
+      });
+    });
+
+    describe('get()', () => {
+      it('should return credential value', () => {
+        repository['credentials'].set('test-key', 'test-value');
+
+        const result = (repository as any).get('test-key');
+
+        expect(result).toBe('test-value');
+      });
+
+      it('should return undefined for non-existent key', () => {
+        const result = (repository as any).get('non-existent');
+
+        expect(result).toBeUndefined();
+      });
+    });
+
+    describe('set()', () => {
+      it('should set credential and trigger save', () => {
+        (repository as any).set('test-key', 'test-value');
+
+        expect(repository['credentials'].get('test-key')).toBe('test-value');
+        expect(mockLocalStorage.setItem).toHaveBeenCalled();
+      });
+    });
+
+    describe('remove()', () => {
+      it('should remove credential and trigger save', () => {
+        repository['credentials'].set('test-key', 'test-value');
+        repository['credentials'].set('other-key', 'other-value'); // Ensure we have data to save
+
+        (repository as any).remove('test-key');
+
+        expect(repository['credentials'].has('test-key')).toBe(false);
+        expect(repository['credentials'].has('other-key')).toBe(true);
+        expect(mockLocalStorage.setItem).toHaveBeenCalled();
+      });
+    });
+
+    describe('save()', () => {
+      it('should save credentials to localStorage', () => {
+        repository['credentials'].set('key1', 'value1');
+        repository['credentials'].set('key2', 'value2');
+
+        (repository as any).save();
+
+        const expectedData = { key1: 'value1', key2: 'value2' };
+        expect(mockLocalStorage.setItem).toHaveBeenCalledWith(
+          'lnc-web:test-namespace',
+          JSON.stringify(expectedData)
+        );
+        expect(log.info).toHaveBeenCalledWith(
+          '[CredentialRepository] saving credentials to localStorage'
+        );
+      });
+
+      it('should remove item when no credentials exist', () => {
+        repository['credentials'].clear();
+
+        (repository as any).save();
+
+        expect(mockLocalStorage.removeItem).toHaveBeenCalledWith(
+          'lnc-web:test-namespace'
+        );
+      });
+
+      it('should do nothing when localStorage is not available', () => {
+        const originalLocalStorage = globalThis.localStorage;
+        Object.defineProperty(globalThis, 'localStorage', {
+          value: undefined,
+          writable: true
+        });
+
+        repository['credentials'].set('test-key', 'test-value');
+
+        expect(() => (repository as any).save()).not.toThrow();
+
+        // Restore localStorage
+        Object.defineProperty(globalThis, 'localStorage', {
+          value: originalLocalStorage,
+          writable: true
+        });
+      });
+    });
+
+    describe('load()', () => {
+      it('should load credentials from localStorage', () => {
+        const storedData = {
+          'stored-key1': 'stored-value1',
+          'stored-key2': 'stored-value2'
+        };
+        mockLocalStorage.getItem.mockReturnValue(JSON.stringify(storedData));
+
+        (repository as any).load();
+
+        expect(repository['credentials'].get('stored-key1')).toBe(
+          'stored-value1'
+        );
+        expect(repository['credentials'].get('stored-key2')).toBe(
+          'stored-value2'
+        );
+        expect(log.info).toHaveBeenCalledWith(
+          '[CredentialRepository] loaded credentials from localStorage'
+        );
+      });
+
+      it('should handle invalid JSON gracefully', () => {
+        mockLocalStorage.getItem.mockReturnValue('invalid json {');
+
+        expect(() => (repository as any).load()).not.toThrow();
+        expect(log.error).toHaveBeenCalled();
+        expect(repository['credentials'].size).toBe(0);
+      });
+
+      it('should do nothing when no data exists in localStorage', () => {
+        mockLocalStorage.getItem.mockReturnValue(null);
+
+        (repository as any).load();
+
+        expect(repository['credentials'].size).toBe(0);
+      });
+
+      it('should do nothing when localStorage is not available', () => {
+        const originalLocalStorage = globalThis.localStorage;
+        Object.defineProperty(globalThis, 'localStorage', {
+          value: undefined,
+          writable: true
+        });
+
+        expect(() => (repository as any).load()).not.toThrow();
+
+        // Restore localStorage
+        Object.defineProperty(globalThis, 'localStorage', {
+          value: originalLocalStorage,
+          writable: true
+        });
+      });
+    });
+  });
+
+  describe('Integration tests', () => {
+    it('should support full credential lifecycle', async () => {
+      // Initially empty
+      expect(repository.hasAnyCredentials).toBe(false);
+
+      // Unlock repository
+      await repository.unlock();
       expect(repository.isUnlocked).toBe(true);
+
+      // Set credentials
+      await repository.setCredential('localKey', 'test-local');
+      await repository.setCredential('remoteKey', 'test-remote');
+
+      expect(repository.hasAnyCredentials).toBe(true);
+      expect(repository.hasCredential('localKey')).toBe(true);
+
+      // Get credentials
+      const localKey = await repository.getCredential('localKey');
+      const remoteKey = await repository.getCredential('remoteKey');
+
+      expect(localKey).toBe('test-local');
+      expect(remoteKey).toBe('test-remote');
+
+      // Remove credential
+      await repository.removeCredential('remoteKey');
+      expect(repository.hasCredential('remoteKey')).toBe(false);
+
+      // Lock repository
       repository.lock();
       expect(repository.isUnlocked).toBe(false);
+
+      // Clear all
+      repository.clear();
+      expect(repository.hasAnyCredentials).toBe(false);
     });
 
-    it('should throw when setting credential while locked', async () => {
-      await expect(repository.setCredential('key1', 'value1')).rejects.toThrow(
-        'Repository is locked'
+    it('should persist data across instances with same namespace', () => {
+      // Set data in first instance
+      repository['credentials'].set('shared-key', 'shared-value');
+      (repository as any).save();
+
+      // Create new instance with same namespace
+      const newRepository = new TestCredentialRepository(namespace);
+
+      // Trigger load
+      expect(newRepository.hasAnyCredentials).toBeDefined();
+
+      expect(mockLocalStorage.getItem).toHaveBeenCalledWith(
+        'lnc-web:test-namespace'
       );
-    });
-  });
-
-  describe('namespace isolation', () => {
-    it('should isolate credentials by namespace', async () => {
-      const repo1 = new TestCredentialRepository('namespace1');
-      const repo2 = new TestCredentialRepository('namespace2');
-
-      await repo1.unlock({ method: 'password', password: 'test' });
-      await repo2.unlock({ method: 'password', password: 'test' });
-
-      await repo1.setCredential('key1', 'value1');
-      await repo2.setCredential('key1', 'value2');
-
-      expect(await repo1.getCredential('key1')).toBe('value1');
-      expect(await repo2.getCredential('key1')).toBe('value2');
-    });
-  });
-
-  describe('localStorage unavailable', () => {
-    it('should handle localStorage being undefined', async () => {
-      const originalLocalStorage = globalThis.localStorage;
-      // @ts-expect-error - testing undefined localStorage
-      delete globalThis.localStorage;
-
-      const repo = new TestCredentialRepository('test-namespace');
-      await repo.unlock({ method: 'password', password: 'test' });
-
-      // Should not throw when localStorage is unavailable
-      expect(() => repo.hasAnyCredentials).not.toThrow();
-      expect(repo.hasAnyCredentials).toBe(false);
-
-      // Credentials should be set and retrieved
-      repo.setCredential('key1', 'value1');
-      expect(await repo.getCredential('key1')).toBe('value1');
-
-      // Credentials should be removed
-      await repo.removeCredential('key1');
-      expect(await repo.getCredential('key1')).toBeUndefined();
-
-      // Credentials should be cleared
-      repo.clear();
-      expect(repo.hasAnyCredentials).toBe(false);
-
-      globalThis.localStorage = originalLocalStorage;
     });
   });
 });

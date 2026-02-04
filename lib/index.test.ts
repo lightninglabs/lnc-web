@@ -10,6 +10,7 @@ describe('Index Module', () => {
   let originalInstantiateStreaming: any;
 
   beforeEach(() => {
+    vi.resetModules();
     // Store original values
     originalInstantiateStreaming = globalThis.WebAssembly?.instantiateStreaming;
 
@@ -34,6 +35,9 @@ describe('Index Module', () => {
     it('should polyfill WebAssembly.instantiateStreaming when not available', async () => {
       // Remove instantiateStreaming to test polyfill
       delete (globalThis.WebAssembly as any).instantiateStreaming;
+      const instantiateMock = vi
+        .spyOn(globalThis.WebAssembly, 'instantiate')
+        .mockResolvedValue({ module: {}, instance: {} } as any);
 
       // Import the index module to trigger the polyfill
       await import('./index');
@@ -43,25 +47,19 @@ describe('Index Module', () => {
         'function'
       );
 
-      // Call the polyfilled function and ensure it delegates to WebAssembly.instantiate
-      const arrayBufferMock = vi.fn().mockResolvedValue(new ArrayBuffer(8));
-      const response = Promise.resolve({
-        arrayBuffer: arrayBufferMock
-      } as unknown as Response);
+      const response = {
+        arrayBuffer: vi.fn().mockResolvedValue(new ArrayBuffer(8))
+      } as unknown as Response;
 
-      const instantiateSpy = vi
-        .spyOn(globalThis.WebAssembly, 'instantiate')
-        .mockResolvedValue({
-          exports: {}
-        });
-
-      await globalThis.WebAssembly.instantiateStreaming?.(
-        response as any,
-        { imports: true } as any
+      await globalThis.WebAssembly.instantiateStreaming(
+        Promise.resolve(response),
+        { env: {} }
       );
 
-      expect(arrayBufferMock).toHaveBeenCalledTimes(1);
-      expect(instantiateSpy).toHaveBeenCalledTimes(1);
+      expect(response.arrayBuffer).toHaveBeenCalled();
+      expect(instantiateMock).toHaveBeenCalledWith(expect.any(ArrayBuffer), {
+        env: {}
+      });
     });
 
     it('should use existing WebAssembly.instantiateStreaming when available', async () => {

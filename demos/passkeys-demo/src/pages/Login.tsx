@@ -16,6 +16,26 @@ const Login: React.FC = () => {
     lnc.preload();
   }, [lnc]);
 
+  // Automatic session login when session is available
+  useEffect(() => {
+    if (auth.hasActiveSession && !lnc.isConnected) {
+      const autoConnect = async () => {
+        try {
+          setLoading(true);
+          setError('');
+          await login({ method: 'session' });
+          navigate('/');
+        } catch (err) {
+          console.error('❌ Session auto-connect failed:', err);
+          setError(`Session auto-connect failed: ${(err as Error).message}`);
+        } finally {
+          setLoading(false);
+        }
+      };
+      autoConnect();
+    }
+  }, [auth.hasActiveSession, auth.isUnlocked, lnc.isConnected, login, navigate]);
+
   const handleSubmit = useCallback(
     (e: React.FormEvent<HTMLFormElement>) => {
       // wrap LNC calls into an async function
@@ -40,7 +60,7 @@ const Login: React.FC = () => {
       };
       connect();
     },
-    [password, navigate, login]
+    [password, navigate, login],
   );
 
   const handlePasskeyLogin = useCallback(async () => {
@@ -83,7 +103,12 @@ const Login: React.FC = () => {
               </Button>
             </Col>
             <Col className="text-right">
-              <Button variant="link" type="button" disabled={loading} onClick={handleClear}>
+              <Button
+                variant="link"
+                type="button"
+                disabled={loading}
+                onClick={handleClear}
+              >
                 Connect using a different pairing phrase
               </Button>
             </Col>
@@ -100,7 +125,8 @@ const Login: React.FC = () => {
                 disabled={loading}
               />
               <Form.Text className="text-muted">
-                Enter the password that was used when previously connecting with the pairing phrase
+                Enter the password that was used when previously connecting with the
+                pairing phrase
               </Form.Text>
             </Form.Group>
             <Row>
@@ -110,7 +136,12 @@ const Login: React.FC = () => {
                 </Button>
               </Col>
               <Col className="text-right">
-                <Button variant="link" type="button" disabled={loading} onClick={handleClear}>
+                <Button
+                  variant="link"
+                  type="button"
+                  disabled={loading}
+                  onClick={handleClear}
+                >
                   Connect using a different pairing phrase
                 </Button>
               </Col>

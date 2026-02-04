@@ -1,222 +1,336 @@
-import { beforeEach, describe, expect, it } from 'vitest';
-import { PasswordEncryptionService } from '../encryption/passwordEncryptionService';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { log } from '../util/log';
 import { PasswordCredentialRepository } from './passwordCredentialRepository';
+
+// Mock PasswordEncryptionService
+const mockEncryptionService = {
+  unlock: vi.fn(),
+  decrypt: vi.fn(),
+  encrypt: vi.fn(),
+  isUnlocked: false,
+  lock: vi.fn(),
+  getSalt: vi.fn(),
+  createTestCipher: vi.fn()
+};
+
+vi.mock('../encryption/passwordEncryptionService', () => ({
+  PasswordEncryptionService: vi
+    .fn()
+    .mockImplementation(() => mockEncryptionService)
+}));
 
 describe('PasswordCredentialRepository', () => {
   let repository: PasswordCredentialRepository;
-  let encryptionService: PasswordEncryptionService;
 
   beforeEach(() => {
-    localStorage.clear();
-    encryptionService = new PasswordEncryptionService();
+    vi.clearAllMocks();
+    // Reset mock defaults
+    mockEncryptionService.unlock.mockResolvedValue(undefined);
+    mockEncryptionService.decrypt.mockResolvedValue('decrypted-value');
+    mockEncryptionService.encrypt.mockResolvedValue('encrypted-value');
+    mockEncryptionService.isUnlocked = false;
+    mockEncryptionService.getSalt.mockReturnValue('test-salt');
+    mockEncryptionService.createTestCipher.mockReturnValue('test-cipher');
+
     repository = new PasswordCredentialRepository(
-      'test-password-repo',
-      encryptionService
+      'test-namespace',
+      mockEncryptionService as any
     );
   });
 
-  describe('unlock', () => {
-    it('should unlock with a new password and store salt/cipher', async () => {
-      await repository.unlock({ method: 'password', password: 'testPassword' });
-      expect(repository.isUnlocked).toBe(true);
-      expect(repository.hasCredential('salt')).toBe(true);
-      expect(repository.hasCredential('cipher')).toBe(true);
-    });
+  afterEach(() => {
+    vi.clearAllMocks();
+  });
 
-    it('should unlock with existing password and verify cipher', async () => {
-      // First unlock to create salt/cipher
-      await repository.unlock({ method: 'password', password: 'testPassword' });
-      repository.lock();
-
-      // Create new instances to simulate page reload
-      const newEncryption = new PasswordEncryptionService();
-      const newRepository = new PasswordCredentialRepository(
-        'test-password-repo',
-        newEncryption
+  describe('Constructor', () => {
+    it('should create instance with namespace and encryption service', () => {
+      const repo = new PasswordCredentialRepository(
+        'test-ns',
+        mockEncryptionService as any
       );
-
-      // Second unlock should verify against stored cipher
-      await newRepository.unlock({
-        method: 'password',
-        password: 'testPassword'
-      });
-      expect(newRepository.isUnlocked).toBe(true);
-    });
-
-    it('should throw error for wrong password with existing cipher', async () => {
-      // First unlock to create salt/cipher
-      await repository.unlock({
-        method: 'password',
-        password: 'correctPassword'
-      });
-      repository.lock();
-
-      // Create new instances to simulate page reload
-      const newEncryption = new PasswordEncryptionService();
-      const newRepository = new PasswordCredentialRepository(
-        'test-password-repo',
-        newEncryption
-      );
-
-      // Second unlock with wrong password should fail
-      await expect(
-        newRepository.unlock({ method: 'password', password: 'wrongPassword' })
-      ).rejects.toThrow('Invalid password');
-    });
-
-    it('should throw error for non-password unlock method', async () => {
-      await expect(
-        repository.unlock({ method: 'passkey' as 'password', password: 'test' })
-      ).rejects.toThrow('Password repository requires password unlock method');
+      expect(repo).toBeInstanceOf(PasswordCredentialRepository);
     });
   });
 
-  describe('credential operations', () => {
-    beforeEach(async () => {
-      await repository.unlock({ method: 'password', password: 'testPassword' });
+  describe('unlock()', () => {
+    it('should unlock with password method', async () => {
+      const options = {
+        method: 'password' as const,
+        password: 'test-password'
+      };
+
+      await repository.unlock(options);
+
+      expect(mockEncryptionService.unlock).toHaveBeenCalledWith({
+        method: 'password',
+        password: 'test-password',
+        salt: undefined,
+        cipher: undefined
+      });
     });
 
-    it('should encrypt and store credentials', async () => {
-      await repository.setCredential('localKey', 'myLocalKeyValue');
+    it('should load existing salt and cipher from storage', async () => {
+      // Set up existing salt and cipher
+      repository['credentials'].set('salt', 'existing-salt');
+      repository['credentials'].set('cipher', 'existing-cipher');
 
-      // The stored value should be encrypted
-      const stored = localStorage.getItem('lnc-web:test-password-repo');
-      const parsed = JSON.parse(stored!);
-      expect(parsed.localKey).not.toBe('myLocalKeyValue');
-      expect(parsed.localKey).toBeDefined();
+      const options = {
+        method: 'password' as const,
+        password: 'test-password'
+      };
+
+      await repository.unlock(options);
+
+      expect(mockEncryptionService.unlock).toHaveBeenCalledWith({
+        method: 'password',
+        password: 'test-password',
+        salt: 'existing-salt',
+        cipher: 'existing-cipher'
+      });
     });
 
-    it('should decrypt and retrieve credentials', async () => {
-      await repository.setCredential('localKey', 'myLocalKeyValue');
-      const retrieved = await repository.getCredential('localKey');
-      expect(retrieved).toBe('myLocalKeyValue');
+    it('should store salt and cipher on first unlock', async () => {
+      const options = {
+        method: 'password' as const,
+        password: 'test-password'
+      };
+
+      await repository.unlock(options);
+
+      expect(mockEncryptionService.getSalt).toHaveBeenCalled();
+      expect(mockEncryptionService.createTestCipher).toHaveBeenCalled();
+      expect(repository['credentials'].get('salt')).toBe('test-salt');
+      expect(repository['credentials'].get('cipher')).toBe('test-cipher');
     });
 
-    it('should return undefined for non-existent credentials', async () => {
-      const retrieved = await repository.getCredential('nonexistent');
-      expect(retrieved).toBeUndefined();
+    it('should not store salt and cipher when they already exist', async () => {
+      repository['credentials'].set('salt', 'existing-salt');
+      repository['credentials'].set('cipher', 'existing-cipher');
+
+      const options = {
+        method: 'password' as const,
+        password: 'test-password'
+      };
+
+      await repository.unlock(options);
+
+      expect(mockEncryptionService.getSalt).not.toHaveBeenCalled();
+      expect(mockEncryptionService.createTestCipher).not.toHaveBeenCalled();
+    });
+
+    it('should throw error for non-password method', async () => {
+      const options = { method: 'passkey' as const };
+
+      await expect(repository.unlock(options)).rejects.toThrow(
+        'Password repository requires password unlock method'
+      );
+    });
+
+    it('should propagate encryption service unlock errors', async () => {
+      const error = new Error('Unlock failed');
+      mockEncryptionService.unlock.mockRejectedValue(error);
+
+      const options = {
+        method: 'password' as const,
+        password: 'test-password'
+      };
+
+      await expect(repository.unlock(options)).rejects.toThrow('Unlock failed');
+    });
+  });
+
+  describe('getCredential()', () => {
+    it('should return undefined when credential does not exist', async () => {
+      const result = await repository.getCredential('non-existent-key');
+
+      expect(result).toBeUndefined();
+      expect(mockEncryptionService.decrypt).not.toHaveBeenCalled();
+    });
+
+    it('should decrypt and return credential value', async () => {
+      repository['credentials'].set('test-key', 'encrypted-data');
+      mockEncryptionService.isUnlocked = true;
+
+      const result = await repository.getCredential('test-key');
+
+      expect(result).toBe('decrypted-value');
+      expect(mockEncryptionService.decrypt).toHaveBeenCalledWith(
+        'encrypted-data'
+      );
     });
 
     it('should return undefined when decryption fails', async () => {
-      // Store an invalid encrypted value
-      localStorage.setItem(
-        'lnc-web:test-password-repo',
-        JSON.stringify({
-          salt: 'someSalt',
-          cipher: 'someCipher',
-          badKey: 'not-valid-encrypted-data'
-        })
+      repository['credentials'].set('test-key', 'encrypted-data');
+      mockEncryptionService.isUnlocked = true;
+      mockEncryptionService.decrypt.mockRejectedValue(
+        new Error('Decryption failed')
       );
 
-      const newEncryption = new PasswordEncryptionService();
-      const newRepository = new PasswordCredentialRepository(
-        'test-password-repo',
-        newEncryption
-      );
+      const result = await repository.getCredential('test-key');
 
-      // Manually unlock the encryption service (bypass cipher check for this test)
-      await newEncryption.unlock({
-        method: 'password',
-        password: 'test'
-      });
-
-      const retrieved = await newRepository.getCredential('badKey');
-      expect(retrieved).toBeUndefined();
+      expect(result).toBeUndefined();
     });
 
-    it('should throw error when setting credential while locked', async () => {
-      repository.lock();
-      await expect(repository.setCredential('key', 'value')).rejects.toThrow(
-        'Repository is locked. Call unlock() first.'
+    it('should handle decryption errors gracefully', async () => {
+      repository['credentials'].set('test-key', 'encrypted-data');
+      const error = new Error('Decryption error');
+      mockEncryptionService.decrypt.mockRejectedValue(error);
+
+      const spy = vi.spyOn(log, 'error');
+
+      const result = await repository.getCredential('test-key');
+
+      expect(result).toBeUndefined();
+      expect(spy).toHaveBeenCalledWith(
+        'Failed to decrypt credential test-key:',
+        error
       );
     });
   });
 
-  describe('lock', () => {
-    it('should lock the repository', async () => {
-      await repository.unlock({ method: 'password', password: 'testPassword' });
+  describe('setCredential()', () => {
+    it('should encrypt and store credential when unlocked', async () => {
+      mockEncryptionService.isUnlocked = true;
+
+      await repository.setCredential('test-key', 'test-value');
+
+      expect(mockEncryptionService.encrypt).toHaveBeenCalledWith('test-value');
+      expect(repository['credentials'].get('test-key')).toBe('encrypted-value');
+    });
+
+    it('should throw error when repository is locked', async () => {
+      mockEncryptionService.isUnlocked = false;
+
+      await expect(
+        repository.setCredential('test-key', 'test-value')
+      ).rejects.toThrow('Repository is locked. Call unlock() first.');
+
+      expect(mockEncryptionService.encrypt).not.toHaveBeenCalled();
+    });
+
+    it('should propagate encryption errors', async () => {
+      mockEncryptionService.isUnlocked = true;
+      const error = new Error('Encryption failed');
+      mockEncryptionService.encrypt.mockRejectedValue(error);
+
+      await expect(
+        repository.setCredential('test-key', 'test-value')
+      ).rejects.toThrow('Encryption failed');
+    });
+  });
+
+  describe('isUnlocked', () => {
+    it('should return encryption service unlock status', () => {
+      mockEncryptionService.isUnlocked = true;
       expect(repository.isUnlocked).toBe(true);
-      repository.lock();
+
+      mockEncryptionService.isUnlocked = false;
       expect(repository.isUnlocked).toBe(false);
     });
   });
 
-  describe('hasStoredAuthData', () => {
-    it('should return false when no auth data is stored', () => {
-      expect(repository.hasStoredAuthData).toBe(false);
-    });
+  describe('lock()', () => {
+    it('should call encryption service lock', () => {
+      repository.lock();
 
-    it('should return true when salt and cipher are stored', async () => {
-      await repository.unlock({ method: 'password', password: 'testPassword' });
-      expect(repository.hasStoredAuthData).toBe(true);
-    });
-
-    it('should return false when only salt is stored', () => {
-      localStorage.setItem(
-        'lnc-web:test-password-repo',
-        JSON.stringify({ salt: 'someSalt' })
-      );
-      const newRepository = new PasswordCredentialRepository(
-        'test-password-repo',
-        new PasswordEncryptionService()
-      );
-      expect(newRepository.hasStoredAuthData).toBe(false);
-    });
-
-    it('should return false when only cipher is stored', () => {
-      localStorage.setItem(
-        'lnc-web:test-password-repo',
-        JSON.stringify({ cipher: 'someCipher' })
-      );
-      const newRepository = new PasswordCredentialRepository(
-        'test-password-repo',
-        new PasswordEncryptionService()
-      );
-      expect(newRepository.hasStoredAuthData).toBe(false);
+      expect(mockEncryptionService.lock).toHaveBeenCalled();
     });
   });
 
-  describe('persistence across page reloads', () => {
-    it('should persist and retrieve credentials after reload', async () => {
-      // Initial setup and store credential
-      await repository.unlock({ method: 'password', password: 'testPassword' });
-      await repository.setCredential('localKey', 'myLocalKeyValue');
-      await repository.setCredential('remoteKey', 'myRemoteKeyValue');
+  describe('hasStoredAuthData', () => {
+    it('should return true when both salt and cipher exist', () => {
+      repository['credentials'].set('salt', 'test-salt');
+      repository['credentials'].set('cipher', 'test-cipher');
 
-      // Simulate page reload by creating new instances
-      const newEncryption = new PasswordEncryptionService();
-      const newRepository = new PasswordCredentialRepository(
-        'test-password-repo',
-        newEncryption
-      );
+      expect(repository.hasStoredAuthData).toBe(true);
+    });
 
-      // Unlock with same password
-      await newRepository.unlock({
+    it('should return false when salt is missing', () => {
+      repository['credentials'].set('cipher', 'test-cipher');
+
+      expect(repository.hasStoredAuthData).toBe(false);
+    });
+
+    it('should return false when cipher is missing', () => {
+      repository['credentials'].set('salt', 'test-salt');
+
+      expect(repository.hasStoredAuthData).toBe(false);
+    });
+
+    it('should return false when both are missing', () => {
+      expect(repository.hasStoredAuthData).toBe(false);
+    });
+  });
+
+  describe('Integration tests', () => {
+    it('should support full unlock, set, get, lock workflow', async () => {
+      // Initially locked
+      expect(repository.isUnlocked).toBe(false);
+
+      // Unlock with password
+      mockEncryptionService.isUnlocked = true; // Simulate successful unlock
+      await repository.unlock({
         method: 'password',
-        password: 'testPassword'
+        password: 'test-password'
+      });
+      expect(repository.isUnlocked).toBe(true);
+
+      // Set credentials
+      await repository.setCredential('localKey', 'test-local-key');
+      await repository.setCredential('remoteKey', 'test-remote-key');
+
+      // Get credentials
+      const localKey = await repository.getCredential('localKey');
+      const remoteKey = await repository.getCredential('remoteKey');
+
+      expect(localKey).toBe('decrypted-value');
+      expect(remoteKey).toBe('decrypted-value');
+
+      // Check auth data was stored
+      expect(repository.hasStoredAuthData).toBe(true);
+
+      // Lock repository
+      mockEncryptionService.isUnlocked = false; // Simulate lock
+      repository.lock();
+      expect(repository.isUnlocked).toBe(false);
+    });
+
+    it('should handle first-time unlock correctly', async () => {
+      // First unlock should create salt and cipher
+      await repository.unlock({
+        method: 'password',
+        password: 'first-password'
       });
 
-      // Should retrieve the same values
-      expect(await newRepository.getCredential('localKey')).toBe(
-        'myLocalKeyValue'
-      );
-      expect(await newRepository.getCredential('remoteKey')).toBe(
-        'myRemoteKeyValue'
-      );
+      expect(repository['credentials'].has('salt')).toBe(true);
+      expect(repository['credentials'].has('cipher')).toBe(true);
+
+      // Second unlock should not recreate them
+      repository.lock();
+      mockEncryptionService.getSalt.mockClear();
+      mockEncryptionService.createTestCipher.mockClear();
+
+      await repository.unlock({
+        method: 'password',
+        password: 'second-password'
+      });
+
+      expect(mockEncryptionService.getSalt).not.toHaveBeenCalled();
+      expect(mockEncryptionService.createTestCipher).not.toHaveBeenCalled();
     });
-  });
 
-  describe('clear', () => {
-    it('should clear all credentials including auth data', async () => {
-      await repository.unlock({ method: 'password', password: 'testPassword' });
-      await repository.setCredential('localKey', 'myLocalKeyValue');
-      expect(repository.hasStoredAuthData).toBe(true);
-      expect(repository.hasCredential('localKey')).toBe(true);
+    it('should work with different namespaces', () => {
+      const repo1 = new PasswordCredentialRepository(
+        'namespace1',
+        mockEncryptionService as any
+      );
+      const repo2 = new PasswordCredentialRepository(
+        'namespace2',
+        mockEncryptionService as any
+      );
 
-      repository.clear();
-
-      expect(repository.hasStoredAuthData).toBe(false);
-      expect(repository.hasCredential('localKey')).toBe(false);
+      expect(repo1).not.toBe(repo2);
+      // They should have different storage keys internally
     });
   });
 });

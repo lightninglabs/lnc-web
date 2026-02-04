@@ -15,7 +15,7 @@ export class SessionStrategy implements AuthStrategy {
   constructor(private sessionManager: SessionManager) {}
 
   get isSupported(): boolean {
-    return true;
+    return true; // Session auth is always supported if sessions are enabled
   }
 
   get isUnlocked(): boolean {
@@ -23,7 +23,7 @@ export class SessionStrategy implements AuthStrategy {
   }
 
   get hasAnyCredentials(): boolean {
-    return this.sessionManager.hasActiveSession;
+    return this.sessionValidated && this.sessionManager.hasActiveSession;
   }
 
   /**
@@ -61,6 +61,7 @@ export class SessionStrategy implements AuthStrategy {
       return false;
     }
 
+    // Actually validate the session can be restored
     return await this.sessionManager.hasValidSession();
   }
 
@@ -74,6 +75,7 @@ export class SessionStrategy implements AuthStrategy {
     }
 
     try {
+      // Session credentials are accessed through the session manager
       const session = await this.sessionManager.restoreSession();
       if (session && key in session) {
         return session[key as keyof SessionCredentials].toString();
@@ -92,6 +94,8 @@ export class SessionStrategy implements AuthStrategy {
    */
   // eslint-disable-next-line @typescript-eslint/no-unused-vars
   async setCredential(key: string, value: string): Promise<void> {
+    // Session strategy doesn't directly store credentials
+    // This is handled by the session manager when creating sessions
     log.warn(
       `[SessionStrategy] setCredential(${key}) not supported - use createSession() instead`
     );

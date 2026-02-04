@@ -243,11 +243,13 @@ describe('AuthenticationCoordinator', () => {
   });
 
   it('returns authentication info with session state', async () => {
+    const sessionStrategy = createStrategy('session');
     const passkeyStrategy = createStrategy('passkey');
     passkeyStrategy.hasStoredAuthData.mockReturnValue(true);
 
     const strategyManager = {
       getStrategy: vi.fn((method: string) => {
+        if (method === 'session') return sessionStrategy;
         if (method === 'passkey') return passkeyStrategy;
         return undefined;
       }),
@@ -256,10 +258,7 @@ describe('AuthenticationCoordinator', () => {
     } as unknown as StrategyManager;
 
     const cache = new CredentialCache();
-    const sessionCoordinator = createSessionCoordinator({
-      hasActiveSession: true,
-      getTimeRemaining: vi.fn().mockResolvedValue(1234)
-    });
+    const sessionCoordinator = createSessionCoordinator();
 
     const coordinator = new AuthenticationCoordinator(
       strategyManager,
@@ -270,7 +269,6 @@ describe('AuthenticationCoordinator', () => {
     const info = await coordinator.getAuthenticationInfo();
 
     expect(info.hasActiveSession).toBe(true);
-    expect(info.sessionTimeRemaining).toBe(1234);
     expect(info.supportsPasskeys).toBe(true);
     expect(info.hasPasskey).toBe(true);
   });

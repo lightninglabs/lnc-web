@@ -21,7 +21,20 @@ const cryptoMock = {
       array[i] = Math.floor(Math.random() * 256);
     }
     return array;
-  })
+  }),
+  subtle: {
+    digest: vi
+      .fn()
+      .mockImplementation(async (algorithm: string, data: BufferSource) => {
+        // Simple mock implementation that returns a hash-like buffer
+        const view = new Uint8Array(data as ArrayBuffer);
+        const hash = new Uint8Array(32); // SHA-256 produces 32 bytes
+        for (let i = 0; i < hash.length; i++) {
+          hash[i] = view[i % view.length] ^ (i * 7); // Simple deterministic "hash"
+        }
+        return hash.buffer;
+      })
+  }
 };
 
 Object.defineProperty(globalThis, 'crypto', {
@@ -53,6 +66,19 @@ Object.defineProperty(globalThis, 'WebAssembly', {
   writable: true
 });
 
+// Mock window (for browser APIs used in WasmManager and strategies)
+const windowMock = {
+  addEventListener: vi.fn(),
+  removeEventListener: vi.fn(),
+  location: { hostname: 'test-host' }
+};
+
+Object.defineProperty(globalThis, 'window', {
+  value: windowMock,
+  writable: true,
+  configurable: true
+});
+
 // Mock Go constructor (used by WebAssembly)
 const GoMock = vi.fn().mockImplementation(() => ({
   run: vi.fn().mockResolvedValue(undefined),
@@ -74,4 +100,6 @@ beforeEach(() => {
   // Clear other mocks
   cryptoMock.getRandomValues.mockClear();
   webAssemblyMock.instantiateStreaming.mockClear();
+  windowMock.addEventListener.mockClear();
+  windowMock.removeEventListener.mockClear();
 });

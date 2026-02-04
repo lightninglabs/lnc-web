@@ -8,8 +8,14 @@ const mockRepository = {
   unlock: vi.fn(),
   getCredential: vi.fn(),
   setCredential: vi.fn(),
-  isUnlocked: false,
-  hasAnyCredentials: false,
+  get isUnlocked() {
+    return mockRepository._isUnlocked;
+  },
+  _isUnlocked: false,
+  get hasAnyCredentials() {
+    return mockRepository._hasAnyCredentials;
+  },
+  _hasAnyCredentials: false,
   clear: vi.fn()
 };
 
@@ -27,8 +33,8 @@ describe('PasswordStrategy', () => {
     mockRepository.unlock.mockResolvedValue(undefined);
     mockRepository.getCredential.mockResolvedValue('test-value');
     mockRepository.setCredential.mockResolvedValue(undefined);
-    mockRepository.isUnlocked = false;
-    mockRepository.hasAnyCredentials = false;
+    mockRepository._isUnlocked = false;
+    mockRepository._hasAnyCredentials = false;
 
     strategy = new PasswordStrategy('test-namespace');
   });
@@ -59,17 +65,17 @@ describe('PasswordStrategy', () => {
 
   describe('isUnlocked', () => {
     it('should return repository unlock status', () => {
-      mockRepository.isUnlocked = true;
+      mockRepository._isUnlocked = true;
       expect(strategy.isUnlocked).toBe(true);
 
-      mockRepository.isUnlocked = false;
+      mockRepository._isUnlocked = false;
       expect(strategy.isUnlocked).toBe(false);
     });
   });
 
   describe('unlock()', () => {
     it('should unlock with password method and return true', async () => {
-      mockRepository.isUnlocked = true; // Simulate successful unlock
+      mockRepository._isUnlocked = true; // Simulate successful unlock
 
       const result = await strategy.unlock({
         method: 'password',
@@ -84,8 +90,7 @@ describe('PasswordStrategy', () => {
     });
 
     it('should return false for non-password method', async () => {
-      // Cast to any since 'passkey' is not a valid UnlockMethod yet (added in PR 7)
-      const result = await strategy.unlock({ method: 'passkey' } as any);
+      const result = await strategy.unlock({ method: 'passkey' });
 
       expect(result).toBe(false);
       expect(mockRepository.unlock).not.toHaveBeenCalled();
@@ -140,17 +145,17 @@ describe('PasswordStrategy', () => {
 
   describe('hasAnyCredentials', () => {
     it('should return repository credential status', () => {
-      mockRepository.hasAnyCredentials = true;
+      mockRepository._hasAnyCredentials = true;
       expect(strategy.hasAnyCredentials).toBe(true);
 
-      mockRepository.hasAnyCredentials = false;
+      mockRepository._hasAnyCredentials = false;
       expect(strategy.hasAnyCredentials).toBe(false);
     });
   });
 
   describe('getCredential()', () => {
     it('should return credential value when unlocked', async () => {
-      mockRepository.isUnlocked = true;
+      mockRepository._isUnlocked = true;
 
       const result = await strategy.getCredential('test-key');
 
@@ -159,7 +164,7 @@ describe('PasswordStrategy', () => {
     });
 
     it('should return undefined when not unlocked', async () => {
-      mockRepository.isUnlocked = false;
+      mockRepository._isUnlocked = false;
       const spy = vi.spyOn(log, 'warn');
 
       const result = await strategy.getCredential('test-key');
@@ -173,7 +178,7 @@ describe('PasswordStrategy', () => {
 
     it('should return undefined when repository throws error', async () => {
       const error = new Error('Get credential failed');
-      mockRepository.isUnlocked = true;
+      mockRepository._isUnlocked = true;
       mockRepository.getCredential.mockRejectedValue(error);
       const spy = vi.spyOn(log, 'error');
 
@@ -189,7 +194,7 @@ describe('PasswordStrategy', () => {
 
   describe('setCredential()', () => {
     it('should set credential when unlocked', async () => {
-      mockRepository.isUnlocked = true;
+      mockRepository._isUnlocked = true;
 
       await strategy.setCredential('test-key', 'test-value');
 
@@ -200,7 +205,7 @@ describe('PasswordStrategy', () => {
     });
 
     it('should not set credential when not unlocked', async () => {
-      mockRepository.isUnlocked = false;
+      mockRepository._isUnlocked = false;
       const spy = vi.spyOn(log, 'warn');
 
       await strategy.setCredential('test-key', 'test-value');
@@ -213,7 +218,7 @@ describe('PasswordStrategy', () => {
 
     it('should propagate repository errors', async () => {
       const error = new Error('Set credential failed');
-      mockRepository.isUnlocked = true;
+      mockRepository._isUnlocked = true;
       mockRepository.setCredential.mockRejectedValue(error);
 
       await expect(
@@ -223,7 +228,7 @@ describe('PasswordStrategy', () => {
 
     it('should log error when set fails', async () => {
       const error = new Error('Set credential failed');
-      mockRepository.isUnlocked = true;
+      mockRepository._isUnlocked = true;
       mockRepository.setCredential.mockRejectedValue(error);
       const spy = vi.spyOn(log, 'error');
 
@@ -254,7 +259,7 @@ describe('PasswordStrategy', () => {
       expect(strategy.isUnlocked).toBe(false);
 
       // Unlock
-      mockRepository.isUnlocked = true;
+      mockRepository._isUnlocked = true;
       const unlockResult = await strategy.unlock({
         method: 'password',
         password: 'test-password'
@@ -274,7 +279,7 @@ describe('PasswordStrategy', () => {
       expect(remoteKey).toBe('test-value');
 
       // Check credentials exist
-      mockRepository.hasAnyCredentials = true;
+      mockRepository._hasAnyCredentials = true;
       expect(strategy.hasAnyCredentials).toBe(true);
 
       // Clear

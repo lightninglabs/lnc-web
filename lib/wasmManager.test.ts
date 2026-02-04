@@ -1,6 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { WasmManager, lncGlobal } from './wasmManager';
 import { wasmLog } from './util/log';
-import { lncGlobal, WasmManager } from './wasmManager';
 
 type GoInstance = {
   importObject: WebAssembly.Imports;
@@ -11,8 +11,8 @@ type GoInstance = {
 vi.mock('./util/log', () => ({
   wasmLog: {
     info: vi.fn(),
-    debug: vi.fn(),
-    warn: vi.fn()
+    warn: vi.fn(),
+    debug: vi.fn()
   }
 }));
 
@@ -31,9 +31,6 @@ type WasmNamespace = {
   wasmClientIsConnected: ReturnType<typeof vi.fn>;
   wasmClientConnectServer: ReturnType<typeof vi.fn>;
   wasmClientDisconnect: ReturnType<typeof vi.fn>;
-  onLocalPrivCreate?: ReturnType<typeof vi.fn>;
-  onRemoteKeyReceive?: ReturnType<typeof vi.fn>;
-  onAuthData?: ReturnType<typeof vi.fn>;
 };
 
 const createWasmNamespace = (overrides: Partial<WasmNamespace> = {}) => ({
@@ -46,9 +43,6 @@ const createWasmNamespace = (overrides: Partial<WasmNamespace> = {}) => ({
   wasmClientGetExpiry: vi.fn(),
   wasmClientIsReadOnly: vi.fn(),
   wasmClientHasPerms: vi.fn(),
-  onLocalPrivCreate: undefined,
-  onRemoteKeyReceive: undefined,
-  onAuthData: undefined,
   ...overrides
 });
 
@@ -63,8 +57,6 @@ const restoreWindow = (originalWindow: typeof window | undefined) => {
 describe('WasmManager', () => {
   const namespaces: string[] = [];
   let originalWindow: typeof window | undefined;
-  const originalFetch = global.fetch;
-  const originalWebAssembly = global.WebAssembly;
 
   beforeEach(() => {
     vi.clearAllMocks();
@@ -78,8 +70,6 @@ describe('WasmManager', () => {
     });
     namespaces.length = 0;
     restoreWindow(originalWindow);
-    global.fetch = originalFetch;
-    global.WebAssembly = originalWebAssembly;
     vi.useRealTimers();
     vi.clearAllMocks();
   });
@@ -88,70 +78,6 @@ describe('WasmManager', () => {
     (lncGlobal as any)[namespace] = wasmNamespace;
     namespaces.push(namespace);
   };
-
-  describe('run', () => {
-    it('uses default implementations that throw or return default values', async () => {
-      const namespace = 'default-global-test';
-      const manager = new WasmManager(namespace, 'code');
-
-      // Mock necessary globals for run() to succeed without doing real WASM work
-      global.fetch = vi.fn().mockResolvedValue({} as Response);
-      global.WebAssembly = {
-        instantiateStreaming: vi.fn().mockResolvedValue({
-          module: {},
-          instance: {}
-        }),
-        instantiate: vi.fn().mockResolvedValue({})
-      } as any;
-
-      // Execute run() which populates DEFAULT_WASM_GLOBAL
-      await manager.run();
-      namespaces.push(namespace); // Ensure cleanup
-
-      // Get the reference to the global object (which should be DEFAULT_WASM_GLOBAL)
-      const wasm = (lncGlobal as any)[namespace];
-
-      expect(wasm).toBeDefined();
-
-      // Test value returning functions
-      expect(wasm.wasmClientIsReady()).toBe(false);
-      expect(wasm.wasmClientIsConnected()).toBe(false);
-      expect(wasm.wasmClientStatus()).toBe('uninitialized');
-      expect(wasm.wasmClientGetExpiry()).toBe(0);
-      expect(wasm.wasmClientHasPerms()).toBe(false);
-      expect(wasm.wasmClientIsReadOnly()).toBe(false);
-
-      // Test throwing functions
-      expect(() => wasm.wasmClientConnectServer()).toThrow(
-        'WASM client not initialized'
-      );
-      expect(() => wasm.wasmClientDisconnect()).toThrow(
-        'WASM client not initialized'
-      );
-      expect(() => wasm.wasmClientInvokeRPC()).toThrow(
-        'WASM client not initialized'
-      );
-    });
-  });
-
-  describe('preload', () => {
-    it('reuses an in-flight download instead of re-fetching', async () => {
-      const namespace = 'preload-reuse';
-      const manager = new WasmManager(namespace, 'code');
-
-      const instantiateStreaming = vi
-        .fn()
-        .mockResolvedValue({ module: {}, instance: {} });
-      global.fetch = vi.fn().mockResolvedValue({} as Response);
-      global.WebAssembly = {
-        instantiateStreaming
-      } as any;
-
-      await Promise.all([manager.preload(), manager.preload()]);
-
-      expect(instantiateStreaming).toHaveBeenCalledTimes(1);
-    });
-  });
 
   describe('waitTilReady', () => {
     it('resolves once the WASM client reports ready', async () => {
@@ -320,32 +246,6 @@ describe('WasmManager', () => {
     });
   });
 
-  describe('setupWasmCallbacks', () => {
-    it('logs a warning when no credential provider is available', () => {
-      const namespace = 'callback-warnings';
-      const wasm = createWasmNamespace({
-        wasmClientIsReady: vi.fn().mockReturnValue(true),
-        wasmClientIsConnected: vi.fn().mockReturnValue(true)
-      });
-      registerNamespace(namespace, wasm);
-
-      const manager = new WasmManager(namespace, 'code');
-
-      // Invoke private method to register callbacks without a credential provider
-      (manager as any).setupWasmCallbacks();
-
-      wasm.onLocalPrivCreate?.('local-key');
-      wasm.onRemoteKeyReceive?.('remote-key');
-
-      expect(wasmLog.warn).toHaveBeenCalledWith(
-        'no credential provider available to store local private key'
-      );
-      expect(wasmLog.warn).toHaveBeenCalledWith(
-        'no credential provider available to store remote key'
-      );
-    });
-  });
-
   describe('pair', () => {
     it('throws when no credential provider is configured', async () => {
       const namespace = 'pair-error';
@@ -382,6 +282,102 @@ describe('WasmManager', () => {
 
       expect(credentials.pairingPhrase).toBe('new-phrase');
       expect(connectSpy).toHaveBeenCalledWith(credentials);
+    });
+  });
+
+  describe('preload', () => {
+    it('does not download multiple times when already preloading', async () => {
+      const namespace = 'preload-once';
+      registerNamespace(
+        namespace,
+        createWasmNamespace({
+          wasmClientIsReady: vi.fn().mockReturnValue(false)
+        })
+      );
+
+      const instantiateSpy = vi
+        .spyOn(globalThis.WebAssembly, 'instantiateStreaming')
+        .mockResolvedValue({ module: {} as any, instance: {} as any });
+      globalThis.fetch = vi.fn().mockResolvedValue(new Response());
+
+      const manager = new WasmManager(namespace, 'code');
+
+      await Promise.all([manager.preload(), manager.preload()]);
+
+      expect(instantiateSpy).toHaveBeenCalledTimes(1);
+    });
+  });
+
+  describe('DEFAULT_WASM_GLOBAL', () => {
+    it('throws when calling client methods before initialization', async () => {
+      const namespace = 'default-wasm-global';
+      // Ensure namespace is not initialized so run() installs DEFAULT_WASM_GLOBAL
+      delete (lncGlobal as any)[namespace];
+
+      vi.spyOn(
+        globalThis.WebAssembly,
+        'instantiateStreaming'
+      ).mockResolvedValue({
+        module: {} as any,
+        instance: {} as any
+      });
+      vi.spyOn(globalThis.WebAssembly, 'instantiate').mockResolvedValue({
+        exports: {}
+      } as any);
+      globalThis.fetch = vi.fn().mockResolvedValue(new Response());
+
+      const manager = new WasmManager(namespace, 'code');
+      await manager.run();
+
+      const wasm = (lncGlobal as any)[namespace];
+      expect(() => wasm.wasmClientConnectServer()).toThrow(
+        'WASM client not initialized'
+      );
+      expect(() => wasm.wasmClientDisconnect()).toThrow(
+        'WASM client not initialized'
+      );
+      expect(() => wasm.wasmClientInvokeRPC()).toThrow(
+        'WASM client not initialized'
+      );
+
+      // Verify constant-return default functions are callable.
+      expect(wasm.wasmClientIsReady()).toBe(false);
+      expect(wasm.wasmClientIsConnected()).toBe(false);
+      expect(wasm.wasmClientHasPerms()).toBe(false);
+      expect(wasm.wasmClientIsReadOnly()).toBe(false);
+      expect(wasm.wasmClientStatus()).toBe('uninitialized');
+      expect(wasm.wasmClientGetExpiry()).toBe(0);
+    });
+
+    it('warns when callbacks run without a credential provider', async () => {
+      const namespace = 'callbacks-warn';
+      delete (lncGlobal as any)[namespace];
+
+      vi.spyOn(
+        globalThis.WebAssembly,
+        'instantiateStreaming'
+      ).mockResolvedValue({
+        module: {} as any,
+        instance: {} as any
+      });
+      vi.spyOn(globalThis.WebAssembly, 'instantiate').mockResolvedValue({
+        exports: {}
+      } as any);
+      globalThis.fetch = vi.fn().mockResolvedValue(new Response());
+
+      const manager = new WasmManager(namespace, 'code');
+      await manager.run();
+
+      const wasm = (lncGlobal as any)[namespace];
+      wasm.onLocalPrivCreate('local-hex');
+      wasm.onRemoteKeyReceive('remote-hex');
+
+      expect(wasmLog.warn).toHaveBeenCalledWith(
+        'no credential provider available to store local private key'
+      );
+      expect(wasmLog.warn).toHaveBeenCalledWith(
+        'no credential provider available to store remote key'
+      );
     });
   });
 });

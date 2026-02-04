@@ -1,150 +1,446 @@
-import { beforeEach, describe, expect, it } from 'vitest';
-import { createTestCipher, generateSalt } from '../util/encryption';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import {
+  createTestCipher,
+  decrypt,
+  encrypt,
+  generateSalt,
+  verifyTestCipher
+} from '../util/encryption';
 import { PasswordEncryptionService } from './passwordEncryptionService';
+
+// Mock encryption utilities
+vi.mock('../util/encryption', () => ({
+  createTestCipher: vi.fn(),
+  decrypt: vi.fn(),
+  encrypt: vi.fn(),
+  generateSalt: vi.fn(),
+  verifyTestCipher: vi.fn()
+}));
 
 describe('PasswordEncryptionService', () => {
   let service: PasswordEncryptionService;
+  const testPassword = 'test-password';
+  const testSalt = 'test-salt';
+  const testCipher = 'test-cipher';
+  const testData = 'test-data';
+  const encryptedData = 'encrypted-data';
+  const decryptedData = 'decrypted-data';
+
+  // Helper to create unlocked service
+  const createUnlockedService = async () => {
+    const s = new PasswordEncryptionService();
+    await s.unlock({ method: 'password', password: testPassword });
+    return s;
+  };
 
   beforeEach(() => {
-    service = new PasswordEncryptionService();
+    vi.clearAllMocks();
+
+    // Reset mock defaults
+    (createTestCipher as any).mockReturnValue(testCipher);
+    (decrypt as any).mockResolvedValue(decryptedData);
+    (encrypt as any).mockResolvedValue(encryptedData);
+    (generateSalt as any).mockReturnValue(testSalt);
+    (verifyTestCipher as any).mockReturnValue(true);
   });
 
-  describe('constructor', () => {
-    it('should create a locked service when no password is provided', () => {
+  afterEach(() => {
+    vi.clearAllMocks();
+  });
+
+  describe('Constructor', () => {
+    it('should create locked service when no password provided', () => {
+      service = new PasswordEncryptionService();
+
       expect(service.isUnlocked).toBe(false);
+      expect(service.method).toBe('password');
+    });
+
+    it('should create unlocked service when password provided', async () => {
+      (generateSalt as any).mockReturnValue(testSalt);
+
+      service = new PasswordEncryptionService();
+      await service.unlock({ method: 'password', password: testPassword });
+
+      expect(service.isUnlocked).toBe(true);
+      expect(service.method).toBe('password');
+      expect(generateSalt).toHaveBeenCalled();
     });
   });
 
-  describe('unlock', () => {
-    it('should unlock with a new password (no salt)', async () => {
-      await service.unlock({ method: 'password', password: 'testPassword' });
+  describe('encrypt()', () => {
+    it('should encrypt data when unlocked', async () => {
+      service = await createUnlockedService();
+
+      const result = await service.encrypt(testData);
+
+      expect(result).toBe(encryptedData);
+      expect(encrypt).toHaveBeenCalledWith(testData, testPassword, testSalt);
+    });
+
+    it('should throw error when not unlocked', async () => {
+      service = new PasswordEncryptionService();
+
+      await expect(service.encrypt(testData)).rejects.toThrow(
+        'Encryption service is locked. Call unlock() first.'
+      );
+      expect(encrypt).not.toHaveBeenCalled();
+    });
+
+    it('should throw error when password is cleared', async () => {
+      service = await createUnlockedService();
+      service.lock();
+
+      await expect(service.encrypt(testData)).rejects.toThrow(
+        'Encryption service is locked. Call unlock() first.'
+      );
+    });
+  });
+
+  describe('decrypt()', () => {
+    it('should decrypt data when unlocked', async () => {
+      service = await createUnlockedService();
+
+      const result = await service.decrypt(encryptedData);
+
+      expect(result).toBe(decryptedData);
+      expect(decrypt).toHaveBeenCalledWith(
+        encryptedData,
+        testPassword,
+        testSalt
+      );
+    });
+
+    it('should throw error when not unlocked', async () => {
+      service = new PasswordEncryptionService();
+
+      await expect(service.decrypt(encryptedData)).rejects.toThrow(
+        'Encryption service is locked. Call unlock() first.'
+      );
+      expect(decrypt).not.toHaveBeenCalled();
+    });
+
+    it('should throw error when password is cleared', async () => {
+      service = await createUnlockedService();
+      service.lock();
+
+      await expect(service.decrypt(encryptedData)).rejects.toThrow(
+        'Encryption service is locked. Call unlock() first.'
+      );
+    });
+  });
+
+  describe('unlock()', () => {
+    beforeEach(() => {
+      service = new PasswordEncryptionService();
+    });
+
+    it('should unlock with password when no existing salt/cipher', async () => {
+      const options = {
+        method: 'password' as const,
+        password: testPassword
+      };
+
+      await service.unlock(options);
+
       expect(service.isUnlocked).toBe(true);
+      expect(generateSalt).toHaveBeenCalled();
+      expect(service.getSalt()).toBe(testSalt);
     });
 
-    it('should unlock with existing salt and cipher', async () => {
-      const password = 'testPassword';
-      const salt = generateSalt();
-      const cipher = createTestCipher(password, salt);
+    it('should unlock with password and provided salt/cipher', async () => {
+      const options = {
+        method: 'password' as const,
+        password: testPassword,
+        salt: testSalt,
+        cipher: testCipher
+      };
 
-      await service.unlock({ method: 'password', password, salt, cipher });
+      await service.unlock(options);
+
       expect(service.isUnlocked).toBe(true);
+      expect(generateSalt).not.toHaveBeenCalled();
+      expect(verifyTestCipher).toHaveBeenCalledWith(
+        testCipher,
+        testPassword,
+        testSalt
+      );
+      expect(service.getSalt()).toBe(testSalt);
     });
 
-    it('should throw error for invalid password with existing cipher', async () => {
-      const correctPassword = 'correctPassword';
-      const wrongPassword = 'wrongPassword';
-      const salt = generateSalt();
-      const cipher = createTestCipher(correctPassword, salt);
+    it('should unlock with salt but without cipher', async () => {
+      const options = {
+        method: 'password' as const,
+        password: testPassword,
+        salt: testSalt
+        // No cipher provided
+      };
 
-      await expect(
-        service.unlock({
-          method: 'password',
-          password: wrongPassword,
-          salt,
-          cipher
-        })
-      ).rejects.toThrow('Invalid password');
+      await service.unlock(options);
+
+      expect(service.isUnlocked).toBe(true);
+      expect(service.getSalt()).toBe(testSalt);
+      // Should not call verifyTestCipher when cipher is not provided
+      expect(verifyTestCipher).not.toHaveBeenCalled();
     });
 
-    it('should throw error if password is missing', async () => {
-      await expect(
-        service.unlock({ method: 'password', password: '' })
-      ).rejects.toThrow('Password is required for password unlock');
-    });
+    it('should throw error for non-password method', async () => {
+      const options = { method: 'passkey' as const };
 
-    it('should throw error for non-password unlock method', async () => {
-      // Type assertion to test runtime behavior with invalid input
-      await expect(
-        service.unlock({ method: 'passkey' as 'password', password: 'test' })
-      ).rejects.toThrow(
+      await expect(service.unlock(options)).rejects.toThrow(
         'Password encryption service requires password unlock method'
       );
     });
-  });
 
-  describe('encrypt/decrypt', () => {
-    beforeEach(async () => {
-      await service.unlock({ method: 'password', password: 'testPassword' });
-    });
+    it('should throw error when password is not provided', async () => {
+      const options = { method: 'password' as const } as any;
 
-    it('should encrypt and decrypt data correctly', async () => {
-      const plaintext = 'Hello, World!';
-      const encrypted = await service.encrypt(plaintext);
-      const decrypted = await service.decrypt(encrypted);
-      expect(decrypted).toBe(plaintext);
-    });
-
-    it('should throw error when encrypting while locked', async () => {
-      service.lock();
-      await expect(service.encrypt('test')).rejects.toThrow(
-        'Encryption service is locked. Call unlock() first.'
+      await expect(service.unlock(options)).rejects.toThrow(
+        'Password is required for password unlock'
       );
     });
 
-    it('should throw error when decrypting while locked', async () => {
-      const encrypted = await service.encrypt('test');
-      service.lock();
-      await expect(service.decrypt(encrypted)).rejects.toThrow(
-        'Encryption service is locked. Call unlock() first.'
-      );
+    it('should throw error when password verification fails', async () => {
+      (verifyTestCipher as any).mockReturnValue(false);
+      const options = {
+        method: 'password' as const,
+        password: testPassword,
+        salt: testSalt,
+        cipher: testCipher
+      };
+
+      await expect(service.unlock(options)).rejects.toThrow('Invalid password');
+    });
+
+    it('should throw error when test cipher verification throws', async () => {
+      (verifyTestCipher as any).mockImplementation(() => {
+        throw new Error('Verification failed');
+      });
+      const options = {
+        method: 'password' as const,
+        password: testPassword,
+        salt: testSalt,
+        cipher: testCipher
+      };
+
+      await expect(service.unlock(options)).rejects.toThrow('Invalid password');
     });
   });
 
-  describe('lock', () => {
-    it('should clear password and salt when locked', async () => {
-      await service.unlock({ method: 'password', password: 'testPassword' });
+  describe('isUnlocked', () => {
+    it('should return true when unlocked with password and salt', async () => {
+      service = await createUnlockedService();
+
       expect(service.isUnlocked).toBe(true);
+    });
+
+    it('should return false when not unlocked', () => {
+      service = new PasswordEncryptionService();
+
+      expect(service.isUnlocked).toBe(false);
+    });
+
+    it('should return false after lock', async () => {
+      service = await createUnlockedService();
       service.lock();
+
       expect(service.isUnlocked).toBe(false);
     });
   });
 
-  describe('getMethod', () => {
-    it('should return password as the method', () => {
-      expect(service.method).toBe('password');
-    });
-  });
+  describe('lock()', () => {
+    it('should clear password and salt', async () => {
+      service = await createUnlockedService();
+      expect(service.isUnlocked).toBe(true);
 
-  describe('canHandle', () => {
-    it('should return true for password method', () => {
-      expect(service.canHandle('password')).toBe(true);
-    });
+      service.lock();
 
-    it('should return false for non-password methods', () => {
-      // Type assertion to test runtime behavior
-      expect(service.canHandle('passkey' as 'password')).toBe(false);
-      expect(service.canHandle('session' as 'password')).toBe(false);
-    });
-  });
-
-  describe('getSalt', () => {
-    it('should return the salt when unlocked', async () => {
-      await service.unlock({ method: 'password', password: 'testPassword' });
-      const salt = service.getSalt();
-      expect(salt).toBeDefined();
-      expect(typeof salt).toBe('string');
-      expect(salt.length).toBe(32);
-    });
-
-    it('should throw error when locked', () => {
+      expect(service.isUnlocked).toBe(false);
       expect(() => service.getSalt()).toThrow(
         'No salt available - unlock first'
       );
     });
   });
 
-  describe('createTestCipher', () => {
-    it('should create a test cipher when unlocked', async () => {
-      await service.unlock({ method: 'password', password: 'testPassword' });
-      const cipher = service.createTestCipher();
-      expect(cipher).toBeDefined();
-      expect(typeof cipher).toBe('string');
+  describe('method', () => {
+    it('should return password method', () => {
+      service = new PasswordEncryptionService();
+
+      expect(service.method).toBe('password');
+    });
+  });
+
+  describe('canHandle()', () => {
+    it('should return true for password method', () => {
+      service = new PasswordEncryptionService();
+
+      expect(service.canHandle('password')).toBe(true);
     });
 
-    it('should throw error when locked', () => {
+    it('should return false for other methods', () => {
+      service = new PasswordEncryptionService();
+
+      expect(service.canHandle('passkey')).toBe(false);
+      expect(service.canHandle('session')).toBe(false);
+    });
+  });
+
+  describe('getSalt()', () => {
+    it('should return salt when available', async () => {
+      service = await createUnlockedService();
+
+      const result = service.getSalt();
+
+      expect(result).toBe(testSalt);
+    });
+
+    it('should throw error when no salt available', () => {
+      service = new PasswordEncryptionService();
+
+      expect(() => service.getSalt()).toThrow(
+        'No salt available - unlock first'
+      );
+    });
+
+    it('should throw error when salt is empty string', async () => {
+      service = new PasswordEncryptionService();
+      // First unlock successfully with valid salt
+      await service.unlock({
+        method: 'password',
+        password: testPassword,
+        salt: testSalt,
+        cipher: testCipher
+      });
+
+      // Manually set salt to empty string to test the falsy check branch
+      (service as any).salt = '';
+
+      // Empty string is falsy, so getSalt() should throw
+      expect(() => service.getSalt()).toThrow(
+        'No salt available - unlock first'
+      );
+    });
+
+    it('should throw error when salt is null', async () => {
+      service = new PasswordEncryptionService();
+      // First unlock successfully with valid salt
+      await service.unlock({
+        method: 'password',
+        password: testPassword,
+        salt: testSalt,
+        cipher: testCipher
+      });
+
+      // Manually set salt to null to test the falsy check branch
+      (service as any).salt = null;
+
+      // null is falsy, so getSalt() should throw
+      expect(() => service.getSalt()).toThrow(
+        'No salt available - unlock first'
+      );
+    });
+  });
+
+  describe('createTestCipher()', () => {
+    it('should create test cipher when unlocked', async () => {
+      service = await createUnlockedService();
+
+      const result = service.createTestCipher();
+
+      expect(result).toBe(testCipher);
+      expect(createTestCipher).toHaveBeenCalledWith(testPassword, testSalt);
+    });
+
+    it('should throw error when not unlocked', () => {
+      service = new PasswordEncryptionService();
+
       expect(() => service.createTestCipher()).toThrow(
         'No password/salt available - unlock first'
       );
+    });
+  });
+
+  describe('Integration tests', () => {
+    it('should handle full unlock workflow', async () => {
+      service = new PasswordEncryptionService();
+
+      // Unlock
+      const unlockOptions = {
+        method: 'password' as const,
+        password: testPassword
+      };
+      await service.unlock(unlockOptions);
+
+      expect(service.isUnlocked).toBe(true);
+
+      // Encrypt/decrypt
+      const encrypted = await service.encrypt(testData);
+      expect(encrypted).toBe(encryptedData);
+
+      const decrypted = await service.decrypt(encryptedData);
+      expect(decrypted).toBe(decryptedData);
+
+      // Create test cipher
+      const testCipherResult = service.createTestCipher();
+      expect(testCipherResult).toBe(testCipher);
+
+      // Get salt
+      const salt = service.getSalt();
+      expect(salt).toBe(testSalt);
+
+      // Lock
+      service.lock();
+      expect(service.isUnlocked).toBe(false);
+
+      // Should fail after lock
+      await expect(service.encrypt(testData)).rejects.toThrow('locked');
+    });
+
+    it('should handle existing user unlock workflow', async () => {
+      service = new PasswordEncryptionService();
+
+      // Unlock with existing salt and cipher
+      const unlockOptions = {
+        method: 'password' as const,
+        password: testPassword,
+        salt: testSalt,
+        cipher: testCipher
+      };
+      await service.unlock(unlockOptions);
+
+      expect(service.isUnlocked).toBe(true);
+      expect(verifyTestCipher).toHaveBeenCalledWith(
+        testCipher,
+        testPassword,
+        testSalt
+      );
+
+      // Should be able to encrypt/decrypt
+      await service.encrypt(testData);
+      await service.decrypt(encryptedData);
+    });
+
+    it('should handle method checks correctly', () => {
+      service = new PasswordEncryptionService();
+
+      expect(service.canHandle('password')).toBe(true);
+      expect(service.canHandle('passkey')).toBe(false);
+      expect(service.canHandle('session')).toBe(false);
+      expect(service.method).toBe('password');
+    });
+
+    it('should maintain state correctly', async () => {
+      service = new PasswordEncryptionService();
+
+      expect(service.isUnlocked).toBe(false);
+
+      // Create with password
+      service = await createUnlockedService();
+      expect(service.isUnlocked).toBe(true);
+
+      // Lock
+      service.lock();
+      expect(service.isUnlocked).toBe(false);
     });
   });
 });

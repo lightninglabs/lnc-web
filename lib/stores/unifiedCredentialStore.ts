@@ -16,6 +16,7 @@ import { StrategyManager } from './strategyManager';
 /**
  * Unified credential store that uses the strategy pattern for authentication.
  * Maintains the same CredentialStore interface for backward compatibility.
+ * Now uses composition with specialized coordinator classes for better separation of concerns.
  */
 export default class UnifiedCredentialStore implements CredentialStore {
   private strategyManager: StrategyManager;
@@ -24,6 +25,7 @@ export default class UnifiedCredentialStore implements CredentialStore {
   private authCoordinator: AuthenticationCoordinator;
 
   constructor(config: LncConfig, sessionManager?: SessionManager) {
+    // Create specialized coordinators for different responsibilities
     this.strategyManager = new StrategyManager(config, sessionManager);
     this.credentialCache = new CredentialCache();
     this.sessionCoordinator = new SessionCoordinator(sessionManager);
@@ -61,6 +63,7 @@ export default class UnifiedCredentialStore implements CredentialStore {
 
   set pairingPhrase(value: string) {
     this.credentialCache.set('pairingPhrase', value);
+    // Don't save immediately - wait for unlock to establish active strategy
   }
 
   get serverHost(): string {
@@ -69,6 +72,7 @@ export default class UnifiedCredentialStore implements CredentialStore {
 
   set serverHost(value: string) {
     this.credentialCache.set('serverHost', value);
+    // Don't save immediately - wait for unlock to establish active strategy
   }
 
   get localKey(): string {
@@ -77,6 +81,7 @@ export default class UnifiedCredentialStore implements CredentialStore {
 
   set localKey(value: string) {
     this.credentialCache.set('localKey', value);
+    // Don't save immediately - wait for unlock to establish active strategy
   }
 
   get remoteKey(): string {
@@ -85,6 +90,7 @@ export default class UnifiedCredentialStore implements CredentialStore {
 
   set remoteKey(value: string) {
     this.credentialCache.set('remoteKey', value);
+    // Don't save immediately - wait for unlock to establish active strategy
   }
 
   get isPaired(): boolean {
@@ -95,6 +101,7 @@ export default class UnifiedCredentialStore implements CredentialStore {
     this.credentialCache.clear();
 
     if (!memoryOnly) {
+      // Clear all strategies
       this.strategyManager.clearAll();
     }
 

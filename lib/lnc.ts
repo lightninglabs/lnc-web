@@ -26,8 +26,7 @@ export const DEFAULT_CONFIG = {
 } as Required<LncConfig>;
 
 export default class LNC {
-  private orchestrator: CredentialOrchestrator;
-
+  // API fields (same as before) - initialized in constructor via initializeApis()
   lnd: LndApi;
   loop: LoopApi;
   pool: PoolApi;
@@ -35,7 +34,9 @@ export default class LNC {
   tapd: TaprootAssetsApi;
   lit: LitApi;
 
+  // Internal managers
   private wasmManager: WasmManager;
+  private orchestrator: CredentialOrchestrator;
 
   constructor(lncConfig?: LncConfig) {
     // merge the passed in config with the defaults
@@ -51,6 +52,7 @@ export default class LNC {
     );
     this.wasmManager.setCredentialProvider(this.credentials);
 
+    // Initialize Lightning Network APIs
     this.lnd = new LndApi(createRpc, this);
     this.loop = new LoopApi(createRpc, this);
     this.pool = new PoolApi(createRpc, this);
@@ -214,12 +216,7 @@ export default class LNC {
    * @param pairingPhrase The pairing phrase from litd
    */
   async pair(pairingPhrase: string): Promise<void> {
-    // Set the pairing phrase
-    this.credentials.pairingPhrase = pairingPhrase;
-
-    // Run and connect
-    await this.run();
-    await this.connect();
+    return this.wasmManager.pair(pairingPhrase);
   }
 
   /**

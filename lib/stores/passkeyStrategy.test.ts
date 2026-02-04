@@ -1,7 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { PasskeyCredentialRepository } from '../repositories/passkeyCredentialRepository';
 import { log } from '../util/log';
 import { PasskeyStrategy } from './passkeyStrategy';
+import { PasskeyCredentialRepository } from '../repositories/passkeyCredentialRepository';
 
 // Mock PasskeyCredentialRepository
 const mockRepository = {
@@ -16,7 +16,10 @@ const mockRepository = {
     return mockRepository._hasAnyCredentials;
   },
   _hasAnyCredentials: false,
-  hasStoredAuthData: false,
+  get hasStoredAuthData() {
+    return mockRepository._hasStoredAuthData;
+  },
+  _hasStoredAuthData: false,
   clear: vi.fn()
 };
 
@@ -48,7 +51,7 @@ describe('PasskeyStrategy', () => {
     mockRepository.setCredential.mockResolvedValue(undefined);
     mockRepository._isUnlocked = false;
     mockRepository._hasAnyCredentials = false;
-    mockRepository.hasStoredAuthData = false;
+    mockRepository._hasStoredAuthData = false;
 
     strategy = new PasskeyStrategy('test-namespace', 'Test App');
   });
@@ -199,10 +202,10 @@ describe('PasskeyStrategy', () => {
 
   describe('hasStoredAuthData()', () => {
     it('should return repository auth data status', () => {
-      mockRepository.hasStoredAuthData = true;
+      mockRepository._hasStoredAuthData = true;
       expect(strategy.hasStoredAuthData()).toBe(true);
 
-      mockRepository.hasStoredAuthData = false;
+      mockRepository._hasStoredAuthData = false;
       expect(strategy.hasStoredAuthData()).toBe(false);
     });
   });
@@ -258,7 +261,7 @@ describe('PasskeyStrategy', () => {
       );
     });
 
-    it('should return without error when not unlocked', async () => {
+    it('should not set credential when not unlocked', async () => {
       mockRepository._isUnlocked = false;
       const spy = vi.spyOn(log, 'warn');
 
@@ -270,7 +273,7 @@ describe('PasskeyStrategy', () => {
       );
     });
 
-    it('should propagate error when repository throws', async () => {
+    it('should propagate repository errors', async () => {
       const error = new Error('Set credential failed');
       mockRepository._isUnlocked = true;
       mockRepository.setCredential.mockRejectedValue(error);
@@ -337,7 +340,7 @@ describe('PasskeyStrategy', () => {
       expect(strategy.hasAnyCredentials).toBe(true);
 
       // Check auth data
-      mockRepository.hasStoredAuthData = true;
+      mockRepository._hasStoredAuthData = true;
       expect(strategy.hasStoredAuthData()).toBe(true);
 
       // Clear

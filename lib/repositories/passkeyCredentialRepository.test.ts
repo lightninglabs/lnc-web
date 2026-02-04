@@ -255,7 +255,7 @@ describe('PasskeyCredentialRepository', () => {
     });
   });
 
-  describe('isUnlocked()', () => {
+  describe('isUnlocked', () => {
     it('should return encryption service unlock status', () => {
       mockEncryptionService._isUnlocked = true;
       expect(repository.isUnlocked).toBe(true);
@@ -273,7 +273,7 @@ describe('PasskeyCredentialRepository', () => {
     });
   });
 
-  describe('hasStoredAuthData()', () => {
+  describe('hasStoredAuthData', () => {
     it('should return true when credential ID exists', () => {
       repository['credentials'].set(
         'passkeyCredentialId',

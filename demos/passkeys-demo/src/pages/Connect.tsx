@@ -41,7 +41,7 @@ const Connect: React.FC = () => {
       };
       connectAsync();
     },
-    [phrase, password, navigate, pair]
+    [phrase, password, navigate, pair],
   );
 
   const handlePasskeyConnect = useCallback(() => {
@@ -102,8 +102,8 @@ const Connect: React.FC = () => {
               <div className="border rounded p-3 h-100">
                 <h5 className="mb-2">Use a Passkey</h5>
                 <p className="text-muted small">
-                  Store your connection in a passkey managed by your browser or device. No password
-                  to remember.
+                  Store your connection in a passkey managed by your browser or device. No
+                  password to remember.
                 </p>
                 <Button
                   variant="primary"
@@ -129,8 +129,8 @@ const Connect: React.FC = () => {
                   disabled={loading}
                 />
                 <Form.Text className="text-muted">
-                  lnc-web stores connection data in localStorage. This password will be used to
-                  encrypt the data at rest.
+                  lnc-web stores connection data in localStorage. This password will be
+                  used to encrypt the data at rest.
                 </Form.Text>
               </Form.Group>
               <Button variant="primary" type="submit" disabled={loading}>

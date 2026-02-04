@@ -77,7 +77,7 @@ export interface LncConfig {
   serverHost?: string;
   /**
    * Custom location for the WASM client code. Can be remote or local. If not
-   * specified we’ll default to our instance on our CDN.
+   * specified we'll default to our instance on our CDN.
    */
   wasmClientCode?: string; // URL to WASM file
   /**
@@ -134,24 +134,44 @@ export interface LncConfig {
  * Authentication information returned by getAuthenticationInfo()
  */
 export interface AuthenticationInfo {
-  /** True if any authentication method has been successfully applied */
+  /**
+   * True if any authentication method has been successfully applied
+   * (password, passkey, or session) and the underlying credentials are
+   * currently available for use (i.e. decrypted & restored in memory).
+   *
+   * Note: this does NOT mean the WASM client is connected yet; it only
+   * reflects that auth state is ready so a connection can be made.
+   */
   isUnlocked: boolean;
-  /** True if any long-term credentials are stored */
+  /**
+   * True if there are any long-term credentials stored
+   * (e.g. password- or passkey-backed credentials).
+   */
   hasStoredCredentials: boolean;
-  /** True if a valid session exists for passwordless login */
+  /**
+   * True if a valid session exists that can be used to log in
+   * without re-entering a password or using a passkey.
+   */
   hasActiveSession: boolean;
-  /** Remaining session time in milliseconds */
-  sessionTimeRemaining: number;
-  /** True if passkeys are supported in this environment */
+  /**
+   * True if passkeys are supported in the current environment
+   * and enabled in the configuration.
+   */
   supportsPasskeys: boolean;
-  /** True if a passkey credential is available */
+  /**
+   * True if at least one passkey credential has been created
+   * and is available for authentication.
+   */
   hasPasskey: boolean;
-  /** The recommended unlock method based on current state */
+  /**
+   * The unlock method the library recommends using first based
+   * on current state (session, passkey, or password).
+   */
   preferredUnlockMethod: UnlockMethod;
 }
 
 /**
- * Available unlock methods
+ * Authentication information returned by getAuthenticationInfo()
  */
 export type UnlockMethod = 'password' | 'passkey' | 'session';
 
@@ -221,6 +241,113 @@ export interface CredentialStore {
    * The default is `undefined`.
    */
   clear(memoryOnly?: boolean): void;
+
+  //
+  // Enhanced authentication methods (optional - for backward compatibility)
+  //
+
+  /**
+   * Checks if there is an active session (for session-enabled stores)
+   * @returns true if there is an active session
+   */
+  hasActiveSession?: boolean;
+
+  /**
+   * Unlocks the credential store using the specified method and options
+   * @param options Unlock options specifying the method and required parameters
+   * @returns Promise that resolves to true if unlock was successful
+   */
+  unlock?(options: UnlockOptions): Promise<boolean>;
+
+  /**
+   * Gets information about the current authentication state
+   * @returns Promise that resolves to authentication information including unlock status and available methods
+   */
+  getAuthenticationInfo?(): Promise<AuthenticationInfo>;
+
+  /**
+   * Gets the list of supported unlock methods for this store
+   * @returns Array of supported unlock method names
+   */
+  getSupportedUnlockMethods?(): UnlockMethod[];
+
+  /**
+   * Checks if the store can automatically restore/unlock without user interaction
+   * @returns Promise that resolves to true if auto-restore is possible (e.g., active session)
+   */
+  canAutoRestore?(): Promise<boolean>;
+
+  /**
+   * Attempts to automatically restore/unlock the store without user interaction
+   * @returns Promise that resolves to true if auto-restore was successful
+   */
+  tryAutoRestore?(): Promise<boolean>;
+
+  /**
+   * Gets the remaining time for the current session in milliseconds
+   * @returns Promise that resolves to remaining session time in milliseconds, or 0 if no active session
+   */
+  getSessionTimeRemaining?(): Promise<number>;
+
+  /**
+   * Refreshes/extends the current session
+   * @returns Promise that resolves to true if session refresh was successful
+   */
+  refreshSession?(): Promise<boolean>;
+
+  /**
+   * Creates a session after connection is confirmed to be working
+   * This should be called after a successful connection, not during credential setting
+   * @returns Promise that resolves when session creation is complete
+   */
+  createSessionAfterConnection?(): Promise<void>;
+}
+
+/**
+ * Configuration options for session-based credential management
+ */
+export interface SessionConfig {
+  /** Session duration in milliseconds (default: 24 hours) */
+  sessionDuration?: number;
+  /** Enable automatic session refresh based on activity (default: true) */
+  enableActivityRefresh?: boolean;
+  /** Minutes of activity required for refresh (default: 30) */
+  activityThreshold?: number;
+  /** Seconds to throttle activity updates (default: 30) */
+  activityThrottleInterval?: number;
+  /** Hours remaining when refresh triggers (default: 4) */
+  refreshTrigger?: number;
+  /** Minutes between refresh condition checks (default: 5) */
+  refreshCheckInterval?: number;
+  /** Pause refresh timer when page is hidden (default: true) */
+  pauseOnHidden?: boolean;
+  /** Maximum refreshes per session (default: 10) */
+  maxRefreshes?: number;
+  /** Absolute maximum session age in milliseconds (default: 7 days) */
+  maxSessionAge?: number;
+}
+
+/**
+ * Authentication state information for consumer apps
+ */
+export interface AuthenticationState {
+  isReady: boolean; // Can connect to Lightning node
+  isConnected: boolean; // Currently connected
+  authMethod: 'none' | 'password' | 'passkey' | 'session';
+  needsUnlock: boolean; // Requires user interaction to unlock
+  availableMethods: string[]; // Available unlock methods
+  sessionInfo?: {
+    hasSession: boolean;
+    timeRemaining: number;
+    canRefresh: boolean;
+  };
+}
+
+export interface ClearOptions {
+  /** clear the short-term credentials saved in session storage (default: true) */
+  session?: boolean;
+  /** clear the long-term pairing credentials saved in local storage (default: false) */
+  persisted?: boolean;
 }
 
 /**

@@ -1,10 +1,12 @@
 import { PasskeyEncryptionService } from './encryption/passkeyEncryptionService';
 import SessionManager from './sessions/sessionManager';
+import { DEFAULT_SESSION_DURATION } from './stores/authenticationCoordinator';
 import UnifiedCredentialStore from './stores/unifiedCredentialStore';
 import {
   ClearOptions,
   CredentialStore,
   LncConfig,
+  SessionConfig,
   UnlockOptions
 } from './types/lnc';
 import LncCredentialStore from './util/credentialStore';
@@ -69,15 +71,27 @@ export class CredentialOrchestrator {
   }
 
   /**
-   * Create a UnifiedCredentialStore with optional session management
+   * Create a UnifiedCredentialStore with session management
    */
   private createUnifiedStore(config: LncConfig): UnifiedCredentialStore {
+    // Create session manager if sessions are enabled
     let sessionManager: SessionManager | undefined;
     if (config.enableSessions) {
       const namespace = config.namespace || 'default';
-      const sessionConfig = config.sessionDuration
-        ? { sessionDuration: config.sessionDuration }
-        : undefined;
+      const duration = config.sessionDuration ?? DEFAULT_SESSION_DURATION;
+
+      const sessionConfig: SessionConfig = {
+        sessionDuration: duration,
+        enableActivityRefresh: true,
+        activityThreshold: 30,
+        activityThrottleInterval: 30,
+        refreshTrigger: 4,
+        refreshCheckInterval: 5,
+        pauseOnHidden: true,
+        maxRefreshes: 10,
+        maxSessionAge: 7 * 24 * 60 * 60 * 1000
+      };
+
       sessionManager = new SessionManager(namespace, sessionConfig);
     }
 
@@ -232,6 +246,7 @@ export class CredentialOrchestrator {
         throw new Error('Failed to unlock credentials with password');
       }
 
+      // Save credentials and create session
       await store.createSessionAfterConnection();
     } else {
       // Legacy LncCredentialStore - just set password (it auto-persists)
@@ -258,6 +273,7 @@ export class CredentialOrchestrator {
         throw new Error('Failed to create/use passkey for credentials');
       }
 
+      // Save credentials and create session
       await store.createSessionAfterConnection();
     } else {
       throw new Error(
