@@ -46,7 +46,7 @@ export class OriginKeyManager {
       // Generate new origin key. This is not extractable so that the raw key material
       // can never be obtained in clear text. This is a security measure to lock down
       // the key so it cannot be used outside the browser. It also can only be accessed by
-      // code running on the same origin that created it (terminal.lightning.engineering).
+      // code running on the same web origin that created it, as enforced by the browser.
       const originKey = await crypto.subtle.generateKey(
         { name: 'AES-GCM', length: 256 },
         false, // non-extractable for security
@@ -93,7 +93,7 @@ export class OriginKeyManager {
                 expiresAt: result.expiresAt
               });
             } else {
-              // Treat incomplete records as missing data to keep restore logic strict.
+              // Treat incomplete or malformed records as missing data to keep restore logic strict.
               resolve(undefined);
             }
           };

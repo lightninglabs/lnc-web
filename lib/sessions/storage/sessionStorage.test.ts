@@ -15,11 +15,11 @@ describe('SessionStorage', () => {
     createdAt: 1000,
     expiresAt: 2000,
     refreshCount: 0,
-    credentials: {
-      localKey: 'local',
-      remoteKey: 'remote',
-      pairingPhrase: 'pairing',
-      serverHost: 'server'
+    encryptedCredentials: 'encrypted-credentials',
+    credentialsIV: 'credentials-iv',
+    origin: {
+      keyB64: 'origin-key-b64',
+      ivB64: 'origin-iv-b64'
     }
   };
 
@@ -66,9 +66,11 @@ describe('SessionStorage', () => {
     const loaded = storage.load();
 
     expect(loaded).toBeUndefined();
+    expect(sessionStorage.getItem(storageKey)).toBeNull();
+    expect(storage.hasData()).toBe(false);
   });
 
-  it('returns undefined when credentials are missing', () => {
+  it('returns undefined when encrypted credentials are missing', () => {
     const storageKey = `lnc-session:${namespace}`;
     sessionStorage.setItem(
       storageKey,
@@ -76,13 +78,66 @@ describe('SessionStorage', () => {
         sessionId: 'session-123',
         createdAt: 1000,
         expiresAt: 2000,
-        refreshCount: 0
+        refreshCount: 0,
+        credentialsIV: 'credentials-iv',
+        origin: {
+          keyB64: 'origin-key-b64',
+          ivB64: 'origin-iv-b64'
+        }
       })
     );
 
     const loaded = storage.load();
 
     expect(loaded).toBeUndefined();
+    expect(sessionStorage.getItem(storageKey)).toBeNull();
+    expect(storage.hasData()).toBe(false);
+  });
+
+  it('returns undefined when wrapped origin key is invalid', () => {
+    const storageKey = `lnc-session:${namespace}`;
+    sessionStorage.setItem(
+      storageKey,
+      JSON.stringify({
+        sessionId: 'session-123',
+        createdAt: 1000,
+        expiresAt: 2000,
+        refreshCount: 0,
+        encryptedCredentials: 'encrypted-credentials',
+        credentialsIV: 'credentials-iv',
+        origin: {
+          keyB64: 'origin-key-b64'
+        }
+      })
+    );
+
+    const loaded = storage.load();
+
+    expect(loaded).toBeUndefined();
+    expect(sessionStorage.getItem(storageKey)).toBeNull();
+    expect(storage.hasData()).toBe(false);
+  });
+
+  it('returns undefined when wrapped origin key is null', () => {
+    const storageKey = `lnc-session:${namespace}`;
+    sessionStorage.setItem(
+      storageKey,
+      JSON.stringify({
+        sessionId: 'session-123',
+        createdAt: 1000,
+        expiresAt: 2000,
+        refreshCount: 0,
+        encryptedCredentials: 'encrypted-credentials',
+        credentialsIV: 'credentials-iv',
+        origin: null
+      })
+    );
+
+    const loaded = storage.load();
+
+    expect(loaded).toBeUndefined();
+    expect(sessionStorage.getItem(storageKey)).toBeNull();
+    expect(storage.hasData()).toBe(false);
   });
 
   it('returns undefined when stored data cannot be parsed', () => {
@@ -92,6 +147,8 @@ describe('SessionStorage', () => {
     const loaded = storage.load();
 
     expect(loaded).toBeUndefined();
+    expect(sessionStorage.getItem(storageKey)).toBeNull();
+    expect(storage.hasData()).toBe(false);
   });
 
   it('clears session data', () => {
@@ -110,7 +167,7 @@ describe('SessionStorage', () => {
     expect(storage.hasData()).toBe(true);
   });
 
-  it('handles error when save fails', () => {
+  it('throws and logs when save fails', () => {
     const error = new Error('storage error');
     vi.spyOn(globalThis.sessionStorage, 'setItem').mockImplementationOnce(
       () => {
@@ -118,7 +175,7 @@ describe('SessionStorage', () => {
       }
     );
 
-    storage.save(sampleSession);
+    expect(() => storage.save(sampleSession)).toThrow('storage error');
 
     expect(log.error).toHaveBeenCalledWith(
       '[SessionStorage] Failed to save session data',
@@ -150,6 +207,25 @@ describe('SessionStorage', () => {
     );
 
     expect(storage.hasData()).toBe(false);
+  });
+
+  it('returns undefined when parse fails and cleanup also fails', () => {
+    const storageKey = `lnc-session:${namespace}`;
+    sessionStorage.setItem(storageKey, '{not-json');
+
+    vi.spyOn(globalThis.sessionStorage, 'removeItem').mockImplementationOnce(
+      () => {
+        throw new Error('removeItem error');
+      }
+    );
+
+    const loaded = storage.load();
+
+    expect(loaded).toBeUndefined();
+    expect(log.error).toHaveBeenCalledWith(
+      '[SessionStorage] Failed to load session data',
+      expect.objectContaining({ namespace })
+    );
   });
 
   describe('when sessionStorage is undefined', () => {

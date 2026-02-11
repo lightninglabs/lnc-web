@@ -3,28 +3,29 @@ import { SessionData } from '../types';
 
 const STORAGE_PREFIX = 'lnc-session:';
 
+const isValidWrappedKey = (key: unknown): boolean => {
+  if (!key || typeof key !== 'object') return false;
+  const wrappedKey = key as Record<string, unknown>;
+  return (
+    typeof wrappedKey.keyB64 === 'string' &&
+    typeof wrappedKey.ivB64 === 'string'
+  );
+};
+
 const isValidSessionData = (data: SessionData): boolean => {
   if (
     !data ||
     typeof data.sessionId !== 'string' ||
     typeof data.createdAt !== 'number' ||
     typeof data.expiresAt !== 'number' ||
-    typeof data.refreshCount !== 'number'
+    typeof data.refreshCount !== 'number' ||
+    typeof data.encryptedCredentials !== 'string' ||
+    typeof data.credentialsIV !== 'string'
   ) {
     return false;
   }
 
-  const credentials = data.credentials;
-  if (!credentials || typeof credentials !== 'object') {
-    return false;
-  }
-
-  return (
-    typeof credentials.localKey === 'string' &&
-    typeof credentials.remoteKey === 'string' &&
-    typeof credentials.pairingPhrase === 'string' &&
-    typeof credentials.serverHost === 'string'
-  );
+  return isValidWrappedKey(data.origin);
 };
 
 /**
@@ -51,6 +52,7 @@ export class SessionStorage {
         namespace: this.namespace,
         error
       });
+      throw error;
     }
   }
 
@@ -75,6 +77,7 @@ export class SessionStorage {
         log.error('[SessionStorage] Invalid session data', {
           namespace: this.namespace
         });
+        sessionStorage.removeItem(storageKey);
         return undefined;
       }
 
@@ -93,6 +96,15 @@ export class SessionStorage {
         namespace: this.namespace,
         error
       });
+      try {
+        const storageKey = `${STORAGE_PREFIX}${this.namespace}`;
+        sessionStorage.removeItem(storageKey);
+      } catch (cleanupError) {
+        log.warn('[SessionStorage] Cleanup failed during error recovery', {
+          namespace: this.namespace,
+          cleanupError
+        });
+      }
       return undefined;
     }
   }
