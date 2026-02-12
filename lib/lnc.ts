@@ -8,8 +8,14 @@ import {
 } from '@lightninglabs/lnc-core';
 import { createRpc } from './api/createRpc';
 import { CredentialOrchestrator } from './credentialOrchestrator';
-import { AuthenticationInfo } from './stores/unifiedCredentialStore';
-import { CredentialStore, LncConfig, UnlockOptions } from './types/lnc';
+import { PasskeyEncryptionService } from './encryption/passkeyEncryptionService';
+import {
+  AuthenticationInfo,
+  ClearOptions,
+  CredentialStore,
+  LncConfig,
+  UnlockOptions
+} from './types/lnc';
 import { WasmManager } from './wasmManager';
 
 /** The default values for the LncConfig options */
@@ -165,6 +171,35 @@ export default class LNC {
   }
 
   /**
+   * Clear stored credentials
+   * @param options Optional clear options or legacy memoryOnly flag
+   */
+  clear(options?: boolean | ClearOptions): void {
+    if (typeof options === 'boolean') {
+      this.credentials.clear(options);
+      return;
+    }
+
+    this.orchestrator.clear(options);
+  }
+
+  /**
+   * Clear stored credentials (alias for clear)
+   * @param options Optional clear options or legacy memoryOnly flag
+   * @deprecated Use clear() instead
+   */
+  clearCredentials(options?: boolean | ClearOptions): void {
+    this.clear(options);
+  }
+
+  /**
+   * Check if the current configuration supports passkeys
+   */
+  async supportsPasskeys(): Promise<boolean> {
+    return this.orchestrator.supportsPasskeys();
+  }
+
+  /**
    * Unlock the credential store using the specified method
    * @param options The unlock options (method and credentials)
    * @returns Promise resolving to true if unlock was successful
@@ -212,19 +247,20 @@ export default class LNC {
   }
 
   /**
-   * Clear stored credentials
-   * @param memoryOnly If true, only clears in-memory credentials
+   * Perform automatic login using the preferred method
    */
-  clear(memoryOnly?: boolean): void {
-    this.orchestrator.clear(memoryOnly);
+  async performAutoLogin(): Promise<boolean> {
+    return this.orchestrator.performAutoLogin();
   }
 
+  //
+  // Static methods
+  //
+
   /**
-   * Clear stored credentials (alias for clear)
-   * @param memoryOnly If true, only clears in-memory credentials
-   * @deprecated Use clear() instead
+   * Check if passkeys are supported in the current environment
    */
-  clearCredentials(memoryOnly?: boolean): void {
-    this.orchestrator.clear(memoryOnly);
+  static async isPasskeySupported(): Promise<boolean> {
+    return await PasskeyEncryptionService.isSupported();
   }
 }

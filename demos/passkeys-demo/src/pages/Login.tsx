@@ -59,7 +59,7 @@ const Login: React.FC = () => {
   }, [navigate, login]);
 
   const handleClear = useCallback(() => {
-    lnc.clear();
+    lnc.clear({ persisted: true });
     navigate('/connect');
   }, [navigate, lnc]);
 

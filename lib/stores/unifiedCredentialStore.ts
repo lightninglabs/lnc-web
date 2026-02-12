@@ -1,34 +1,17 @@
+import SessionManager from '../sessions/sessionManager';
+import { SessionCredentials } from '../sessions/types';
 import {
+  AuthenticationInfo,
   CredentialStore,
   LncConfig,
   UnlockMethod,
   UnlockOptions
 } from '../types/lnc';
 import { log } from '../util/log';
-import { AuthStrategy } from './authStrategy';
+import { AuthenticationCoordinator } from './authenticationCoordinator';
 import { CredentialCache } from './credentialCache';
+import { SessionCoordinator } from './sessionCoordinator';
 import { StrategyManager } from './strategyManager';
-
-/**
- * The keys that will be persisted to the credential store.
- */
-const KEYS_TO_PERSIST: (keyof CredentialStore)[] = [
-  'localKey',
-  'remoteKey',
-  'pairingPhrase',
-  'serverHost'
-];
-
-/**
- * Authentication information returned by getAuthenticationInfo()
- */
-export interface AuthenticationInfo {
-  isUnlocked: boolean;
-  hasStoredCredentials: boolean;
-  supportsPasskeys: boolean;
-  hasPasskey: boolean;
-  preferredUnlockMethod: UnlockMethod;
-}
 
 /**
  * Unified credential store that uses the strategy pattern for authentication.
@@ -37,25 +20,22 @@ export interface AuthenticationInfo {
 export default class UnifiedCredentialStore implements CredentialStore {
   private strategyManager: StrategyManager;
   private credentialCache: CredentialCache;
+  private sessionCoordinator: SessionCoordinator;
+  private authCoordinator: AuthenticationCoordinator;
 
-  // These two fields are temporary and will be removed in a future PR when Passkeys are
-  // implemented. They are used to track the current unlock method and whether the store
-  // is unlocked for the demo application to work.
-  private _isUnlocked = false;
-  private activeMethod?: UnlockMethod;
-
-  constructor(config: LncConfig) {
-    this.strategyManager = new StrategyManager(config);
+  constructor(config: LncConfig, sessionManager?: SessionManager) {
+    this.strategyManager = new StrategyManager(config, sessionManager);
     this.credentialCache = new CredentialCache();
-
-    log.info('[UnifiedCredentialStore] Initialized with strategy manager');
+    this.sessionCoordinator = new SessionCoordinator(sessionManager);
+    this.authCoordinator = new AuthenticationCoordinator(
+      this.strategyManager,
+      this.credentialCache,
+      this.sessionCoordinator
+    );
   }
 
   //
-  // CredentialStore interface implementation.
-  // We must maintain the same interface as the old LncCredentialStore for backward
-  // compatibility since this class will replace the old one and we do not want to break
-  // existing consumers code.
+  // CredentialStore interface implementation
   //
 
   get password(): string | undefined {
@@ -113,86 +93,30 @@ export default class UnifiedCredentialStore implements CredentialStore {
 
   clear(memoryOnly?: boolean): void {
     this.credentialCache.clear();
-    this._isUnlocked = false;
-    this.activeMethod = undefined;
 
     if (!memoryOnly) {
       this.strategyManager.clearAll();
     }
 
-    log.info('[UnifiedCredentialStore] Cleared', { memoryOnly });
+    // Reset authentication/session state
+    this.authCoordinator.clearSession();
   }
 
   //
-  // Enhanced authentication methods which are not part of the CredentialStore interface.
-  // The getters/functions above are maintained for backward compatibility with the old
-  // LncCredentialStore.
+  // Enhanced authentication methods
   //
+
+  clearSession(): void {
+    // Ensure in-memory credential cache is cleared on session clear/logout.
+    this.credentialCache.clear();
+    this.authCoordinator.clearSession();
+  }
 
   /**
    * Check if any strategy is currently unlocked
    */
   get isUnlocked(): boolean {
-    return this._isUnlocked;
-  }
-
-  /**
-   * Unlock the credential store using the specified method
-   */
-  async unlock(options: UnlockOptions): Promise<boolean> {
-    const strategy = this.strategyManager.getStrategy(options.method);
-
-    if (!strategy) {
-      log.error(
-        `[UnifiedCredentialStore] Unknown unlock method: ${options.method}`
-      );
-      return false;
-    }
-
-    if (!strategy.isSupported) {
-      log.error(
-        `[UnifiedCredentialStore] Unlock method not supported: ${options.method}`
-      );
-      return false;
-    }
-
-    try {
-      const success = await strategy.unlock(options);
-
-      if (success) {
-        this._isUnlocked = true;
-        this.activeMethod = options.method;
-
-        // Load credentials from strategy into cache
-        await this.loadCredentialsToCache(strategy);
-
-        log.info('[UnifiedCredentialStore] Unlocked successfully', {
-          method: options.method
-        });
-      }
-
-      return success;
-    } catch (error) {
-      log.error('[UnifiedCredentialStore] Unlock failed:', error);
-      return false;
-    }
-  }
-
-  /**
-   * Get authentication information
-   */
-  async getAuthenticationInfo(): Promise<AuthenticationInfo> {
-    const passkeyStrategy = this.strategyManager.getStrategy('passkey');
-    const supportsPasskeys = passkeyStrategy?.isSupported ?? false;
-    const hasPasskey = passkeyStrategy?.hasStoredAuthData?.() ?? false;
-
-    return {
-      isUnlocked: this._isUnlocked,
-      hasStoredCredentials: this.strategyManager.hasAnyCredentials,
-      supportsPasskeys,
-      hasPasskey,
-      preferredUnlockMethod: this.strategyManager.preferredMethod
-    };
+    return this.authCoordinator.isUnlocked;
   }
 
   /**
@@ -203,63 +127,82 @@ export default class UnifiedCredentialStore implements CredentialStore {
   }
 
   /**
-   * Persist current credentials using the active strategy.
-   * Should be called after successful connection to save credentials.
+   * Unlock the credential store using the specified method
    */
-  async persistCredentials(): Promise<void> {
-    if (!this._isUnlocked || !this.activeMethod) {
-      log.warn(
-        '[UnifiedCredentialStore] Cannot persist credentials - not unlocked'
-      );
-      return;
-    }
+  async unlock(options: UnlockOptions): Promise<boolean> {
+    return this.authCoordinator.unlock(options);
+  }
 
-    const strategy = this.strategyManager.getStrategy(this.activeMethod);
-    if (!strategy) {
-      log.error('[UnifiedCredentialStore] Active strategy not found');
-      return;
-    }
+  /**
+   * Get authentication information based on the current state of the credential store
+   */
+  async getAuthenticationInfo(): Promise<AuthenticationInfo> {
+    return this.authCoordinator.getAuthenticationInfo();
+  }
 
-    try {
-      // Persist all cached credentials to the active strategy
-      for (const key of KEYS_TO_PERSIST) {
-        const value = this.credentialCache.get(key);
-        if (value) {
-          await strategy.setCredential(key, value);
-        } else {
-          log.warn(
-            `[UnifiedCredentialStore] Credential ${key} not found in cache`
-          );
-        }
-      }
+  /**
+   * Check if the session can be automatically restored
+   */
+  async canAutoRestore(): Promise<boolean> {
+    return this.sessionCoordinator.canAutoRestore();
+  }
 
-      log.info('[UnifiedCredentialStore] Credentials persisted', {
-        method: this.activeMethod
-      });
-    } catch (error) {
-      log.error(
-        '[UnifiedCredentialStore] Failed to persist credentials:',
-        error
-      );
-      throw error;
-    }
+  /**
+   * Try to automatically restore the credential store
+   */
+  async tryAutoRestore(): Promise<boolean> {
+    return this.authCoordinator.tryAutoRestore();
   }
 
   //
-  // Internal methods
+  // Session management
   //
 
   /**
-   * Load credentials from the strategy into the cache
+   * Check if there is an active session
    */
-  private async loadCredentialsToCache(strategy: AuthStrategy): Promise<void> {
-    for (const key of KEYS_TO_PERSIST) {
-      const value = await strategy.getCredential(key);
-      if (value) {
-        this.credentialCache.set(key, value);
-      }
+  get hasActiveSession(): boolean {
+    return this.sessionCoordinator.hasActiveSession;
+  }
+
+  /**
+   * Create a new session
+   */
+  async createSession(): Promise<void> {
+    if (!this.isUnlocked) {
+      log.warn('[UnifiedCredentialStore] Cannot create session - not unlocked');
+      return;
     }
 
-    log.info('[UnifiedCredentialStore] Credentials loaded to cache');
+    const credentials: SessionCredentials = {
+      localKey: this.localKey,
+      remoteKey: this.remoteKey,
+      pairingPhrase: this.pairingPhrase,
+      serverHost: this.serverHost
+    };
+
+    await this.sessionCoordinator.createSession(credentials);
+  }
+
+  /**
+   * Refresh the current session
+   */
+  async refreshSession(): Promise<boolean> {
+    return this.sessionCoordinator.refreshSession();
+  }
+
+  /**
+   * Get the time remaining until the session expires
+   */
+  async getSessionTimeRemaining(): Promise<number> {
+    return this.sessionCoordinator.getTimeRemaining();
+  }
+
+  /**
+   * Create a session after connection is confirmed to be working.
+   * This saves any credentials received during connection to persistent storage.
+   */
+  async createSessionAfterConnection(): Promise<void> {
+    await this.authCoordinator.createSessionAfterConnection();
   }
 }

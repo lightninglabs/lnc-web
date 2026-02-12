@@ -3,7 +3,10 @@ import LNC, { AuthenticationInfo, UnlockOptions } from '@lightninglabs/lnc-web';
 
 // create a singleton instance of LNC that will live for the lifetime of the app
 const lnc = new LNC({
+  namespace: 'demo',
   allowPasskeys: true,
+  enableSessions: true,
+  sessionDuration: 30 * 60 * 1000 // 30 minutes for testing
 });
 
 /**
@@ -14,6 +17,8 @@ const useLNC = () => {
   const [auth, setAuth] = useState<AuthenticationInfo>({
     isUnlocked: false,
     hasStoredCredentials: false,
+    hasActiveSession: false,
+    sessionTimeRemaining: 0,
     supportsPasskeys: false,
     hasPasskey: false,
     preferredUnlockMethod: 'password'
@@ -57,7 +62,11 @@ const useLNC = () => {
     await lnc.connect();
   }, []);
 
-  return { lnc, pair, login, auth };
+  const logout = useCallback(async () => {
+    await lnc.clear();
+  }, []);
+
+  return { lnc, pair, login, auth, logout };
 };
 
 export default useLNC;

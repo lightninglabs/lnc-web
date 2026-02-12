@@ -1,10 +1,120 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { CredentialOrchestrator } from './credentialOrchestrator';
-import UnifiedCredentialStore from './stores/unifiedCredentialStore';
-import { CredentialStore } from './types/lnc';
+import { PasskeyEncryptionService } from './encryption/passkeyEncryptionService';
+import SessionManager from './sessions/sessionManager';
 import LncCredentialStore from './util/credentialStore';
+import { log } from './util/log';
 
-// Mock the log module
+const createMockUnifiedStore = () => {
+  const store: any = {
+    unlock: vi.fn(),
+    _isUnlocked: false,
+    get isUnlocked() {
+      return store._isUnlocked;
+    },
+    getAuthenticationInfo: vi.fn(),
+    clearSession: vi.fn(),
+    clear: vi.fn(),
+    canAutoRestore: vi.fn(),
+    tryAutoRestore: vi.fn(),
+    createSessionAfterConnection: vi.fn(),
+    isPaired: false,
+    password: undefined,
+    pairingPhrase: '',
+    serverHost: ''
+  };
+  return store;
+};
+
+const createMockLegacyStore = () => {
+  const store: any = {
+    isPaired: true,
+    serverHost: '',
+    pairingPhrase: '',
+    localKey: '',
+    remoteKey: '',
+    clear: vi.fn(function (this: any, memoryOnly?: boolean) {
+      if (!memoryOnly) {
+        const namespace = this._namespace || 'default';
+        const key = `lnc-web:${namespace}`;
+        localStorage.removeItem(key);
+      }
+      this.localKey = '';
+      this.remoteKey = '';
+      this.pairingPhrase = '';
+    })
+  };
+
+  Object.defineProperty(store, 'password', {
+    get: () => store._password || '',
+    set: (password: string) => {
+      store._password = password;
+      if (password) {
+        const namespace = store._namespace || 'default';
+        const key = `lnc-web:${namespace}`;
+        const persisted = {
+          salt: 'test-salt',
+          cipher: 'test-cipher',
+          serverHost: store.serverHost || '',
+          localKey: '',
+          remoteKey: '',
+          pairingPhrase: ''
+        };
+        localStorage.setItem(key, JSON.stringify(persisted));
+        store._persisted = true;
+      }
+    },
+    configurable: true
+  });
+
+  return store;
+};
+
+let mockUnifiedStore = createMockUnifiedStore();
+let mockLegacyStore = createMockLegacyStore();
+
+vi.mock('./stores/unifiedCredentialStore', () => {
+  const UnifiedCredentialStoreMock = vi
+    .fn()
+    .mockImplementation((config?: any) => {
+      mockUnifiedStore = createMockUnifiedStore();
+      mockUnifiedStore._namespace = config?.namespace || 'default';
+      Object.setPrototypeOf(
+        mockUnifiedStore,
+        UnifiedCredentialStoreMock.prototype
+      );
+      return mockUnifiedStore;
+    });
+
+  return { default: UnifiedCredentialStoreMock };
+});
+
+vi.mock('./util/credentialStore', () => {
+  const LncCredentialStoreMock = vi
+    .fn()
+    .mockImplementation((namespace?: string, password?: string) => {
+      mockLegacyStore = createMockLegacyStore();
+      mockLegacyStore._namespace = namespace || 'default';
+      if (password) {
+        mockLegacyStore.password = password;
+      }
+      return mockLegacyStore;
+    });
+  return { default: LncCredentialStoreMock };
+});
+
+vi.mock('./sessions/sessionManager', () => ({
+  default: vi.fn().mockImplementation(() => ({
+    config: { sessionDuration: 24 * 60 * 60 * 1000 }
+  }))
+}));
+
+vi.mock('./encryption/passkeyEncryptionService', () => ({
+  PasskeyEncryptionService: {
+    isSupported: vi.fn().mockResolvedValue(true)
+  }
+}));
+
 vi.mock('./util/log', () => ({
   log: {
     info: vi.fn(),
@@ -29,20 +139,35 @@ describe('CredentialOrchestrator', () => {
       const orchestrator = new CredentialOrchestrator({});
       const store = orchestrator.credentialStore;
 
-      expect(store).toBeInstanceOf(LncCredentialStore);
+      expect(store).toBe(mockLegacyStore);
     });
 
-    it('should create UnifiedCredentialStore when allowPasskeys is true', () => {
-      const orchestrator = new CredentialOrchestrator({
-        allowPasskeys: true
-      });
-      const store = orchestrator.credentialStore;
+    it('should create unified store when sessions are enabled', () => {
+      const orchestrator = new CredentialOrchestrator({ enableSessions: true });
 
-      expect(store).toBeInstanceOf(UnifiedCredentialStore);
+      expect(orchestrator.credentialStore).toBe(mockUnifiedStore);
+      expect(SessionManager).toHaveBeenCalledWith('default', undefined);
+    });
+
+    it('should create unified store when passkeys are enabled', () => {
+      const orchestrator = new CredentialOrchestrator({ allowPasskeys: true });
+
+      expect(orchestrator.credentialStore).toBe(mockUnifiedStore);
+    });
+
+    it('should create unified store with custom session ttl', () => {
+      new CredentialOrchestrator({
+        enableSessions: true,
+        sessionDuration: 3600000
+      });
+
+      expect(SessionManager).toHaveBeenCalledWith('default', {
+        sessionDuration: 3600000
+      });
     });
 
     it('should use custom credential store if provided', () => {
-      const customStore: CredentialStore = {
+      const customStore: any = {
         password: undefined,
         pairingPhrase: '',
         serverHost: '',
@@ -59,84 +184,148 @@ describe('CredentialOrchestrator', () => {
       expect(orchestrator.credentialStore).toBe(customStore);
     });
 
-    it('should set serverHost from config for UnifiedCredentialStore', () => {
+    it('should set serverHost from config for legacy store', () => {
+      const unpairedStore = createMockLegacyStore();
+      unpairedStore.isPaired = false;
+      vi.mocked(LncCredentialStore).mockReturnValueOnce(unpairedStore);
+
       const orchestrator = new CredentialOrchestrator({
-        allowPasskeys: true,
         serverHost: 'test.server:443'
       });
-      const store = orchestrator.credentialStore;
+      const store = orchestrator.credentialStore as any;
 
       expect(store.serverHost).toBe('test.server:443');
     });
 
-    it('should set pairingPhrase from config for UnifiedCredentialStore', () => {
+    it('should set pairingPhrase from config for unified store', () => {
       const orchestrator = new CredentialOrchestrator({
         allowPasskeys: true,
         pairingPhrase: 'test-pairing-phrase'
       });
-      const store = orchestrator.credentialStore;
+
+      const store = orchestrator.credentialStore as any;
 
       expect(store.pairingPhrase).toBe('test-pairing-phrase');
-    });
-
-    it('should set serverHost from config for legacy store', () => {
-      const orchestrator = new CredentialOrchestrator({
-        serverHost: 'test.server:443'
-      });
-      const store = orchestrator.credentialStore;
-
-      expect(store.serverHost).toBe('test.server:443');
     });
 
     it('should set pairingPhrase from config for legacy store', () => {
       const orchestrator = new CredentialOrchestrator({
         pairingPhrase: 'test-pairing-phrase'
       });
-      const store = orchestrator.credentialStore;
+      const store = orchestrator.credentialStore as any;
 
       expect(store.pairingPhrase).toBe('test-pairing-phrase');
     });
+  });
 
-    it('should not overwrite serverHost if already paired for UnifiedCredentialStore', () => {
-      // Pre-populate localStorage to simulate paired state
-      const namespace = 'default';
-      localStorage.setItem(
-        `lnc-web:${namespace}:localKey`,
-        JSON.stringify({
-          salt: 'test-salt',
-          cipher: 'test-cipher',
-          data: 'test-data'
-        })
-      );
+  describe('performAutoLogin', () => {
+    it('returns true when auto-restore succeeds', async () => {
+      const orchestrator = new CredentialOrchestrator({ enableSessions: true });
+      mockUnifiedStore.canAutoRestore.mockResolvedValue(true);
+      mockUnifiedStore.tryAutoRestore.mockResolvedValue(true);
 
-      const orchestrator = new CredentialOrchestrator({
-        allowPasskeys: true,
-        serverHost: 'new.server:443'
-      });
-      const store = orchestrator.credentialStore;
+      const result = await orchestrator.performAutoLogin();
 
-      // Since isPaired checks strategy credentials, and we've set localKey,
-      // the serverHost should not be overwritten
-      // However, the UnifiedCredentialStore checks isPaired via hasAnyCredentials
-      // which looks at strategy persistence
-      expect(store).toBeInstanceOf(UnifiedCredentialStore);
+      expect(result).toBe(true);
+      expect(mockUnifiedStore.canAutoRestore).toHaveBeenCalled();
+      expect(mockUnifiedStore.tryAutoRestore).toHaveBeenCalled();
     });
 
-    it('should use default namespace when not provided', () => {
-      const orchestrator = new CredentialOrchestrator({});
-      const store = orchestrator.credentialStore;
+    it('returns false when canAutoRestore is false', async () => {
+      const orchestrator = new CredentialOrchestrator({ enableSessions: true });
+      mockUnifiedStore.canAutoRestore.mockResolvedValue(false);
 
-      // Verify the store was created (default namespace is 'default')
-      expect(store).toBeDefined();
+      const result = await orchestrator.performAutoLogin();
+
+      expect(result).toBe(false);
+      expect(mockUnifiedStore.tryAutoRestore).not.toHaveBeenCalled();
+    });
+
+    it('returns false for legacy store', async () => {
+      const orchestrator = new CredentialOrchestrator({});
+
+      const result = await orchestrator.performAutoLogin();
+
+      expect(result).toBe(false);
+    });
+  });
+
+  describe('clear', () => {
+    it('clears session by default for unified store', () => {
+      const orchestrator = new CredentialOrchestrator({ enableSessions: true });
+
+      orchestrator.clear();
+
+      expect(mockUnifiedStore.clearSession).toHaveBeenCalled();
+      expect(mockUnifiedStore.clear).not.toHaveBeenCalled();
+    });
+
+    it('clears persisted credentials when requested', () => {
+      const orchestrator = new CredentialOrchestrator({ enableSessions: true });
+
+      orchestrator.clear({ session: false, persisted: true });
+
+      expect(mockUnifiedStore.clear).toHaveBeenCalled();
+    });
+
+    it('clears both session and persisted credentials', () => {
+      const orchestrator = new CredentialOrchestrator({ enableSessions: true });
+
+      orchestrator.clear({ session: true, persisted: true });
+
+      expect(mockUnifiedStore.clearSession).toHaveBeenCalled();
+      expect(mockUnifiedStore.clear).toHaveBeenCalled();
+    });
+
+    it('clears legacy credentials when session is requested', () => {
+      const orchestrator = new CredentialOrchestrator({});
+
+      orchestrator.clear({ session: true });
+
+      expect(mockLegacyStore.clear).toHaveBeenCalled();
+    });
+  });
+
+  describe('getAuthenticationInfo', () => {
+    it('returns unified store auth info when available', async () => {
+      const orchestrator = new CredentialOrchestrator({ enableSessions: true });
+      const authInfo = {
+        isUnlocked: true,
+        hasStoredCredentials: true,
+        hasActiveSession: true,
+        sessionTimeRemaining: 1000,
+        supportsPasskeys: true,
+        hasPasskey: false,
+        preferredUnlockMethod: 'session' as const
+      };
+      mockUnifiedStore.getAuthenticationInfo.mockResolvedValue(authInfo);
+
+      const result = await orchestrator.getAuthenticationInfo();
+
+      expect(result).toBe(authInfo);
+    });
+
+    it('returns fallback auth info for legacy store', async () => {
+      const orchestrator = new CredentialOrchestrator({});
+
+      const info = await orchestrator.getAuthenticationInfo();
+
+      expect(info).toEqual({
+        isUnlocked: false,
+        hasStoredCredentials: true,
+        hasActiveSession: false,
+        sessionTimeRemaining: 0,
+        supportsPasskeys: false,
+        hasPasskey: false,
+        preferredUnlockMethod: 'password'
+      });
     });
   });
 
   describe('unlock', () => {
-    it('should unlock UnifiedCredentialStore with password', async () => {
-      const orchestrator = new CredentialOrchestrator({
-        allowPasskeys: true,
-        namespace: 'test-unlock'
-      });
+    it('delegates to unified store when available', async () => {
+      const orchestrator = new CredentialOrchestrator({ enableSessions: true });
+      mockUnifiedStore.unlock.mockResolvedValue(true);
 
       const result = await orchestrator.unlock({
         method: 'password',
@@ -144,412 +333,199 @@ describe('CredentialOrchestrator', () => {
       });
 
       expect(result).toBe(true);
-      expect(orchestrator.isUnlocked).toBe(true);
+      expect(mockUnifiedStore.unlock).toHaveBeenCalledWith({
+        method: 'password',
+        password: 'test-password'
+      });
     });
 
-    it('should unlock legacy store with password', async () => {
-      const orchestrator = new CredentialOrchestrator({
-        namespace: 'test-unlock-legacy'
-      });
+    it('unlocks legacy store with password', async () => {
+      const orchestrator = new CredentialOrchestrator({});
 
       const result = await orchestrator.unlock({
         method: 'password',
         password: 'test-password'
       });
 
-      // Legacy store returns true for unlock, but clears password after persist
       expect(result).toBe(true);
-      // Note: Legacy store clears in-memory password after persisting,
-      // so isUnlocked returns false. This is expected legacy behavior.
+      expect(mockLegacyStore.password).toBe('test-password');
     });
 
-    it('should return false for legacy store unlock failure', async () => {
-      // Create a store that will throw on password set
-      const failingStore: CredentialStore = {
-        password: undefined,
-        pairingPhrase: '',
-        serverHost: '',
-        localKey: '',
-        remoteKey: '',
-        isPaired: false,
-        clear: vi.fn()
-      };
-
-      // Make password setter throw
-      Object.defineProperty(failingStore, 'password', {
-        get: () => undefined,
-        set: () => {
-          throw new Error('Password set failed');
-        }
-      });
-
-      const orchestrator = new CredentialOrchestrator({
-        credentialStore: failingStore
+    it('returns false for legacy unlock errors', async () => {
+      const orchestrator = new CredentialOrchestrator({});
+      Object.defineProperty(mockLegacyStore, 'password', {
+        set: vi.fn(() => {
+          throw new Error('Set error');
+        }),
+        configurable: true
       });
 
       const result = await orchestrator.unlock({
         method: 'password',
-        password: 'test-password'
+        password: 'test'
       });
 
       expect(result).toBe(false);
     });
 
-    it('should return false for missing password in unlock options', async () => {
-      const orchestrator = new CredentialOrchestrator({
-        namespace: 'test-no-password'
-      });
+    it('returns false and logs warning for missing password', async () => {
+      const orchestrator = new CredentialOrchestrator({});
 
-      // Cast to any to test edge case
       const result = await orchestrator.unlock({
         method: 'password',
         password: ''
-      } as any);
+      });
+
+      expect(result).toBe(false);
+      expect(log.warn).toHaveBeenCalledWith(
+        '[CredentialOrchestrator] Legacy unlock failed: missing or empty password for method "password".'
+      );
+    });
+  });
+
+  describe('isUnlocked', () => {
+    it('returns unified store unlock state', () => {
+      const orchestrator = new CredentialOrchestrator({ enableSessions: true });
+      mockUnifiedStore._isUnlocked = true;
+
+      expect(orchestrator.isUnlocked).toBe(true);
+    });
+
+    it('returns legacy password state', () => {
+      const orchestrator = new CredentialOrchestrator({});
+      mockLegacyStore.password = 'test-password';
+
+      expect(orchestrator.isUnlocked).toBe(true);
+
+      mockLegacyStore.password = undefined;
+      expect(orchestrator.isUnlocked).toBe(false);
+    });
+  });
+
+  describe('isPaired', () => {
+    it('returns store pairing state', () => {
+      const orchestrator = new CredentialOrchestrator({ enableSessions: true });
+      mockUnifiedStore.isPaired = true;
+
+      expect(orchestrator.isPaired).toBe(true);
+    });
+  });
+
+  describe('supportsPasskeys', () => {
+    it('returns unified store support status', async () => {
+      const orchestrator = new CredentialOrchestrator({ enableSessions: true });
+      mockUnifiedStore.getAuthenticationInfo.mockResolvedValue({
+        supportsPasskeys: true,
+        hasPasskey: false,
+        isUnlocked: false,
+        hasStoredCredentials: false,
+        hasActiveSession: false,
+        sessionTimeRemaining: 0,
+        preferredUnlockMethod: 'password'
+      });
+
+      const result = await orchestrator.supportsPasskeys();
+
+      expect(result).toBe(true);
+    });
+
+    it('returns false for legacy store', async () => {
+      const orchestrator = new CredentialOrchestrator({});
+
+      const result = await orchestrator.supportsPasskeys();
 
       expect(result).toBe(false);
     });
   });
 
   describe('persistWithPassword', () => {
-    it('should persist with UnifiedCredentialStore', async () => {
-      const orchestrator = new CredentialOrchestrator({
-        allowPasskeys: true,
-        namespace: 'test-persist'
-      });
-
-      // Set some credentials first (simulating post-connection state)
-      const store = orchestrator.credentialStore;
-      store.localKey = 'test-local-key';
-      store.remoteKey = 'test-remote-key';
-      store.serverHost = 'test.server:443';
-      store.pairingPhrase = 'test-phrase';
+    it('unlocks with password and creates session for unified store', async () => {
+      const orchestrator = new CredentialOrchestrator({ enableSessions: true });
+      mockUnifiedStore.unlock.mockResolvedValue(true);
 
       await orchestrator.persistWithPassword('test-password');
 
-      expect(orchestrator.isUnlocked).toBe(true);
+      expect(mockUnifiedStore.unlock).toHaveBeenCalledWith({
+        method: 'password',
+        password: 'test-password'
+      });
+      expect(mockUnifiedStore.createSessionAfterConnection).toHaveBeenCalled();
     });
 
-    it('should persist with legacy store', async () => {
-      const orchestrator = new CredentialOrchestrator({
-        namespace: 'test-persist-legacy'
-      });
-
-      // Set some credentials first
-      const store = orchestrator.credentialStore;
-      store.localKey = 'test-local-key';
-      store.remoteKey = 'test-remote-key';
-
-      await orchestrator.persistWithPassword('test-password');
-
-      // Legacy store clears in-memory password after persisting encrypted data,
-      // but the data should be persisted to localStorage
-      expect(store.isPaired).toBe(true);
-      // Verify data was persisted by checking localStorage
-      const key = 'lnc-web:test-persist-legacy';
-      const persisted = JSON.parse(localStorage.getItem(key) || '{}');
-      expect(persisted.cipher).toBeDefined();
-      expect(persisted.salt).toBeDefined();
-    });
-
-    it('should throw if unlock fails during persist', async () => {
-      const orchestrator = new CredentialOrchestrator({
-        allowPasskeys: true,
-        namespace: 'test-persist-fail'
-      });
-
-      // Mock unlock to fail by using a store with failing strategy
-      const store = orchestrator.credentialStore as UnifiedCredentialStore;
-      vi.spyOn(store, 'unlock').mockResolvedValue(false);
+    it('throws error when unlock fails for unified store', async () => {
+      const orchestrator = new CredentialOrchestrator({ enableSessions: true });
+      mockUnifiedStore.unlock.mockResolvedValue(false);
 
       await expect(
         orchestrator.persistWithPassword('test-password')
       ).rejects.toThrow('Failed to unlock credentials with password');
     });
+
+    it('sets password directly for legacy store', async () => {
+      const orchestrator = new CredentialOrchestrator({});
+
+      await orchestrator.persistWithPassword('test-password');
+
+      expect(mockLegacyStore.password).toBe('test-password');
+    });
+
+    it('throws error when no credential store exists', async () => {
+      const orchestrator = new CredentialOrchestrator({ enableSessions: true });
+      (orchestrator as any).currentCredentialStore = undefined;
+
+      await expect(
+        orchestrator.persistWithPassword('test-password')
+      ).rejects.toThrow('No credentials store available');
+    });
   });
 
   describe('persistWithPasskey', () => {
-    it('should persist credentials with passkey using UnifiedCredentialStore', async () => {
-      const orchestrator = new CredentialOrchestrator({
-        allowPasskeys: true,
-        namespace: 'test-persist-passkey'
-      });
-
-      const store = orchestrator.credentialStore as UnifiedCredentialStore;
-      store.localKey = 'test-local-key';
-      store.remoteKey = 'test-remote-key';
-
-      // Mock unlock to succeed
-      vi.spyOn(store, 'unlock').mockResolvedValue(true);
+    it('unlocks with passkey and creates session for unified store', async () => {
+      const orchestrator = new CredentialOrchestrator({ enableSessions: true });
+      mockUnifiedStore.unlock.mockResolvedValue(true);
 
       await orchestrator.persistWithPasskey();
 
-      expect(store.unlock).toHaveBeenCalledWith({
+      expect(mockUnifiedStore.unlock).toHaveBeenCalledWith({
         method: 'passkey',
         createIfMissing: true
       });
+      expect(mockUnifiedStore.createSessionAfterConnection).toHaveBeenCalled();
     });
 
-    it('should throw error when used with legacy store', async () => {
-      const orchestrator = new CredentialOrchestrator({
-        namespace: 'test-persist-passkey-legacy'
-      });
+    it('throws error when unlock fails for unified store', async () => {
+      const orchestrator = new CredentialOrchestrator({ enableSessions: true });
+      mockUnifiedStore.unlock.mockResolvedValue(false);
 
       await expect(orchestrator.persistWithPasskey()).rejects.toThrow(
-        'Passkey authentication requires UnifiedCredentialStore'
+        'Failed to create/use passkey for credentials'
       );
     });
 
-    it('should throw if passkey unlock fails', async () => {
-      const orchestrator = new CredentialOrchestrator({
-        allowPasskeys: true,
-        namespace: 'test-persist-passkey-fail'
-      });
-
-      // Mock unlock to fail by using a store with failing strategy
-      const store = orchestrator.credentialStore as UnifiedCredentialStore;
-      vi.spyOn(store, 'unlock').mockResolvedValue(false);
-
-      await expect(orchestrator.persistWithPasskey()).rejects.toThrow(
-        'Failed to unlock credentials with passkey'
-      );
-    });
-  });
-
-  describe('getAuthenticationInfo', () => {
-    it('should return auth info from UnifiedCredentialStore', async () => {
-      const orchestrator = new CredentialOrchestrator({
-        allowPasskeys: true,
-        namespace: 'test-auth-info'
-      });
-
-      const info = await orchestrator.getAuthenticationInfo();
-
-      expect(info).toEqual({
-        isUnlocked: false,
-        hasStoredCredentials: false,
-        supportsPasskeys: false,
-        hasPasskey: false,
-        preferredUnlockMethod: 'password'
-      });
-    });
-
-    it('should return auth info from legacy store', async () => {
-      const orchestrator = new CredentialOrchestrator({
-        namespace: 'test-auth-info-legacy'
-      });
-
-      const info = await orchestrator.getAuthenticationInfo();
-
-      expect(info).toEqual({
-        isUnlocked: false,
-        hasStoredCredentials: false,
-        supportsPasskeys: false,
-        hasPasskey: false,
-        preferredUnlockMethod: 'password'
-      });
-    });
-
-    it('should show isUnlocked true after unlock', async () => {
-      const orchestrator = new CredentialOrchestrator({
-        allowPasskeys: true,
-        namespace: 'test-unlocked-info'
-      });
-
-      await orchestrator.unlock({
-        method: 'password',
-        password: 'test-password'
-      });
-
-      const info = await orchestrator.getAuthenticationInfo();
-      expect(info.isUnlocked).toBe(true);
-    });
-  });
-
-  describe('isPaired', () => {
-    it('should return false when not paired (UnifiedCredentialStore)', () => {
-      const orchestrator = new CredentialOrchestrator({
-        allowPasskeys: true,
-        namespace: 'test-not-paired'
-      });
-
-      expect(orchestrator.isPaired).toBe(false);
-    });
-
-    it('should return false when not paired (legacy store)', () => {
-      const orchestrator = new CredentialOrchestrator({
-        namespace: 'test-not-paired-legacy'
-      });
-
-      expect(orchestrator.isPaired).toBe(false);
-    });
-
-    it('should return true when paired (legacy store with remoteKey)', () => {
-      // Pre-populate localStorage to simulate paired state
-      const namespace = 'test-paired-legacy';
-      localStorage.setItem(
-        `lnc-web:${namespace}`,
-        JSON.stringify({
-          salt: 'test-salt',
-          cipher: 'test-cipher',
-          serverHost: 'test.server:443',
-          remoteKey: 'encrypted-remote-key',
-          localKey: 'encrypted-local-key',
-          pairingPhrase: ''
-        })
-      );
-
-      const orchestrator = new CredentialOrchestrator({
-        namespace
-      });
-
-      expect(orchestrator.isPaired).toBe(true);
-    });
-  });
-
-  describe('isUnlocked', () => {
-    it('should return false initially (UnifiedCredentialStore)', () => {
-      const orchestrator = new CredentialOrchestrator({
-        allowPasskeys: true,
-        namespace: 'test-not-unlocked'
-      });
-
-      expect(orchestrator.isUnlocked).toBe(false);
-    });
-
-    it('should return false initially (legacy store)', () => {
-      const orchestrator = new CredentialOrchestrator({
-        namespace: 'test-not-unlocked-legacy'
-      });
-
-      expect(orchestrator.isUnlocked).toBe(false);
-    });
-
-    it('should return true after unlock (UnifiedCredentialStore)', async () => {
-      const orchestrator = new CredentialOrchestrator({
-        allowPasskeys: true,
-        namespace: 'test-unlocked'
-      });
-
-      await orchestrator.unlock({
-        method: 'password',
-        password: 'test-password'
-      });
-
-      expect(orchestrator.isUnlocked).toBe(true);
-    });
-
-    it('should return false after password is set (legacy store clears in-memory)', () => {
-      const orchestrator = new CredentialOrchestrator({
-        namespace: 'test-unlocked-legacy'
-      });
-
-      // Legacy store clears in-memory password after persisting
-      orchestrator.credentialStore.password = 'test-password';
-
-      // isUnlocked checks password, which is cleared after persist
-      // This is expected legacy behavior - password is only kept in memory
-      // when decrypting existing data, not when first setting up encryption
-      expect(orchestrator.isUnlocked).toBe(false);
-    });
-  });
-
-  describe('clear', () => {
-    it('should clear credentials (UnifiedCredentialStore)', async () => {
-      const orchestrator = new CredentialOrchestrator({
-        allowPasskeys: true,
-        namespace: 'test-clear'
-      });
-
-      const store = orchestrator.credentialStore;
-      store.localKey = 'test-key';
-
-      orchestrator.clear();
-
-      expect(store.localKey).toBe('');
-    });
-
-    it('should clear credentials (legacy store)', () => {
-      const orchestrator = new CredentialOrchestrator({
-        namespace: 'test-clear-legacy'
-      });
-
-      const store = orchestrator.credentialStore;
-      store.localKey = 'test-key';
-
-      orchestrator.clear();
-
-      expect(store.localKey).toBe('');
-    });
-
-    it('should support memoryOnly flag', () => {
-      const orchestrator = new CredentialOrchestrator({
-        allowPasskeys: true,
-        namespace: 'test-clear-memory'
-      });
-
-      const store = orchestrator.credentialStore;
-      const clearSpy = vi.spyOn(store, 'clear');
-
-      orchestrator.clear(true);
-
-      expect(clearSpy).toHaveBeenCalledWith(true);
-    });
-  });
-
-  describe('getCredentialStore', () => {
-    it('should return the underlying credential store', () => {
-      const orchestrator = new CredentialOrchestrator({
-        allowPasskeys: true
-      });
-
-      const store = orchestrator.credentialStore;
-
-      expect(store).toBeInstanceOf(UnifiedCredentialStore);
-    });
-
-    it('should return same instance on multiple calls', () => {
+    it('throws error for legacy store', async () => {
       const orchestrator = new CredentialOrchestrator({});
 
-      const store1 = orchestrator.credentialStore;
-      const store2 = orchestrator.credentialStore;
+      await expect(orchestrator.persistWithPasskey()).rejects.toThrow(
+        'Passkey authentication requires the new credential store (enable sessions or passkeys)'
+      );
+    });
 
-      expect(store1).toBe(store2);
+    it('throws error when no credential store exists', async () => {
+      const orchestrator = new CredentialOrchestrator({ enableSessions: true });
+      (orchestrator as any).currentCredentialStore = undefined;
+
+      await expect(orchestrator.persistWithPasskey()).rejects.toThrow(
+        'No credentials store available'
+      );
     });
   });
 
-  describe('edge cases', () => {
-    it('should handle config with password for legacy store', () => {
-      new CredentialOrchestrator({
-        namespace: 'test-with-password',
-        password: 'initial-password'
-      });
+  describe('isPasskeySupported', () => {
+    it('delegates to PasskeyEncryptionService', async () => {
+      const result = await CredentialOrchestrator.isPasskeySupported();
 
-      // Legacy store clears password after persisting encrypted data,
-      // so password getter returns empty string
-      // But the store should have created cipher and salt
-      const key = 'lnc-web:test-with-password';
-      const persisted = JSON.parse(localStorage.getItem(key) || '{}');
-      expect(persisted.cipher).toBeDefined();
-      expect(persisted.salt).toBeDefined();
-    });
-
-    it('should prioritize custom credentialStore over allowPasskeys', () => {
-      const customStore: CredentialStore = {
-        password: undefined,
-        pairingPhrase: '',
-        serverHost: '',
-        localKey: '',
-        remoteKey: '',
-        isPaired: false,
-        clear: vi.fn()
-      };
-
-      const orchestrator = new CredentialOrchestrator({
-        credentialStore: customStore,
-        allowPasskeys: true // This should be ignored
-      });
-
-      expect(orchestrator.credentialStore).toBe(customStore);
+      expect(result).toBe(true);
+      expect(PasskeyEncryptionService.isSupported).toHaveBeenCalled();
     });
   });
 });

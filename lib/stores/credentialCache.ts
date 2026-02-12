@@ -1,3 +1,4 @@
+import { SessionCredentials } from '../sessions/types';
 import { log } from '../util/log';
 
 /**
@@ -67,6 +68,23 @@ export class CredentialCache {
 
     log.info('[CredentialCache] Hydrated with credentials:', {
       keys: Object.keys(credentials)
+    });
+  }
+
+  /**
+   * Populate cache from session credentials
+   */
+  hydrateFromSession(session: SessionCredentials): void {
+    this.cache.set('localKey', session.localKey);
+    this.cache.set('remoteKey', session.remoteKey);
+    this.cache.set('pairingPhrase', session.pairingPhrase);
+    this.cache.set('serverHost', session.serverHost);
+
+    log.info('[CredentialCache] Hydrated from session:', {
+      hasLocalKey: !!session.localKey,
+      hasRemoteKey: !!session.remoteKey,
+      hasPairingPhrase: !!session.pairingPhrase,
+      serverHost: session.serverHost
     });
   }
 

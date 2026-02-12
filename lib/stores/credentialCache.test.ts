@@ -256,6 +256,41 @@ describe('CredentialCache', () => {
     });
   });
 
+  describe('hydrateFromSession()', () => {
+    it('should populate cache from session credentials', () => {
+      cache.hydrateFromSession({
+        localKey: 'local',
+        remoteKey: 'remote',
+        pairingPhrase: 'pairing',
+        serverHost: 'server'
+      });
+
+      expect(cache.get('localKey')).toBe('local');
+      expect(cache.get('remoteKey')).toBe('remote');
+      expect(cache.get('pairingPhrase')).toBe('pairing');
+      expect(cache.get('serverHost')).toBe('server');
+    });
+
+    it('should log hydration details', () => {
+      cache.hydrateFromSession({
+        localKey: 'local',
+        remoteKey: 'remote',
+        pairingPhrase: 'pairing',
+        serverHost: 'server'
+      });
+
+      expect(log.info).toHaveBeenCalledWith(
+        '[CredentialCache] Hydrated from session:',
+        {
+          hasLocalKey: true,
+          hasRemoteKey: true,
+          hasPairingPhrase: true,
+          serverHost: 'server'
+        }
+      );
+    });
+  });
+
   describe('keys()', () => {
     it('should return empty array for empty cache', () => {
       const result = cache.keys();

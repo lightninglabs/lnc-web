@@ -2,6 +2,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { log } from '../util/log';
 import { PasskeyStrategy } from './passkeyStrategy';
 import { PasswordStrategy } from './passwordStrategy';
+import { SessionStrategy } from './sessionStrategy';
 import { StrategyManager } from './strategyManager';
 
 // Mock password strategy
@@ -24,6 +25,16 @@ const mockPasskeyStrategy = {
   clear: vi.fn()
 };
 
+// Mock session strategy
+const mockSessionStrategy = {
+  method: 'session',
+  isSupported: true,
+  isUnlocked: false,
+  hasAnyCredentials: false,
+  hasStoredAuthData: vi.fn(),
+  clear: vi.fn()
+};
+
 // Mock strategy constructors
 vi.mock('./passwordStrategy', () => ({
   PasswordStrategy: vi.fn().mockImplementation(() => mockPasswordStrategy)
@@ -31,6 +42,10 @@ vi.mock('./passwordStrategy', () => ({
 
 vi.mock('./passkeyStrategy', () => ({
   PasskeyStrategy: vi.fn().mockImplementation(() => mockPasskeyStrategy)
+}));
+
+vi.mock('./sessionStrategy', () => ({
+  SessionStrategy: vi.fn().mockImplementation(() => mockSessionStrategy)
 }));
 
 // Mock log methods
@@ -53,6 +68,10 @@ describe('StrategyManager', () => {
     mockPasskeyStrategy.isUnlocked = false;
     mockPasskeyStrategy.hasAnyCredentials = false;
     mockPasskeyStrategy.hasStoredAuthData.mockReturnValue(false);
+    mockSessionStrategy.isSupported = true;
+    mockSessionStrategy.isUnlocked = false;
+    mockSessionStrategy.hasAnyCredentials = false;
+    mockSessionStrategy.hasStoredAuthData.mockReturnValue(false);
   });
 
   afterEach(() => {
@@ -98,6 +117,15 @@ describe('StrategyManager', () => {
       expect(strategyManager.getStrategy('passkey')).toBe(mockPasskeyStrategy);
     });
 
+    it('should register session strategy when session manager is provided', () => {
+      const sessionManager = {} as never;
+
+      strategyManager = new StrategyManager(baseConfig, sessionManager);
+
+      expect(SessionStrategy).toHaveBeenCalledWith(sessionManager);
+      expect(strategyManager.getStrategy('session')).toBe(mockSessionStrategy);
+    });
+
     it('should use custom passkeyDisplayName when provided', () => {
       strategyManager = new StrategyManager({
         ...baseConfig,
@@ -133,6 +161,17 @@ describe('StrategyManager', () => {
         '[StrategyManager] Registered strategies: password, passkey'
       );
     });
+
+    it('should log session when session manager is provided', () => {
+      const spy = vi.spyOn(log, 'info');
+      const sessionManager = {} as never;
+
+      strategyManager = new StrategyManager(baseConfig, sessionManager);
+
+      expect(spy).toHaveBeenCalledWith(
+        '[StrategyManager] Registered strategies: password, session'
+      );
+    });
   });
 
   describe('getStrategy()', () => {
@@ -157,6 +196,13 @@ describe('StrategyManager', () => {
       });
 
       expect(strategyManager.getStrategy('passkey')).toBe(mockPasskeyStrategy);
+    });
+
+    it('should return session strategy when registered', () => {
+      const sessionManager = {} as never;
+      strategyManager = new StrategyManager(baseConfig, sessionManager);
+
+      expect(strategyManager.getStrategy('session')).toBe(mockSessionStrategy);
     });
   });
 
@@ -193,6 +239,17 @@ describe('StrategyManager', () => {
 
       expect(methods).toEqual(['password', 'passkey']);
     });
+
+    it('should include session when registered and supported', () => {
+      const sessionManager = {} as never;
+      strategyManager = new StrategyManager(baseConfig, sessionManager);
+      mockPasswordStrategy.isSupported = true;
+      mockSessionStrategy.isSupported = true;
+
+      const methods = strategyManager.supportedMethods;
+
+      expect(methods).toEqual(['password', 'session']);
+    });
   });
 
   describe('preferredMethod', () => {
@@ -221,7 +278,7 @@ describe('StrategyManager', () => {
         ...baseConfig,
         allowPasskeys: true
       });
-      mockPasskeyStrategy.hasAnyCredentials = true;
+      mockPasskeyStrategy.hasStoredAuthData.mockReturnValue(true);
       mockPasswordStrategy.hasAnyCredentials = false;
 
       const method = strategyManager.preferredMethod;
@@ -229,12 +286,33 @@ describe('StrategyManager', () => {
       expect(method).toBe('passkey');
     });
 
+    it('should prefer session when session has credentials', () => {
+      const sessionManager = {} as never;
+      strategyManager = new StrategyManager(baseConfig, sessionManager);
+      mockSessionStrategy.hasAnyCredentials = true;
+
+      const method = strategyManager.preferredMethod;
+
+      expect(method).toBe('session');
+    });
+
+    it('should prefer session when session is unlocked', () => {
+      const sessionManager = {} as never;
+      strategyManager = new StrategyManager(baseConfig, sessionManager);
+      mockSessionStrategy.hasAnyCredentials = false;
+      mockSessionStrategy.isUnlocked = true;
+
+      const method = strategyManager.preferredMethod;
+
+      expect(method).toBe('session');
+    });
+
     it('should prefer passkey over password when both have credentials', () => {
       strategyManager = new StrategyManager({
         ...baseConfig,
         allowPasskeys: true
       });
-      mockPasskeyStrategy.hasAnyCredentials = true;
+      mockPasskeyStrategy.hasStoredAuthData.mockReturnValue(true);
       mockPasswordStrategy.hasAnyCredentials = true;
 
       const method = strategyManager.preferredMethod;
@@ -263,6 +341,14 @@ describe('StrategyManager', () => {
 
       expect(result).toBe(false);
     });
+
+    it('should ignore session credentials when checking persisted state', () => {
+      const sessionManager = {} as never;
+      strategyManager = new StrategyManager(baseConfig, sessionManager);
+      mockSessionStrategy.hasAnyCredentials = true;
+
+      expect(strategyManager.hasAnyCredentials).toBe(false);
+    });
   });
 
   describe('clearAll()', () => {
@@ -286,6 +372,16 @@ describe('StrategyManager', () => {
 
       expect(mockPasswordStrategy.clear).toHaveBeenCalled();
       expect(mockPasskeyStrategy.clear).toHaveBeenCalled();
+    });
+
+    it('should clear session strategy when registered', () => {
+      const sessionManager = {} as never;
+      strategyManager = new StrategyManager(baseConfig, sessionManager);
+
+      strategyManager.clearAll();
+
+      expect(mockPasswordStrategy.clear).toHaveBeenCalled();
+      expect(mockSessionStrategy.clear).toHaveBeenCalled();
     });
 
     it('should log clear operation', () => {
