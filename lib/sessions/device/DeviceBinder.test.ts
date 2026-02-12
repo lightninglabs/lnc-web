@@ -8,6 +8,7 @@ describe('DeviceBinder', () => {
   const originalScreen = globalThis.screen;
   const originalDocument = (globalThis as Record<string, unknown>).document;
   const originalDateTimeFormat = Intl.DateTimeFormat;
+  const originalSubtle = globalThis.crypto.subtle;
 
   const mockCanvasContext = {
     textBaseline: '',
@@ -81,6 +82,10 @@ describe('DeviceBinder', () => {
 
     Object.defineProperty(Intl, 'DateTimeFormat', {
       value: originalDateTimeFormat,
+      configurable: true
+    });
+    Object.defineProperty(globalThis.crypto, 'subtle', {
+      value: originalSubtle,
       configurable: true
     });
     vi.restoreAllMocks();

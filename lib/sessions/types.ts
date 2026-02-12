@@ -17,5 +17,6 @@ export interface SessionData {
   refreshCount: number;
   encryptedCredentials: string;
   credentialsIV: string;
+  device: WrappedKey;
   origin: WrappedKey;
 }
