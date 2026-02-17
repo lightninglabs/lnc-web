@@ -20,7 +20,10 @@
     "prepublishOnly": "npm run lint",
     "preversion": "npm run lint",
     "version": "npm run prettier && git add -A lib",
-    "postversion": "git push && git push --tags"
+    "postversion": "git push && git push --tags",
+    "ai:sync": "ai-docs-sync sync",
+    "ai:check": "ai-docs-sync check",
+    "ai:clean": "ai-docs-sync clean"
   },
   "repository": {
     "type": "git",
