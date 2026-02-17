@@ -20,7 +20,10 @@
     "prepublishOnly": "npm run lint",
     "preversion": "npm run lint",
     "version": "npm run prettier && git add -A lib",
-    "postversion": "git push && git push --tags"
+    "postversion": "git push && git push --tags",
+    "ai:sync": "ai-docs-sync sync",
+    "ai:check": "ai-docs-sync check",
+    "ai:clean": "ai-docs-sync clean"
   },
   "repository": {
     "type": "git",
@@ -40,6 +43,7 @@
   "devDependencies": {
     "@eslint/compat": "^2.0.0",
     "@eslint/js": "^9.39.1",
+    "@lightninglabs/ai-docs-sync": "^0.1.0",
     "@types/crypto-js": "4.1.1",
     "@types/debug": "4.1.7",
     "@types/node": "17.0.16",
