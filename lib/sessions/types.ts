@@ -5,10 +5,17 @@ export interface SessionCredentials {
   serverHost: string;
 }
 
+export interface WrappedKey {
+  keyB64: string;
+  ivB64: string;
+}
+
 export interface SessionData {
   sessionId: string;
   createdAt: number;
   expiresAt: number;
   refreshCount: number;
-  credentials: SessionCredentials;
+  encryptedCredentials: string;
+  credentialsIV: string;
+  origin: WrappedKey;
 }

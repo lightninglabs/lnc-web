@@ -1,4 +1,5 @@
 import { UnlockMethod, UnlockOptions } from '../types/lnc';
+import { arrayBufferToBase64, base64ToArrayBuffer } from '../util/encoding';
 import { EncryptionService } from './encryptionService';
 
 /**
@@ -85,7 +86,7 @@ export class PasskeyEncryptionService implements EncryptionService {
       combined.set(iv);
       combined.set(new Uint8Array(ciphertext), iv.length);
 
-      return this.arrayBufferToBase64(combined.buffer);
+      return arrayBufferToBase64(combined.buffer);
     } catch (error) {
       throw new Error(`Passkey encryption failed: ${(error as Error).message}`);
     }
@@ -103,7 +104,7 @@ export class PasskeyEncryptionService implements EncryptionService {
     }
 
     try {
-      const combined = this.base64ToArrayBuffer(data);
+      const combined = base64ToArrayBuffer(data);
       const iv = combined.slice(0, 12);
       const ciphertext = combined.slice(12);
 
@@ -277,7 +278,7 @@ export class PasskeyEncryptionService implements EncryptionService {
         allowCredentials: [
           {
             type: 'public-key',
-            id: this.base64ToArrayBuffer(credentialId) as ArrayBuffer
+            id: base64ToArrayBuffer(credentialId) as ArrayBuffer
           }
         ],
         userVerification: 'required',
@@ -344,34 +345,6 @@ export class PasskeyEncryptionService implements EncryptionService {
       false,
       ['encrypt', 'decrypt']
     );
-  }
-
-  /**
-   * Convert an ArrayBuffer to a base64-encoded string.
-   */
-  private arrayBufferToBase64(buffer: ArrayBuffer): string {
-    const bytes = new Uint8Array(buffer);
-    return Buffer.from(bytes).toString('base64');
-  }
-
-  /**
-   * Convert a base64 or base64url-encoded string into an ArrayBuffer.
-   */
-  private base64ToArrayBuffer(base64: string): ArrayBuffer {
-    // Convert base64url to base64 first if needed
-    const base64Standard = base64.replace(/-/g, '+').replace(/_/g, '/');
-    // Add padding if needed
-    const padded = base64Standard.padEnd(
-      base64Standard.length + ((4 - (base64Standard.length % 4)) % 4),
-      '='
-    );
-
-    const binaryString = Buffer.from(padded, 'base64').toString('binary');
-    const bytes = new Uint8Array(binaryString.length);
-    for (let i = 0; i < binaryString.length; i++) {
-      bytes[i] = binaryString.charCodeAt(i);
-    }
-    return bytes.buffer;
   }
 
   /**
