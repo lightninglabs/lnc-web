@@ -1,7 +1,9 @@
 import { SessionConfig } from '../types/lnc';
 import { log } from '../util/log';
 import { CredentialsEncrypter } from './crypto/CredentialsEncrypter';
+import { KeyWrapper } from './crypto/KeyWrapper';
 import CryptoService from './cryptoService';
+import { DeviceBinder } from './device/DeviceBinder';
 import { OriginKeyManager } from './origin/OriginKeyManager';
 import { SessionStorage } from './storage/sessionStorage';
 import { SessionCredentials, SessionData } from './types';
@@ -11,12 +13,15 @@ const DEFAULT_CONFIG: Required<SessionConfig> = {
 };
 
 /**
- * Manages encrypted passwordless sessions backed by origin-bound key wrapping.
- * Credentials are encrypted with a one-time DEK, which is wrapped by an
- * origin-bound key stored in IndexedDB, and persisted in sessionStorage.
+ * Manages encrypted passwordless sessions backed by device and origin key
+ * wrapping. Credentials are encrypted with a one-time DEK, which is wrapped
+ * independently by a device-derived key (from browser fingerprint) and an
+ * origin-bound key (from IndexedDB), then persisted in sessionStorage.
  */
 export default class SessionManager {
   private encrypter: CredentialsEncrypter;
+  private keyWrapper: KeyWrapper;
+  private deviceBinder: DeviceBinder;
   private originKeyManager: OriginKeyManager;
   private storage: SessionStorage;
   private cryptoService: CryptoService;
@@ -29,6 +34,8 @@ export default class SessionManager {
     // Build dependencies once so session operations share the same crypto utilities.
     this.cryptoService = new CryptoService();
     this.encrypter = new CredentialsEncrypter(this.cryptoService);
+    this.keyWrapper = new KeyWrapper(this.cryptoService);
+    this.deviceBinder = new DeviceBinder();
     this.originKeyManager = new OriginKeyManager(namespace);
     this.storage = new SessionStorage(namespace);
     this.config = Object.assign({}, DEFAULT_CONFIG, config);
@@ -82,14 +89,24 @@ export default class SessionManager {
     const sessionId = this.generateSecureSessionId();
     const createdAt = Date.now();
     const expiresAt = createdAt + this.config.sessionDuration;
+    const deviceFingerprint = await this.deviceBinder.generateFingerprint();
 
     // Encrypt credentials before touching sessionStorage to avoid cleartext persistence.
     const encrypted = await this.encrypter.encrypt(credentials);
 
+    // Derive a device-bound wrapping key from the browser fingerprint. The
+    // fingerprint itself is never stored -- a wrong device will simply produce
+    // the wrong key, causing AES-GCM unwrap to fail at restore time.
+    const deviceKey = await this.deviceBinder.deriveSessionKey(
+      deviceFingerprint,
+      sessionId
+    );
+
     // Retrieve/create the origin key that will protect the payload's data key.
     const originKeyData = await this.originKeyManager.getOrCreateOriginKey();
-    const wrappedKey = await this.cryptoService.wrapWithOriginKey(
+    const wrappedKeys = await this.keyWrapper.wrapCredentialsKey(
       encrypted.credentialsKey,
+      deviceKey,
       originKeyData.originKey
     );
 
@@ -100,7 +117,8 @@ export default class SessionManager {
       refreshCount: 0,
       encryptedCredentials: encrypted.ciphertextB64,
       credentialsIV: encrypted.ivB64,
-      origin: wrappedKey
+      device: wrappedKeys.deviceWrap,
+      origin: wrappedKeys.originWrap
     };
 
     this.storage.save(sessionData);
@@ -125,6 +143,14 @@ export default class SessionManager {
         return undefined;
       }
 
+      // Re-derive the device key from the current fingerprint. If the device
+      // changed, the derived key will differ and AES-GCM unwrap will fail.
+      const deviceFingerprint = await this.deviceBinder.generateFingerprint();
+      const deviceKey = await this.deviceBinder.deriveSessionKey(
+        deviceFingerprint,
+        sessionData.sessionId
+      );
+
       // Restoration requires the original wrapping key from IndexedDB.
       const originKeyData = await this.originKeyManager.loadOriginKey();
       if (!originKeyData) {
@@ -138,10 +164,13 @@ export default class SessionManager {
       }
 
       // Unwrap the data-encryption key and decrypt the credential payload.
-      const credentialsKey = await this.cryptoService.unwrapWithOriginKey(
-        originKeyData.originKey,
-        sessionData.origin.keyB64,
-        sessionData.origin.ivB64
+      const credentialsKey = await this.keyWrapper.unwrapCredentialsKey(
+        {
+          deviceWrap: sessionData.device,
+          originWrap: sessionData.origin
+        },
+        deviceKey,
+        originKeyData.originKey
       );
 
       const credentials = await this.encrypter.decrypt({
@@ -184,15 +213,21 @@ export default class SessionManager {
       }
 
       const encrypted = await this.encrypter.encrypt(credentials);
+      const deviceKey = await this.deviceBinder.deriveSessionKey(
+        await this.deviceBinder.generateFingerprint(),
+        sessionData.sessionId
+      );
       const originKeyData = await this.originKeyManager.getOrCreateOriginKey();
-      const wrappedKey = await this.cryptoService.wrapWithOriginKey(
+      const wrappedKeys = await this.keyWrapper.wrapCredentialsKey(
         encrypted.credentialsKey,
+        deviceKey,
         originKeyData.originKey
       );
 
       sessionData.encryptedCredentials = encrypted.ciphertextB64;
       sessionData.credentialsIV = encrypted.ivB64;
-      sessionData.origin = wrappedKey;
+      sessionData.device = wrappedKeys.deviceWrap;
+      sessionData.origin = wrappedKeys.originWrap;
 
       this.storage.save(sessionData);
       return true;
