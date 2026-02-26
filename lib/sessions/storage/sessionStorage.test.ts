@@ -221,6 +221,72 @@ describe('SessionStorage', () => {
     expect(storage.hasData()).toBe(false);
   });
 
+  it('rejects session data with negative refreshCount', () => {
+    const storageKey = `lnc-session:${namespace}`;
+    sessionStorage.setItem(
+      storageKey,
+      JSON.stringify({ ...sampleSession, refreshCount: -1 })
+    );
+
+    expect(storage.load()).toBeUndefined();
+    expect(sessionStorage.getItem(storageKey)).toBeNull();
+  });
+
+  it('rejects session data with fractional refreshCount', () => {
+    const storageKey = `lnc-session:${namespace}`;
+    sessionStorage.setItem(
+      storageKey,
+      JSON.stringify({ ...sampleSession, refreshCount: 1.5 })
+    );
+
+    expect(storage.load()).toBeUndefined();
+    expect(sessionStorage.getItem(storageKey)).toBeNull();
+  });
+
+  it('rejects session data where createdAt > expiresAt', () => {
+    const storageKey = `lnc-session:${namespace}`;
+    sessionStorage.setItem(
+      storageKey,
+      JSON.stringify({ ...sampleSession, createdAt: 3000, expiresAt: 2000 })
+    );
+
+    expect(storage.load()).toBeUndefined();
+    expect(sessionStorage.getItem(storageKey)).toBeNull();
+  });
+
+  it('rejects session data with non-finite timestamps', () => {
+    const storageKey = `lnc-session:${namespace}`;
+    sessionStorage.setItem(
+      storageKey,
+      JSON.stringify({ ...sampleSession, createdAt: Infinity })
+    );
+
+    expect(storage.load()).toBeUndefined();
+    expect(sessionStorage.getItem(storageKey)).toBeNull();
+  });
+
+  it('rejects session data with empty sessionId', () => {
+    const storageKey = `lnc-session:${namespace}`;
+    sessionStorage.setItem(
+      storageKey,
+      JSON.stringify({ ...sampleSession, sessionId: '' })
+    );
+
+    expect(storage.load()).toBeUndefined();
+    expect(sessionStorage.getItem(storageKey)).toBeNull();
+  });
+
+  it('rejects session data with non-positive timestamps', () => {
+    const storageKey = `lnc-session:${namespace}`;
+    sessionStorage.setItem(
+      storageKey,
+      JSON.stringify({ ...sampleSession, createdAt: 0, expiresAt: 0 })
+    );
+
+    expect(storage.load()).toBeUndefined();
+    expect(sessionStorage.getItem(storageKey)).toBeNull();
+  });
+
   it('clears session data', () => {
     storage.save(sampleSession);
     storage.clear();

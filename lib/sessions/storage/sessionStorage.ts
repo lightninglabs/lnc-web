@@ -25,6 +25,20 @@ const isValidSessionData = (data: SessionData): boolean => {
     return false;
   }
 
+  // Validate semantic constraints to guard against corrupt or tampered storage.
+  if (
+    !Number.isFinite(data.createdAt) ||
+    !Number.isFinite(data.expiresAt) ||
+    data.createdAt <= 0 ||
+    data.expiresAt <= 0 ||
+    data.createdAt > data.expiresAt ||
+    !Number.isInteger(data.refreshCount) ||
+    data.refreshCount < 0 ||
+    data.sessionId.length === 0
+  ) {
+    return false;
+  }
+
   return isValidWrappedKey(data.device) && isValidWrappedKey(data.origin);
 };
 

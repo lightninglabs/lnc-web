@@ -10,11 +10,6 @@ import { SessionCoordinator } from './sessionCoordinator';
 import { StrategyManager } from './strategyManager';
 
 /**
- * Default session duration in milliseconds (24 hours)
- */
-export const DEFAULT_SESSION_DURATION = 24 * 60 * 60 * 1000;
-
-/**
  * The keys that will be persisted to the credential store.
  */
 const KEYS_TO_PERSIST: (keyof CredentialStore)[] = [
@@ -91,18 +86,7 @@ export class AuthenticationCoordinator {
       await this.loadCredentialsFromStrategy(strategy);
       await this.persistCachedCredentials(strategy);
 
-      if (
-        this.sessionCoordinator.isSessionAvailable &&
-        strategy.method !== 'session' &&
-        this.isUnlocked
-      ) {
-        await this.sessionCoordinator.createSession({
-          localKey: this.getCachedCredential('localKey'),
-          remoteKey: this.getCachedCredential('remoteKey'),
-          pairingPhrase: this.getCachedCredential('pairingPhrase'),
-          serverHost: this.getCachedCredential('serverHost')
-        });
-      }
+      await this.tryCreateSession(strategy);
 
       return true;
     } catch (error) {
@@ -139,7 +123,9 @@ export class AuthenticationCoordinator {
   }
 
   /**
-   * Try to automatically restore the credential store from the session
+   * Try to automatically restore the credential store from the session.
+   * Delegates the actual restore to SessionCoordinator which performs a
+   * single restoreSession call and starts the refresh manager on success.
    */
   async tryAutoRestore(): Promise<boolean> {
     if (!this.sessionCoordinator.isSessionAvailable || this.sessionRestored) {
@@ -152,21 +138,18 @@ export class AuthenticationCoordinator {
     }
 
     try {
-      const restored = await sessionStrategy.unlock({ method: 'session' });
-      if (!restored) {
+      // Delegate the restore to SessionCoordinator, which calls
+      // restoreSession exactly once and starts the refresh manager.
+      const credentials = await this.sessionCoordinator.tryAutoRestore();
+      if (!credentials) {
         return false;
       }
 
-      const sessionCredentials = await this.sessionCoordinator
-        .getSessionManager()
-        ?.restoreSession();
+      this.credentialCache.hydrateFromSession(credentials);
+      this.sessionRestored = true;
+      this.activeStrategy = sessionStrategy;
 
-      if (sessionCredentials) {
-        this.credentialCache.hydrateFromSession(sessionCredentials);
-        this.sessionRestored = true;
-        this.activeStrategy = sessionStrategy;
-        return true;
-      }
+      return true;
     } catch (error) {
       log.error('[AuthenticationCoordinator] Auto-restore failed:', error);
     }
@@ -193,6 +176,37 @@ export class AuthenticationCoordinator {
         pairingPhrase: this.getCachedCredential('pairingPhrase'),
         serverHost: this.getCachedCredential('serverHost')
       });
+    }
+  }
+
+  /**
+   * Best-effort session creation after a successful unlock. Session creation
+   * is an optimization layer (enables auto-refresh and tab-resume) rather
+   * than a prerequisite for authentication, so failures are logged but do not
+   * propagate to the caller.
+   */
+  private async tryCreateSession(strategy: AuthStrategy): Promise<void> {
+    if (
+      !this.sessionCoordinator.isSessionAvailable ||
+      strategy.method === 'session' ||
+      !this.isUnlocked
+    ) {
+      return;
+    }
+
+    try {
+      await this.sessionCoordinator.createSession({
+        localKey: this.getCachedCredential('localKey'),
+        remoteKey: this.getCachedCredential('remoteKey'),
+        pairingPhrase: this.getCachedCredential('pairingPhrase'),
+        serverHost: this.getCachedCredential('serverHost')
+      });
+    } catch (error) {
+      log.error(
+        '[AuthenticationCoordinator] Session creation failed after ' +
+          'successful unlock; session-based refresh will be unavailable:',
+        error
+      );
     }
   }
 
@@ -230,7 +244,9 @@ export class AuthenticationCoordinator {
   }
 
   /**
-   * Persist the cached credentials to the strategy
+   * Persist the cached credentials to the strategy. Attempts all keys even if
+   * some fail, then throws an aggregate error if any persistence failed so the
+   * caller can handle partial persistence appropriately.
    */
   private async persistCachedCredentials(
     strategy: AuthStrategy
@@ -238,6 +254,8 @@ export class AuthenticationCoordinator {
     if (strategy.method === 'session') {
       return;
     }
+
+    const failures: string[] = [];
 
     for (const key of KEYS_TO_PERSIST) {
       const value = this.credentialCache.get(key);
@@ -249,8 +267,13 @@ export class AuthenticationCoordinator {
             `[AuthenticationCoordinator] Failed to persist ${key}:`,
             error
           );
+          failures.push(key);
         }
       }
+    }
+
+    if (failures.length > 0) {
+      throw new Error(`Failed to persist credentials: ${failures.join(', ')}`);
     }
   }
 
