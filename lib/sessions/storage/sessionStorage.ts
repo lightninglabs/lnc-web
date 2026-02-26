@@ -25,7 +25,7 @@ const isValidSessionData = (data: SessionData): boolean => {
     return false;
   }
 
-  return isValidWrappedKey(data.origin);
+  return isValidWrappedKey(data.device) && isValidWrappedKey(data.origin);
 };
 
 /**

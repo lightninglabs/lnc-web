@@ -4,7 +4,8 @@ import {
   CredentialsEncrypter,
   EncryptedCredentials
 } from './crypto/CredentialsEncrypter';
-import CryptoService from './cryptoService';
+import { KeyWrapper } from './crypto/KeyWrapper';
+import { DeviceBinder } from './device/DeviceBinder';
 import { OriginKeyData, OriginKeyManager } from './origin/OriginKeyManager';
 import SessionManager from './sessionManager';
 import { SessionCredentials, SessionData } from './types';
@@ -19,12 +20,14 @@ type SessionManagerInternals = {
     clear: () => void;
   };
   encrypter: CredentialsEncrypter;
-  cryptoService: CryptoService;
+  keyWrapper: KeyWrapper;
+  deviceBinder: DeviceBinder;
   originKeyManager: OriginKeyManager;
 };
 
 describe('SessionManager', () => {
   const namespace = 'test-session';
+  const deviceFingerprint = 'device-fingerprint';
   const baseCredentials: SessionCredentials = {
     localKey: 'local',
     remoteKey: 'remote',
@@ -35,6 +38,7 @@ describe('SessionManager', () => {
   let manager: SessionManager;
   let internals: SessionManagerInternals;
   let credentialsKey: CryptoKey;
+  let deviceKey: CryptoKey;
   let originKeyData: OriginKeyData;
   let encryptedCredentials: EncryptedCredentials;
 
@@ -48,6 +52,7 @@ describe('SessionManager', () => {
     vi.clearAllMocks();
 
     credentialsKey = {} as CryptoKey;
+    deviceKey = {} as CryptoKey;
     originKeyData = {
       originKey: {} as CryptoKey,
       expiresAt: Date.now() + 24 * 60 * 60 * 1000
@@ -62,11 +67,23 @@ describe('SessionManager', () => {
       encryptedCredentials
     );
     vi.spyOn(internals.encrypter, 'decrypt').mockResolvedValue(baseCredentials);
-    vi.spyOn(internals.cryptoService, 'wrapWithOriginKey').mockResolvedValue({
-      keyB64: 'wrapped-origin-key',
-      ivB64: 'wrapped-origin-iv'
+    vi.spyOn(internals.deviceBinder, 'generateFingerprint').mockResolvedValue(
+      deviceFingerprint
+    );
+    vi.spyOn(internals.deviceBinder, 'deriveSessionKey').mockResolvedValue(
+      deviceKey
+    );
+    vi.spyOn(internals.keyWrapper, 'wrapCredentialsKey').mockResolvedValue({
+      deviceWrap: {
+        keyB64: 'wrapped-device-key',
+        ivB64: 'wrapped-device-iv'
+      },
+      originWrap: {
+        keyB64: 'wrapped-origin-key',
+        ivB64: 'wrapped-origin-iv'
+      }
     });
-    vi.spyOn(internals.cryptoService, 'unwrapWithOriginKey').mockResolvedValue(
+    vi.spyOn(internals.keyWrapper, 'unwrapCredentialsKey').mockResolvedValue(
       credentialsKey
     );
     vi.spyOn(
@@ -93,17 +110,26 @@ describe('SessionManager', () => {
     const restored = await manager.restoreSession();
 
     expect(restored).toEqual(baseCredentials);
-    expect(internals.encrypter.encrypt).toHaveBeenCalledWith(baseCredentials);
-    expect(internals.originKeyManager.getOrCreateOriginKey).toHaveBeenCalled();
-    expect(internals.cryptoService.wrapWithOriginKey).toHaveBeenCalledWith(
+    expect(internals.deviceBinder.generateFingerprint).toHaveBeenCalledTimes(2);
+    expect(internals.deviceBinder.deriveSessionKey).toHaveBeenCalledTimes(2);
+    expect(internals.keyWrapper.wrapCredentialsKey).toHaveBeenCalledWith(
       credentialsKey,
+      deviceKey,
       originKeyData.originKey
     );
-    expect(internals.originKeyManager.loadOriginKey).toHaveBeenCalled();
-    expect(internals.cryptoService.unwrapWithOriginKey).toHaveBeenCalledWith(
-      originKeyData.originKey,
-      'wrapped-origin-key',
-      'wrapped-origin-iv'
+    expect(internals.keyWrapper.unwrapCredentialsKey).toHaveBeenCalledWith(
+      {
+        deviceWrap: {
+          keyB64: 'wrapped-device-key',
+          ivB64: 'wrapped-device-iv'
+        },
+        originWrap: {
+          keyB64: 'wrapped-origin-key',
+          ivB64: 'wrapped-origin-iv'
+        }
+      },
+      deviceKey,
+      originKeyData.originKey
     );
     expect(internals.encrypter.decrypt).toHaveBeenCalledWith({
       credentialsKey,
@@ -152,9 +178,27 @@ describe('SessionManager', () => {
     expect(manager.hasActiveSession).toBe(false);
   });
 
+  it('returns undefined when the device fingerprint does not match', async () => {
+    await manager.createSession(baseCredentials);
+
+    // A different fingerprint produces a different device key, which causes
+    // the AES-GCM unwrap to fail -- no explicit comparison needed.
+    vi.mocked(internals.deviceBinder.generateFingerprint).mockResolvedValue(
+      'other-device'
+    );
+    vi.mocked(internals.keyWrapper.unwrapCredentialsKey).mockRejectedValue(
+      new Error('Device key unwrapping failed')
+    );
+
+    const restored = await manager.restoreSession();
+
+    expect(restored).toBeUndefined();
+    expect(manager.hasActiveSession).toBe(false);
+  });
+
   it('returns undefined when origin key is missing', async () => {
     await manager.createSession(baseCredentials);
-    vi.spyOn(internals.originKeyManager, 'loadOriginKey').mockResolvedValue(
+    vi.mocked(internals.originKeyManager.loadOriginKey).mockResolvedValue(
       undefined
     );
 
@@ -166,7 +210,7 @@ describe('SessionManager', () => {
 
   it('returns undefined when origin key is expired', async () => {
     await manager.createSession(baseCredentials);
-    vi.spyOn(internals.originKeyManager, 'isExpired').mockReturnValue(true);
+    vi.mocked(internals.originKeyManager.isExpired).mockReturnValue(true);
 
     const restored = await manager.restoreSession();
 
@@ -174,7 +218,7 @@ describe('SessionManager', () => {
     expect(manager.hasActiveSession).toBe(false);
   });
 
-  it('refreshes sessions with re-encryption', async () => {
+  it('refreshes sessions with re-encryption and re-wrapping', async () => {
     await manager.createSession(baseCredentials);
 
     const success = await manager.refreshSession();
@@ -182,12 +226,8 @@ describe('SessionManager', () => {
 
     expect(success).toBe(true);
     expect(remaining).toBeGreaterThan(0);
-    // Refresh re-encrypts: encrypt is called once for create, once for refresh.
     expect(internals.encrypter.encrypt).toHaveBeenCalledTimes(2);
-    expect(
-      internals.originKeyManager.getOrCreateOriginKey
-    ).toHaveBeenCalledTimes(2);
-    expect(internals.cryptoService.wrapWithOriginKey).toHaveBeenCalledTimes(2);
+    expect(internals.keyWrapper.wrapCredentialsKey).toHaveBeenCalledTimes(2);
   });
 
   it('returns false when refreshing without a session', async () => {
@@ -281,8 +321,18 @@ describe('SessionManager', () => {
     expect(manager.getNamespace()).toBe(namespace);
   });
 
+  it('propagates fingerprint generation failure from createSession', async () => {
+    vi.mocked(internals.deviceBinder.generateFingerprint).mockRejectedValue(
+      new Error('fingerprint failed')
+    );
+
+    await expect(manager.createSession(baseCredentials)).rejects.toThrow(
+      'fingerprint failed'
+    );
+  });
+
   it('propagates encryption failure from createSession', async () => {
-    vi.spyOn(internals.encrypter, 'encrypt').mockRejectedValue(
+    vi.mocked(internals.encrypter.encrypt).mockRejectedValue(
       new Error('encrypt failed')
     );
 
@@ -291,8 +341,8 @@ describe('SessionManager', () => {
     );
   });
 
-  it('propagates origin key wrapping failure from createSession', async () => {
-    vi.spyOn(internals.cryptoService, 'wrapWithOriginKey').mockRejectedValue(
+  it('propagates key wrapping failure from createSession', async () => {
+    vi.mocked(internals.keyWrapper.wrapCredentialsKey).mockRejectedValue(
       new Error('wrap failed')
     );
 
@@ -302,9 +352,8 @@ describe('SessionManager', () => {
   });
 
   it('propagates origin key creation failure from createSession', async () => {
-    vi.spyOn(
-      internals.originKeyManager,
-      'getOrCreateOriginKey'
+    vi.mocked(
+      internals.originKeyManager.getOrCreateOriginKey
     ).mockRejectedValue(new Error('origin key failed'));
 
     await expect(manager.createSession(baseCredentials)).rejects.toThrow(
@@ -312,10 +361,22 @@ describe('SessionManager', () => {
     );
   });
 
-  it('returns undefined when unwrap fails during restore', async () => {
+  it('returns undefined when key unwrap fails during restore', async () => {
     await manager.createSession(baseCredentials);
-    vi.spyOn(internals.cryptoService, 'unwrapWithOriginKey').mockRejectedValue(
+    vi.mocked(internals.keyWrapper.unwrapCredentialsKey).mockRejectedValue(
       new Error('unwrap failed')
+    );
+
+    const restored = await manager.restoreSession();
+
+    expect(restored).toBeUndefined();
+    expect(log.error).toHaveBeenCalled();
+  });
+
+  it('returns undefined when session key derivation fails during restore', async () => {
+    await manager.createSession(baseCredentials);
+    vi.mocked(internals.deviceBinder.deriveSessionKey).mockRejectedValue(
+      new Error('derive failed')
     );
 
     const restored = await manager.restoreSession();
@@ -326,7 +387,7 @@ describe('SessionManager', () => {
 
   it('returns undefined when decrypt fails during restore', async () => {
     await manager.createSession(baseCredentials);
-    vi.spyOn(internals.encrypter, 'decrypt').mockRejectedValue(
+    vi.mocked(internals.encrypter.decrypt).mockRejectedValue(
       new Error('decrypt failed')
     );
 
