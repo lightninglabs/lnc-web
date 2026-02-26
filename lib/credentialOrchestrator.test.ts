@@ -105,7 +105,7 @@ vi.mock('./util/credentialStore', () => {
 
 vi.mock('./sessions/sessionManager', () => ({
   default: vi.fn().mockImplementation(() => ({
-    config: { sessionDuration: 24 * 60 * 60 * 1000 }
+    config: { sessionDurationMs: 24 * 60 * 60 * 1000 }
   }))
 }));
 
@@ -155,14 +155,14 @@ describe('CredentialOrchestrator', () => {
       expect(orchestrator.credentialStore).toBe(mockUnifiedStore);
     });
 
-    it('should create unified store with custom session ttl', () => {
+    it('should create unified store with custom session config', () => {
       new CredentialOrchestrator({
         enableSessions: true,
-        sessionDuration: 3600000
+        sessionConfig: { sessionDurationMs: 3600000 }
       });
 
       expect(SessionManager).toHaveBeenCalledWith('default', {
-        sessionDuration: 3600000
+        sessionDurationMs: 3600000
       });
     });
 

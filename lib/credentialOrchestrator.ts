@@ -75,10 +75,7 @@ export class CredentialOrchestrator {
     let sessionManager: SessionManager | undefined;
     if (config.enableSessions) {
       const namespace = config.namespace || 'default';
-      const sessionConfig = config.sessionDuration
-        ? { sessionDuration: config.sessionDuration }
-        : undefined;
-      sessionManager = new SessionManager(namespace, sessionConfig);
+      sessionManager = new SessionManager(namespace, config.sessionConfig);
     }
 
     const store = new UnifiedCredentialStore(config, sessionManager);

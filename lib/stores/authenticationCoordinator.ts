@@ -139,7 +139,9 @@ export class AuthenticationCoordinator {
   }
 
   /**
-   * Try to automatically restore the credential store from the session
+   * Try to automatically restore the credential store from the session.
+   * Delegates the actual restore to SessionCoordinator which performs a
+   * single restoreSession call and starts the refresh manager on success.
    */
   async tryAutoRestore(): Promise<boolean> {
     if (!this.sessionCoordinator.isSessionAvailable || this.sessionRestored) {
@@ -152,21 +154,18 @@ export class AuthenticationCoordinator {
     }
 
     try {
-      const restored = await sessionStrategy.unlock({ method: 'session' });
-      if (!restored) {
+      // Delegate the restore to SessionCoordinator, which calls
+      // restoreSession exactly once and starts the refresh manager.
+      const credentials = await this.sessionCoordinator.tryAutoRestore();
+      if (!credentials) {
         return false;
       }
 
-      const sessionCredentials = await this.sessionCoordinator
-        .getSessionManager()
-        ?.restoreSession();
+      this.credentialCache.hydrateFromSession(credentials);
+      this.sessionRestored = true;
+      this.activeStrategy = sessionStrategy;
 
-      if (sessionCredentials) {
-        this.credentialCache.hydrateFromSession(sessionCredentials);
-        this.sessionRestored = true;
-        this.activeStrategy = sessionStrategy;
-        return true;
-      }
+      return true;
     } catch (error) {
       log.error('[AuthenticationCoordinator] Auto-restore failed:', error);
     }

@@ -141,6 +141,14 @@ describe('SessionStrategy', () => {
     );
   });
 
+  it('returns false for canAutoRestore when hasValidSession is false', async () => {
+    const manager = createSessionManager();
+    manager.hasValidSession.mockResolvedValue(false);
+    const strategy = new SessionStrategy(manager as never);
+
+    await expect(strategy.canAutoRestore()).resolves.toBe(false);
+  });
+
   it('clears session state', () => {
     const manager = createSessionManager();
     const strategy = new SessionStrategy(manager as never);
