@@ -112,10 +112,10 @@ export interface LncConfig {
    */
   enableSessions?: boolean;
   /**
-   * Session duration in milliseconds. Only used when enableSessions is true.
-   * Defaults to 24 hours (24 * 60 * 60 * 1000).
+   * Session configuration options. Only used when enableSessions is true.
+   * See {@link SessionConfig} for available options and defaults.
    */
-  sessionDuration?: number;
+  sessionConfig?: SessionConfig;
   /**
    * When true, enables passkey-based authentication for credential encryption.
    * Requires WebAuthn support in the browser.
@@ -224,11 +224,19 @@ export interface CredentialStore {
 }
 
 /**
- * Configuration options for session-based credential management
+ * Configuration options for session-based credential management.
+ *
+ * All duration fields use milliseconds for consistency.
  */
 export interface SessionConfig {
-  /** Session duration in milliseconds (default: 24 hours) */
-  sessionDuration?: number;
+  /** Session duration in milliseconds (default: 24 hours). */
+  sessionDurationMs?: number;
+  /** Enable automatic session refresh based on activity (default: true). */
+  enableActivityRefresh?: boolean;
+  /** Maximum number of refreshes per session (default: 10). */
+  maxRefreshes?: number;
+  /** Absolute maximum session age in milliseconds (default: 7 days). */
+  maxSessionAgeMs?: number;
 }
 
 /**

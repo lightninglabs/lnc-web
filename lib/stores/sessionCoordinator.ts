@@ -54,13 +54,6 @@ export class SessionCoordinator {
   }
 
   /**
-   * Get the session refresh manager
-   */
-  getRefreshManager(): SessionRefreshManager | undefined {
-    return this.refreshManager;
-  }
-
-  /**
    * Get the session manager
    */
   getSessionManager(): SessionManager | undefined {
@@ -94,25 +87,28 @@ export class SessionCoordinator {
   }
 
   /**
-   * Try to automatically restore the session
+   * Try to automatically restore the session. Returns the restored
+   * credentials on success or undefined on failure. Starts the refresh
+   * manager automatically when restoration succeeds. Defensive try/catch
+   * ensures callers always get a value, even if a future change introduces
+   * a throwing path.
    */
-  async tryAutoRestore(): Promise<boolean> {
+  async tryAutoRestore(): Promise<SessionCredentials | undefined> {
     if (!this.sessionManager) {
-      return false;
+      return undefined;
     }
 
     try {
       const credentials = await this.sessionManager.restoreSession();
-      const success = !!credentials;
 
-      if (success) {
+      if (credentials) {
         this.startRefreshManager();
       }
 
-      return success;
+      return credentials;
     } catch (error) {
       log.error('[SessionCoordinator] Session auto-restoration error:', error);
-      return false;
+      return undefined;
     }
   }
 
@@ -136,17 +132,17 @@ export class SessionCoordinator {
     }
   }
 
+  /**
+   * Refresh the current session. Infrastructure errors (crypto, storage)
+   * propagate so that callers can distinguish them from a graceful refusal
+   * (returned as false).
+   */
   async refreshSession(): Promise<boolean> {
     if (!this.sessionManager) {
       return false;
     }
 
-    try {
-      return await this.sessionManager.refreshSession();
-    } catch (error) {
-      log.error('[SessionCoordinator] Session refresh error:', error);
-      return false;
-    }
+    return this.sessionManager.refreshSession();
   }
 
   /**
@@ -161,9 +157,13 @@ export class SessionCoordinator {
   }
 
   /**
-   * Start the automatic session refresh manager
+   * Start the automatic session refresh manager.
    */
   private startRefreshManager(): void {
+    if (!this.sessionManager?.config.enableActivityRefresh) {
+      return;
+    }
+
     if (this.refreshManager && !this.refreshManager.isActive()) {
       this.refreshManager.start();
       log.info('[SessionCoordinator] Automatic session refresh started');

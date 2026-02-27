@@ -22,6 +22,7 @@ vi.spyOn(log, 'error').mockImplementation(() => {});
 describe('SessionStrategy', () => {
   it('reports support and lock state', () => {
     const manager = createSessionManager();
+    manager.hasActiveSession = false;
     const strategy = new SessionStrategy(manager as never);
 
     expect(strategy.isSupported).toBe(true);
@@ -139,6 +140,14 @@ describe('SessionStrategy', () => {
     await expect(strategy.setCredential('localKey', 'value')).rejects.toThrow(
       'SessionStrategy does not support direct credential storage'
     );
+  });
+
+  it('returns false for canAutoRestore when hasValidSession is false', async () => {
+    const manager = createSessionManager();
+    manager.hasValidSession.mockResolvedValue(false);
+    const strategy = new SessionStrategy(manager as never);
+
+    await expect(strategy.canAutoRestore()).resolves.toBe(false);
   });
 
   it('clears session state', () => {

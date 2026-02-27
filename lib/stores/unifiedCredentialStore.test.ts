@@ -84,7 +84,7 @@ describe('UnifiedCredentialStore', () => {
     mockSessionCoordinator.hasActiveSession = false;
     mockSessionCoordinator.getTimeRemaining.mockResolvedValue(0);
     mockSessionCoordinator.getSessionManager.mockReturnValue({
-      config: { sessionDuration: 60000 }
+      config: { sessionDurationMs: 60000 }
     });
 
     mockAuthCoordinator.unlock.mockResolvedValue(false);
@@ -105,7 +105,7 @@ describe('UnifiedCredentialStore', () => {
     );
 
     store = new UnifiedCredentialStore(baseConfig, {
-      config: { sessionDuration: 60000 }
+      config: { sessionDurationMs: 60000 }
     } as any);
   });
 
@@ -316,7 +316,7 @@ describe('UnifiedCredentialStore', () => {
         (key: string) => `value-${key}`
       );
       mockSessionCoordinator.getSessionManager.mockReturnValue({
-        config: { sessionDuration: 1000 }
+        config: { sessionDurationMs: 1000 }
       });
 
       await store.createSession();
