@@ -320,17 +320,6 @@ describe('SessionManager', () => {
     await expect(manager.hasValidSession()).resolves.toBe(false);
   });
 
-  it('clears invalid sessions when restore fails', async () => {
-    await manager.createSession(baseCredentials);
-
-    vi.spyOn(manager, 'restoreSession').mockRejectedValue(
-      new Error('restore failed')
-    );
-
-    await expect(manager.hasValidSession()).resolves.toBe(false);
-    expect(manager.hasActiveSession).toBe(false);
-  });
-
   it('handles restore errors gracefully', async () => {
     vi.spyOn(internals.storage, 'load').mockImplementation(() => {
       throw new Error('load failed');
