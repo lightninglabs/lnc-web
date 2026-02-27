@@ -22,6 +22,7 @@ vi.spyOn(log, 'error').mockImplementation(() => {});
 describe('SessionStrategy', () => {
   it('reports support and lock state', () => {
     const manager = createSessionManager();
+    manager.hasActiveSession = false;
     const strategy = new SessionStrategy(manager as never);
 
     expect(strategy.isSupported).toBe(true);

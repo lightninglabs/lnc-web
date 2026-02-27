@@ -10,7 +10,6 @@ import { AuthStrategy } from './authStrategy';
  */
 export class SessionStrategy implements AuthStrategy {
   readonly method = 'session' as const;
-  private sessionValidated = false;
 
   constructor(private sessionManager: SessionManager) {}
 
@@ -19,7 +18,7 @@ export class SessionStrategy implements AuthStrategy {
   }
 
   get isUnlocked(): boolean {
-    return this.sessionValidated && this.sessionManager.hasActiveSession;
+    return this.sessionManager.hasActiveSession;
   }
 
   get hasAnyCredentials(): boolean {
@@ -30,7 +29,6 @@ export class SessionStrategy implements AuthStrategy {
    * Clear the session strategy
    */
   clear(): void {
-    this.sessionValidated = false;
     this.sessionManager.clearSession();
   }
 
@@ -44,11 +42,9 @@ export class SessionStrategy implements AuthStrategy {
 
     try {
       const session = await this.sessionManager.restoreSession();
-      this.sessionValidated = !!session;
-      return this.sessionValidated;
+      return !!session;
     } catch (error) {
       log.error('[SessionStrategy] Session restore failed:', error);
-      this.sessionValidated = false;
       return false;
     }
   }
