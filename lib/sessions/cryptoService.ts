@@ -90,11 +90,11 @@ export default class CryptoService {
   }
 
   /**
-   * Wrap credentials key with device session key
+   * Wrap credentials key with device key.
    */
   async wrapWithDeviceKey(
     credentialsKey: CryptoKey,
-    sessionKey: CryptoKey
+    deviceKey: CryptoKey
   ): Promise<WrappedKey> {
     try {
       const iv = crypto.getRandomValues(new Uint8Array(12));
@@ -103,7 +103,7 @@ export default class CryptoService {
       const wrappedKey = await crypto.subtle.wrapKey(
         'raw',
         credentialsKey,
-        sessionKey,
+        deviceKey,
         { name: 'AES-GCM', iv }
       );
 
@@ -121,10 +121,10 @@ export default class CryptoService {
   }
 
   /**
-   * Unwrap credentials key with device session key
+   * Unwrap credentials key with device key.
    */
   async unwrapWithDeviceKey(
-    sessionKey: CryptoKey,
+    deviceKey: CryptoKey,
     keyB64: string,
     ivB64: string
   ): Promise<CryptoKey> {
@@ -136,7 +136,7 @@ export default class CryptoService {
       const credentialsKey = await crypto.subtle.unwrapKey(
         'raw',
         wrappedKey,
-        sessionKey,
+        deviceKey,
         { name: 'AES-GCM', iv },
         { name: 'AES-GCM', length: 256 },
         false,

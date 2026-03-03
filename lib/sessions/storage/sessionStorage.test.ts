@@ -17,6 +17,10 @@ describe('SessionStorage', () => {
     refreshCount: 0,
     encryptedCredentials: 'encrypted-credentials',
     credentialsIV: 'credentials-iv',
+    device: {
+      keyB64: 'device-key-b64',
+      ivB64: 'device-iv-b64'
+    },
     origin: {
       keyB64: 'origin-key-b64',
       ivB64: 'origin-iv-b64'
@@ -80,6 +84,10 @@ describe('SessionStorage', () => {
         expiresAt: 2000,
         refreshCount: 0,
         credentialsIV: 'credentials-iv',
+        device: {
+          keyB64: 'device-key-b64',
+          ivB64: 'device-iv-b64'
+        },
         origin: {
           keyB64: 'origin-key-b64',
           ivB64: 'origin-iv-b64'
@@ -105,6 +113,10 @@ describe('SessionStorage', () => {
         refreshCount: 0,
         encryptedCredentials: 'encrypted-credentials',
         credentialsIV: 'credentials-iv',
+        device: {
+          keyB64: 'device-key-b64',
+          ivB64: 'device-iv-b64'
+        },
         origin: {
           keyB64: 'origin-key-b64'
         }
@@ -129,6 +141,10 @@ describe('SessionStorage', () => {
         refreshCount: 0,
         encryptedCredentials: 'encrypted-credentials',
         credentialsIV: 'credentials-iv',
+        device: {
+          keyB64: 'device-key-b64',
+          ivB64: 'device-iv-b64'
+        },
         origin: null
       })
     );
@@ -143,6 +159,60 @@ describe('SessionStorage', () => {
   it('returns undefined when stored data cannot be parsed', () => {
     const storageKey = `lnc-session:${namespace}`;
     sessionStorage.setItem(storageKey, '{not-json');
+
+    const loaded = storage.load();
+
+    expect(loaded).toBeUndefined();
+    expect(sessionStorage.getItem(storageKey)).toBeNull();
+    expect(storage.hasData()).toBe(false);
+  });
+
+  it('returns undefined when wrapped device key is invalid', () => {
+    const storageKey = `lnc-session:${namespace}`;
+    sessionStorage.setItem(
+      storageKey,
+      JSON.stringify({
+        sessionId: 'session-123',
+        createdAt: 1000,
+        expiresAt: 2000,
+        refreshCount: 0,
+        encryptedCredentials: 'encrypted-credentials',
+        credentialsIV: 'credentials-iv',
+        device: {
+          keyB64: 'device-key-b64'
+        },
+        origin: {
+          keyB64: 'origin-key-b64',
+          ivB64: 'origin-iv-b64'
+        }
+      })
+    );
+
+    const loaded = storage.load();
+
+    expect(loaded).toBeUndefined();
+    expect(sessionStorage.getItem(storageKey)).toBeNull();
+    expect(storage.hasData()).toBe(false);
+  });
+
+  it('returns undefined when wrapped device key is null', () => {
+    const storageKey = `lnc-session:${namespace}`;
+    sessionStorage.setItem(
+      storageKey,
+      JSON.stringify({
+        sessionId: 'session-123',
+        createdAt: 1000,
+        expiresAt: 2000,
+        refreshCount: 0,
+        encryptedCredentials: 'encrypted-credentials',
+        credentialsIV: 'credentials-iv',
+        device: null,
+        origin: {
+          keyB64: 'origin-key-b64',
+          ivB64: 'origin-iv-b64'
+        }
+      })
+    );
 
     const loaded = storage.load();
 

@@ -209,12 +209,12 @@ describe('CryptoService', () => {
 
   describe('wrapWithDeviceKey()', () => {
     const credentialsKey = mockCryptoKey;
-    const sessionKey = mockCryptoKey;
+    const deviceKey = mockCryptoKey;
 
     it('should wrap credentials key with device key successfully', async () => {
       const result = await cryptoService.wrapWithDeviceKey(
         credentialsKey,
-        sessionKey
+        deviceKey
       );
 
       expect(result).toEqual({
@@ -231,12 +231,12 @@ describe('CryptoService', () => {
       const iv = new Uint8Array([1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12]);
       mockCrypto.getRandomValues.mockReturnValue(iv);
 
-      await cryptoService.wrapWithDeviceKey(credentialsKey, sessionKey);
+      await cryptoService.wrapWithDeviceKey(credentialsKey, deviceKey);
 
       expect(mockCryptoSubtle.wrapKey).toHaveBeenCalledWith(
         'raw',
         credentialsKey,
-        sessionKey,
+        deviceKey,
         { name: 'AES-GCM', iv: iv }
       );
     });
@@ -246,7 +246,7 @@ describe('CryptoService', () => {
       mockCryptoSubtle.wrapKey.mockRejectedValue(error);
 
       await expect(
-        cryptoService.wrapWithDeviceKey(credentialsKey, sessionKey)
+        cryptoService.wrapWithDeviceKey(credentialsKey, deviceKey)
       ).rejects.toThrow(
         '[CryptoService] Device key wrapping failed: Wrapping failed'
       );
@@ -254,13 +254,13 @@ describe('CryptoService', () => {
   });
 
   describe('unwrapWithDeviceKey()', () => {
-    const sessionKey = mockCryptoKey;
+    const deviceKey = mockCryptoKey;
     const keyB64 = 'aGVsbG8=';
     const ivB64 = 'AQID';
 
     it('should unwrap credentials key with device key successfully', async () => {
       const result = await cryptoService.unwrapWithDeviceKey(
-        sessionKey,
+        deviceKey,
         keyB64,
         ivB64
       );
@@ -272,12 +272,12 @@ describe('CryptoService', () => {
     });
 
     it('should call crypto.subtle.unwrapKey with correct parameters', async () => {
-      await cryptoService.unwrapWithDeviceKey(sessionKey, keyB64, ivB64);
+      await cryptoService.unwrapWithDeviceKey(deviceKey, keyB64, ivB64);
 
       expect(mockCryptoSubtle.unwrapKey).toHaveBeenCalledWith(
         'raw',
         expect.any(ArrayBuffer),
-        sessionKey,
+        deviceKey,
         { name: 'AES-GCM', iv: expect.any(ArrayBuffer) },
         { name: 'AES-GCM', length: 256 },
         false,
@@ -290,7 +290,7 @@ describe('CryptoService', () => {
       mockCryptoSubtle.unwrapKey.mockRejectedValue(error);
 
       await expect(
-        cryptoService.unwrapWithDeviceKey(sessionKey, keyB64, ivB64)
+        cryptoService.unwrapWithDeviceKey(deviceKey, keyB64, ivB64)
       ).rejects.toThrow(
         '[CryptoService] Device key unwrapping failed: Unwrapping failed'
       );
