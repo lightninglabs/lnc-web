@@ -1,7 +1,9 @@
 import { PasswordEncryptionService } from '../encryption/passwordEncryptionService';
 import { UnlockOptions } from '../types/lnc';
-import { log } from '../util/log';
+import { createLogger } from '../util/log';
 import { BaseCredentialRepository } from './credentialRepository';
+
+const log = createLogger('PasswordCredentialRepository');
 
 /**
  * Password-based credential repository.
