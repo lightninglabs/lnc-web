@@ -1,5 +1,4 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { log } from '../util/log';
 import {
   CredentialsEncrypter,
   EncryptedCredentials
@@ -10,9 +9,16 @@ import { OriginKeyData, OriginKeyManager } from './origin/OriginKeyManager';
 import SessionManager from './sessionManager';
 import { SessionCredentials, SessionData } from './types';
 
-vi.spyOn(log, 'info').mockImplementation(() => {});
-vi.spyOn(log, 'warn').mockImplementation(() => {});
-vi.spyOn(log, 'error').mockImplementation(() => {});
+const mockLog = vi.hoisted(() => ({
+  info: vi.fn(),
+  warn: vi.fn(),
+  error: vi.fn(),
+  debug: vi.fn()
+}));
+
+vi.mock('../util/log', () => ({
+  createLogger: vi.fn(() => mockLog)
+}));
 
 type SessionManagerInternals = {
   storage: {
@@ -269,8 +275,8 @@ describe('SessionManager', () => {
     // real outcome rather than an optimistic true. This ensures the circuit
     // breaker in SessionRefreshManager counts failures accurately.
     const second = manager.refreshSession();
-    expect(log.warn).toHaveBeenCalledWith(
-      '[SessionManager] Refresh already in progress; waiting for result'
+    expect(mockLog.warn).toHaveBeenCalledWith(
+      'Refresh already in progress; waiting for result'
     );
 
     // Let the first call complete — both callers should resolve together.
@@ -373,7 +379,7 @@ describe('SessionManager', () => {
     const restored = await manager.restoreSession();
 
     expect(restored).toBeUndefined();
-    expect(log.error).toHaveBeenCalled();
+    expect(mockLog.error).toHaveBeenCalled();
   });
 
   it('clears storage when restoreSession catches an infrastructure error', async () => {
@@ -470,7 +476,7 @@ describe('SessionManager', () => {
     const restored = await manager.restoreSession();
 
     expect(restored).toBeUndefined();
-    expect(log.error).toHaveBeenCalled();
+    expect(mockLog.error).toHaveBeenCalled();
   });
 
   it('returns undefined when session key derivation fails during restore', async () => {
@@ -482,7 +488,7 @@ describe('SessionManager', () => {
     const restored = await manager.restoreSession();
 
     expect(restored).toBeUndefined();
-    expect(log.error).toHaveBeenCalled();
+    expect(mockLog.error).toHaveBeenCalled();
   });
 
   it('returns undefined when decrypt fails during restore', async () => {
@@ -494,7 +500,7 @@ describe('SessionManager', () => {
     const restored = await manager.restoreSession();
 
     expect(restored).toBeUndefined();
-    expect(log.error).toHaveBeenCalled();
+    expect(mockLog.error).toHaveBeenCalled();
   });
 
   describe('validateConfig', () => {
@@ -627,8 +633,8 @@ describe('SessionManager', () => {
       // Second refresh is blocked (refreshCount is now 1 which equals maxRefreshes).
       const second = await manager.refreshSession();
       expect(second).toBe(false);
-      expect(log.warn).toHaveBeenCalledWith(
-        '[SessionManager] Maximum refresh count reached'
+      expect(mockLog.warn).toHaveBeenCalledWith(
+        'Maximum refresh count reached'
       );
     });
 
@@ -681,9 +687,7 @@ describe('SessionManager', () => {
 
       const result = await manager.refreshSession();
       expect(result).toBe(false);
-      expect(log.warn).toHaveBeenCalledWith(
-        '[SessionManager] Maximum session age exceeded'
-      );
+      expect(mockLog.warn).toHaveBeenCalledWith('Maximum session age exceeded');
     });
 
     it('returns false when session age equals maxSessionAgeMs exactly', async () => {
@@ -735,9 +739,7 @@ describe('SessionManager', () => {
 
       const result = await manager.refreshSession();
       expect(result).toBe(false);
-      expect(log.warn).toHaveBeenCalledWith(
-        '[SessionManager] Maximum session age exceeded'
-      );
+      expect(mockLog.warn).toHaveBeenCalledWith('Maximum session age exceeded');
     });
 
     it('returns false immediately when maxRefreshes is 0', async () => {
@@ -782,8 +784,8 @@ describe('SessionManager', () => {
 
       const result = await manager.refreshSession();
       expect(result).toBe(false);
-      expect(log.warn).toHaveBeenCalledWith(
-        '[SessionManager] Maximum refresh count reached'
+      expect(mockLog.warn).toHaveBeenCalledWith(
+        'Maximum refresh count reached'
       );
     });
   });
@@ -807,8 +809,8 @@ describe('SessionManager', () => {
 
     const result = await manager.refreshSession();
     expect(result).toBe(false);
-    expect(log.warn).toHaveBeenCalledWith(
-      '[SessionManager] Refresh aborted: session could not be restored'
+    expect(mockLog.warn).toHaveBeenCalledWith(
+      'Refresh aborted: session could not be restored'
     );
   });
 
