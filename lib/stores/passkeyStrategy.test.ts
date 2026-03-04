@@ -1,7 +1,17 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { PasskeyCredentialRepository } from '../repositories/passkeyCredentialRepository';
-import { log } from '../util/log';
 import { PasskeyStrategy } from './passkeyStrategy';
+
+const mockLog = vi.hoisted(() => ({
+  info: vi.fn(),
+  warn: vi.fn(),
+  error: vi.fn(),
+  debug: vi.fn()
+}));
+
+vi.mock('../util/log', () => ({
+  createLogger: vi.fn(() => mockLog)
+}));
 
 // Mock PasskeyCredentialRepository
 const mockRepository = {
@@ -176,14 +186,10 @@ describe('PasskeyStrategy', () => {
     it('should log error when unlock fails', async () => {
       const error = new Error('Unlock failed');
       mockRepository.unlock.mockRejectedValue(error);
-      const spy = vi.spyOn(log, 'error');
 
       await strategy.unlock({ method: 'passkey' });
 
-      expect(spy).toHaveBeenCalledWith(
-        '[PasskeyStrategy] Unlock failed:',
-        error
-      );
+      expect(mockLog.error).toHaveBeenCalledWith('Unlock failed:', error);
     });
   });
 
@@ -219,14 +225,13 @@ describe('PasskeyStrategy', () => {
 
     it('should return undefined when not unlocked', async () => {
       mockRepository._isUnlocked = false;
-      const spy = vi.spyOn(log, 'warn');
 
       const result = await strategy.getCredential('test-key');
 
       expect(result).toBeUndefined();
       expect(mockRepository.getCredential).not.toHaveBeenCalled();
-      expect(spy).toHaveBeenCalledWith(
-        '[PasskeyStrategy] Cannot get credential - not unlocked'
+      expect(mockLog.warn).toHaveBeenCalledWith(
+        'Cannot get credential - not unlocked'
       );
     });
 
@@ -234,13 +239,12 @@ describe('PasskeyStrategy', () => {
       const error = new Error('Get credential failed');
       mockRepository._isUnlocked = true;
       mockRepository.getCredential.mockRejectedValue(error);
-      const spy = vi.spyOn(log, 'error');
 
       const result = await strategy.getCredential('test-key');
 
       expect(result).toBeUndefined();
-      expect(spy).toHaveBeenCalledWith(
-        '[PasskeyStrategy] Failed to get credential test-key:',
+      expect(mockLog.error).toHaveBeenCalledWith(
+        'Failed to get credential test-key:',
         error
       );
     });
@@ -260,13 +264,12 @@ describe('PasskeyStrategy', () => {
 
     it('should return without error when not unlocked', async () => {
       mockRepository._isUnlocked = false;
-      const spy = vi.spyOn(log, 'warn');
 
       await strategy.setCredential('test-key', 'test-value');
 
       expect(mockRepository.setCredential).not.toHaveBeenCalled();
-      expect(spy).toHaveBeenCalledWith(
-        '[PasskeyStrategy] Cannot set credential - not unlocked'
+      expect(mockLog.warn).toHaveBeenCalledWith(
+        'Cannot set credential - not unlocked'
       );
     });
 
@@ -284,7 +287,6 @@ describe('PasskeyStrategy', () => {
       const error = new Error('Set credential failed');
       mockRepository._isUnlocked = true;
       mockRepository.setCredential.mockRejectedValue(error);
-      const spy = vi.spyOn(log, 'error');
 
       try {
         await strategy.setCredential('test-key', 'test-value');
@@ -292,8 +294,8 @@ describe('PasskeyStrategy', () => {
         // Expected to throw
       }
 
-      expect(spy).toHaveBeenCalledWith(
-        '[PasskeyStrategy] Failed to set credential test-key:',
+      expect(mockLog.error).toHaveBeenCalledWith(
+        'Failed to set credential test-key:',
         error
       );
     });

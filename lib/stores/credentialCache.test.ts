@@ -1,9 +1,16 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { log } from '../util/log';
 import { CredentialCache } from './credentialCache';
 
-// Mock log methods to avoid noise in tests
-vi.spyOn(log, 'info').mockImplementation(() => {});
+const mockLog = vi.hoisted(() => ({
+  info: vi.fn(),
+  warn: vi.fn(),
+  error: vi.fn(),
+  debug: vi.fn()
+}));
+
+vi.mock('../util/log', () => ({
+  createLogger: vi.fn(() => mockLog)
+}));
 
 describe('CredentialCache', () => {
   let cache: CredentialCache;
@@ -162,7 +169,7 @@ describe('CredentialCache', () => {
       cache.set('key1', 'value1');
       cache.clear();
 
-      expect(log.info).toHaveBeenCalledWith('[CredentialCache] Cache cleared');
+      expect(mockLog.info).toHaveBeenCalledWith('Cache cleared');
     });
   });
 
@@ -230,10 +237,9 @@ describe('CredentialCache', () => {
 
       cache.hydrate(credentials);
 
-      expect(log.info).toHaveBeenCalledWith(
-        '[CredentialCache] Hydrated with credentials:',
-        { keys: ['key1', 'key2'] }
-      );
+      expect(mockLog.info).toHaveBeenCalledWith('Hydrated with credentials:', {
+        keys: ['key1', 'key2']
+      });
     });
 
     it('should overwrite existing values', () => {
@@ -279,15 +285,12 @@ describe('CredentialCache', () => {
         serverHost: 'server'
       });
 
-      expect(log.info).toHaveBeenCalledWith(
-        '[CredentialCache] Hydrated from session:',
-        {
-          hasLocalKey: true,
-          hasRemoteKey: true,
-          hasPairingPhrase: true,
-          serverHost: 'server'
-        }
-      );
+      expect(mockLog.info).toHaveBeenCalledWith('Hydrated from session:', {
+        hasLocalKey: true,
+        hasRemoteKey: true,
+        hasPairingPhrase: true,
+        serverHost: 'server'
+      });
     });
   });
 

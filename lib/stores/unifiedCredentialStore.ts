@@ -7,11 +7,13 @@ import {
   UnlockMethod,
   UnlockOptions
 } from '../types/lnc';
-import { log } from '../util/log';
+import { createLogger } from '../util/log';
 import { AuthenticationCoordinator } from './authenticationCoordinator';
 import { CredentialCache } from './credentialCache';
 import { SessionCoordinator } from './sessionCoordinator';
 import { StrategyManager } from './strategyManager';
+
+const log = createLogger('UnifiedCredentialStore');
 
 /**
  * Unified credential store that uses the strategy pattern for authentication.
@@ -42,7 +44,7 @@ export default class UnifiedCredentialStore implements CredentialStore {
     // Password is only available during unlock, not stored. This field is required by
     // the CredentialStore interface.
     log.warn(
-      '[UnifiedCredentialStore] Direct access to password is not supported. Use the unlock method instead.'
+      'Direct access to password is not supported. Use the unlock method instead.'
     );
     return undefined;
   }
@@ -51,7 +53,7 @@ export default class UnifiedCredentialStore implements CredentialStore {
     // Password is handled during unlock, not stored directly. This field is required by
     // the CredentialStore interface.
     log.warn(
-      '[UnifiedCredentialStore] Setting password directly is not supported. Use the unlock method instead.'
+      'Setting password directly is not supported. Use the unlock method instead.'
     );
   }
 
@@ -170,7 +172,7 @@ export default class UnifiedCredentialStore implements CredentialStore {
    */
   async createSession(): Promise<void> {
     if (!this.isUnlocked) {
-      log.warn('[UnifiedCredentialStore] Cannot create session - not unlocked');
+      log.warn('Cannot create session - not unlocked');
       return;
     }
 

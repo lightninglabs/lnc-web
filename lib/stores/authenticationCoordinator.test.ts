@@ -1,10 +1,20 @@
 import { describe, expect, it, vi } from 'vitest';
-import { log } from '../util/log';
 import { AuthenticationCoordinator } from './authenticationCoordinator';
 import { AuthStrategy } from './authStrategy';
 import { CredentialCache } from './credentialCache';
 import { SessionCoordinator } from './sessionCoordinator';
 import { StrategyManager } from './strategyManager';
+
+const mockLog = vi.hoisted(() => ({
+  info: vi.fn(),
+  warn: vi.fn(),
+  error: vi.fn(),
+  debug: vi.fn()
+}));
+
+vi.mock('../util/log', () => ({
+  createLogger: vi.fn(() => mockLog)
+}));
 
 const createStrategy = (method: AuthStrategy['method']) => ({
   method,
@@ -47,8 +57,6 @@ const createSessionCoordinator = (overrides?: Partial<SessionCoordinator>) => {
 };
 
 describe('AuthenticationCoordinator', () => {
-  vi.spyOn(log, 'error').mockImplementation(() => {});
-
   it('returns false when strategy is missing', async () => {
     const strategyManager = {
       getStrategy: vi.fn().mockReturnValue(undefined)
@@ -116,7 +124,7 @@ describe('AuthenticationCoordinator', () => {
     });
 
     expect(result).toBe(false);
-    expect(log.error).toHaveBeenCalled();
+    expect(mockLog.error).toHaveBeenCalled();
   });
 
   it('loads credentials, persists, and creates session', async () => {
@@ -192,7 +200,7 @@ describe('AuthenticationCoordinator', () => {
 
     await coordinator.unlock({ method: 'password', password: 'pw' });
 
-    expect(log.error).toHaveBeenCalled();
+    expect(mockLog.error).toHaveBeenCalled();
   });
 
   it('returns false when persisting cached credentials fails', async () => {
@@ -221,8 +229,8 @@ describe('AuthenticationCoordinator', () => {
     });
 
     expect(result).toBe(false);
-    expect(log.error).toHaveBeenCalledWith(
-      '[AuthenticationCoordinator] Failed to persist localKey:',
+    expect(mockLog.error).toHaveBeenCalledWith(
+      'Failed to persist localKey:',
       expect.any(Error)
     );
   });
@@ -259,8 +267,8 @@ describe('AuthenticationCoordinator', () => {
     expect(result).toBe(false);
     // Both cached keys should have been attempted despite individual failures.
     expect(strategy.setCredential).toHaveBeenCalledTimes(2);
-    expect(log.error).toHaveBeenCalledWith(
-      '[AuthenticationCoordinator] Unlock failed:',
+    expect(mockLog.error).toHaveBeenCalledWith(
+      'Unlock failed:',
       expect.objectContaining({
         message: expect.stringContaining('localKey')
       })
@@ -458,7 +466,7 @@ describe('AuthenticationCoordinator', () => {
       .initializeCachePromise;
 
     await expect(coordinator.tryAutoRestore()).resolves.toBe(false);
-    expect(log.error).toHaveBeenCalled();
+    expect(mockLog.error).toHaveBeenCalled();
   });
 
   it('creates session after connection', async () => {
@@ -618,7 +626,7 @@ describe('AuthenticationCoordinator', () => {
       password: 'pw'
     });
     expect(result).toBe(true);
-    expect(log.error).toHaveBeenCalledWith(
+    expect(mockLog.error).toHaveBeenCalledWith(
       expect.stringContaining(
         'Session creation failed after successful unlock'
       ),
@@ -706,7 +714,7 @@ describe('AuthenticationCoordinator', () => {
       'boom'
     );
 
-    expect(log.error).toHaveBeenCalled();
+    expect(mockLog.error).toHaveBeenCalled();
   });
 
   it('clears session state', () => {

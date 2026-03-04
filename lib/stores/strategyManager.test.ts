@@ -1,9 +1,19 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { log } from '../util/log';
 import { PasskeyStrategy } from './passkeyStrategy';
 import { PasswordStrategy } from './passwordStrategy';
 import { SessionStrategy } from './sessionStrategy';
 import { StrategyManager } from './strategyManager';
+
+const mockLog = vi.hoisted(() => ({
+  info: vi.fn(),
+  warn: vi.fn(),
+  error: vi.fn(),
+  debug: vi.fn()
+}));
+
+vi.mock('../util/log', () => ({
+  createLogger: vi.fn(() => mockLog)
+}));
 
 // Mock password strategy
 const mockPasswordStrategy = {
@@ -47,9 +57,6 @@ vi.mock('./passkeyStrategy', () => ({
 vi.mock('./sessionStrategy', () => ({
   SessionStrategy: vi.fn().mockImplementation(() => mockSessionStrategy)
 }));
-
-// Mock log methods
-vi.spyOn(log, 'info').mockImplementation(() => {});
 
 describe('StrategyManager', () => {
   let strategyManager: StrategyManager;
@@ -95,12 +102,10 @@ describe('StrategyManager', () => {
     });
 
     it('should log registered strategies', () => {
-      const spy = vi.spyOn(log, 'info');
-
       strategyManager = new StrategyManager(baseConfig);
 
-      expect(spy).toHaveBeenCalledWith(
-        '[StrategyManager] Registered strategies: password'
+      expect(mockLog.info).toHaveBeenCalledWith(
+        'Registered strategies: password'
       );
     });
 
@@ -150,26 +155,23 @@ describe('StrategyManager', () => {
     });
 
     it('should log both strategies when passkeys enabled', () => {
-      const spy = vi.spyOn(log, 'info');
-
       strategyManager = new StrategyManager({
         ...baseConfig,
         allowPasskeys: true
       });
 
-      expect(spy).toHaveBeenCalledWith(
-        '[StrategyManager] Registered strategies: password, passkey'
+      expect(mockLog.info).toHaveBeenCalledWith(
+        'Registered strategies: password, passkey'
       );
     });
 
     it('should log session when session manager is provided', () => {
-      const spy = vi.spyOn(log, 'info');
       const sessionManager = {} as never;
 
       strategyManager = new StrategyManager(baseConfig, sessionManager);
 
-      expect(spy).toHaveBeenCalledWith(
-        '[StrategyManager] Registered strategies: password, session'
+      expect(mockLog.info).toHaveBeenCalledWith(
+        'Registered strategies: password, session'
       );
     });
   });
@@ -385,13 +387,9 @@ describe('StrategyManager', () => {
     });
 
     it('should log clear operation', () => {
-      const spy = vi.spyOn(log, 'info');
-
       strategyManager.clearAll();
 
-      expect(spy).toHaveBeenCalledWith(
-        '[StrategyManager] Cleared all strategies'
-      );
+      expect(mockLog.info).toHaveBeenCalledWith('Cleared all strategies');
     });
   });
 
