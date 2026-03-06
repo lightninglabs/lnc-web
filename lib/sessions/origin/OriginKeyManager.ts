@@ -1,4 +1,6 @@
-import { log } from '../../util/log';
+import { createLogger } from '../../util/log';
+
+const log = createLogger('OriginKeyManager');
 
 export interface OriginKeyData {
   originKey: CryptoKey;
@@ -159,16 +161,14 @@ export class OriginKeyManager {
           const request = store.delete(this.namespace);
 
           request.onsuccess = () => {
-            log.info('[OriginKeyManager] Origin key cleared', {
+            log.info('Origin key cleared', {
               namespace: this.namespace
             });
             resolve();
           };
           request.onerror = () =>
             reject(
-              new Error(
-                `[OriginKeyManager] Failed to clear origin key: ${request.error?.message}`
-              )
+              new Error(`Failed to clear origin key: ${request.error?.message}`)
             );
         });
       });

@@ -1,5 +1,7 @@
-import { log } from '../../util/log';
+import { createLogger } from '../../util/log';
 import { SessionData } from '../types';
+
+const log = createLogger('SessionStorage');
 
 const STORAGE_PREFIX = 'lnc-session:';
 
@@ -54,7 +56,7 @@ export class SessionStorage {
     try {
       const storageKey = `${STORAGE_PREFIX}${this.namespace}`;
       sessionStorage.setItem(storageKey, JSON.stringify(sessionData));
-      log.info('[SessionStorage] Session saved to sessionStorage', {
+      log.info('Session saved to sessionStorage', {
         namespace: this.namespace,
         sessionId: sessionData.sessionId,
         createdAt: sessionData.createdAt,
@@ -62,7 +64,7 @@ export class SessionStorage {
         refreshCount: sessionData.refreshCount
       });
     } catch (error) {
-      log.error('[SessionStorage] Failed to save session data', {
+      log.error('Failed to save session data', {
         namespace: this.namespace,
         error
       });
@@ -88,7 +90,7 @@ export class SessionStorage {
         typeof parsed !== 'object' ||
         !isValidSessionData(parsed as SessionData)
       ) {
-        log.error('[SessionStorage] Invalid session data', {
+        log.error('Invalid session data', {
           namespace: this.namespace
         });
         sessionStorage.removeItem(storageKey);
@@ -96,7 +98,7 @@ export class SessionStorage {
       }
 
       const sessionData = parsed as SessionData;
-      log.info('[SessionStorage] Session loaded from sessionStorage', {
+      log.info('Session loaded from sessionStorage', {
         namespace: this.namespace,
         sessionId: sessionData.sessionId,
         createdAt: sessionData.createdAt,
@@ -106,7 +108,7 @@ export class SessionStorage {
 
       return sessionData;
     } catch (error) {
-      log.error('[SessionStorage] Failed to load session data', {
+      log.error('Failed to load session data', {
         namespace: this.namespace,
         error
       });
@@ -114,7 +116,7 @@ export class SessionStorage {
         const storageKey = `${STORAGE_PREFIX}${this.namespace}`;
         sessionStorage.removeItem(storageKey);
       } catch (cleanupError) {
-        log.warn('[SessionStorage] Cleanup failed during error recovery', {
+        log.warn('Cleanup failed during error recovery', {
           namespace: this.namespace,
           cleanupError
         });
@@ -130,7 +132,7 @@ export class SessionStorage {
       const storageKey = `${STORAGE_PREFIX}${this.namespace}`;
       sessionStorage.removeItem(storageKey);
     } catch (error) {
-      log.error('[SessionStorage] Failed to clear session data', {
+      log.error('Failed to clear session data', {
         namespace: this.namespace,
         error
       });

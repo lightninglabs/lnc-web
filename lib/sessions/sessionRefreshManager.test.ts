@@ -1,7 +1,17 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { SessionConfig } from '../types/lnc';
-import { log } from '../util/log';
 import SessionRefreshManager from './sessionRefreshManager';
+
+const mockLog = vi.hoisted(() => ({
+  info: vi.fn(),
+  warn: vi.fn(),
+  error: vi.fn(),
+  debug: vi.fn()
+}));
+
+vi.mock('../util/log', () => ({
+  createLogger: vi.fn(() => mockLog)
+}));
 
 // Mock SessionManager dependency.
 const mockSessionManager: {
@@ -37,11 +47,6 @@ Object.defineProperty(globalThis, 'document', {
   value: mockDocument,
   writable: true
 });
-
-vi.spyOn(log, 'debug').mockImplementation(() => {});
-vi.spyOn(log, 'info').mockImplementation(() => {});
-vi.spyOn(log, 'warn').mockImplementation(() => {});
-vi.spyOn(log, 'error').mockImplementation(() => {});
 
 describe('SessionRefreshManager', () => {
   let refreshManager: SessionRefreshManager;
@@ -138,9 +143,8 @@ describe('SessionRefreshManager', () => {
         refreshManager.start();
 
         expect(refreshManager.isActive()).toBe(false);
-        expect(log.warn).toHaveBeenCalledWith(
-          '[SessionRefreshManager] No document available; ' +
-            'activity monitoring disabled'
+        expect(mockLog.warn).toHaveBeenCalledWith(
+          'No document available; activity monitoring disabled'
         );
       } finally {
         (globalThis as Record<string, unknown>).document = savedDocument;
@@ -154,7 +158,7 @@ describe('SessionRefreshManager', () => {
       shortManager.start();
 
       expect(shortManager.isActive()).toBe(true);
-      expect(log.warn).toHaveBeenCalledWith(
+      expect(mockLog.warn).toHaveBeenCalledWith(
         expect.stringContaining('less than the minimum recommended')
       );
 
@@ -168,7 +172,7 @@ describe('SessionRefreshManager', () => {
       adequateManager.start();
 
       expect(adequateManager.isActive()).toBe(true);
-      expect(log.warn).not.toHaveBeenCalledWith(
+      expect(mockLog.warn).not.toHaveBeenCalledWith(
         expect.stringContaining('less than the minimum recommended')
       );
 
@@ -445,7 +449,7 @@ describe('SessionRefreshManager', () => {
 
       await refreshManager.forceRefreshCheck();
 
-      expect(log.error).toHaveBeenCalledWith(
+      expect(mockLog.error).toHaveBeenCalledWith(
         expect.stringContaining('attempt 1/3'),
         expect.any(Error)
       );
@@ -472,8 +476,8 @@ describe('SessionRefreshManager', () => {
       result = await refreshManager.forceRefreshCheck();
       expect(result).toBe(false);
       expect(refreshManager.isActive()).toBe(false);
-      expect(log.error).toHaveBeenCalledWith(
-        '[SessionRefreshManager] Stopping after repeated failures'
+      expect(mockLog.error).toHaveBeenCalledWith(
+        'Stopping after repeated failures'
       );
     });
 
@@ -525,8 +529,8 @@ describe('SessionRefreshManager', () => {
 
       await refreshManager.forceRefreshCheck();
 
-      expect(log.info).toHaveBeenCalledWith(
-        '[SessionRefreshManager] Session automatically refreshed'
+      expect(mockLog.info).toHaveBeenCalledWith(
+        'Session automatically refreshed'
       );
     });
 
@@ -539,8 +543,8 @@ describe('SessionRefreshManager', () => {
 
       expect(result).toBe(false);
       expect(refreshManager.isActive()).toBe(false);
-      expect(log.warn).toHaveBeenCalledWith(
-        '[SessionRefreshManager] Session refresh declined ' +
+      expect(mockLog.warn).toHaveBeenCalledWith(
+        'Session refresh declined ' +
           '(max refreshes or max age reached). Stopping.'
       );
     });
@@ -632,8 +636,8 @@ describe('SessionRefreshManager', () => {
         const result = await refreshManager.forceRefreshCheck();
 
         expect(result).toBe(false);
-        expect(log.warn).toHaveBeenCalledWith(
-          '[SessionRefreshManager] forceRefreshCheck called while not running'
+        expect(mockLog.warn).toHaveBeenCalledWith(
+          'forceRefreshCheck called while not running'
         );
         expect(mockSessionManager.refreshSession).not.toHaveBeenCalled();
       });

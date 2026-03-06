@@ -1,6 +1,16 @@
 import { describe, expect, it, vi } from 'vitest';
-import { log } from '../util/log';
 import { SessionCoordinator } from './sessionCoordinator';
+
+const mockLog = vi.hoisted(() => ({
+  info: vi.fn(),
+  warn: vi.fn(),
+  error: vi.fn(),
+  debug: vi.fn()
+}));
+
+vi.mock('../util/log', () => ({
+  createLogger: vi.fn(() => mockLog)
+}));
 
 // Mock SessionRefreshManager so that tests don't require a browser environment.
 vi.mock('../sessions/sessionRefreshManager', () => {
@@ -41,10 +51,6 @@ const createSessionManager = () => ({
     maxSessionAgeMs: 7 * 24 * 60 * 60 * 1000
   }
 });
-
-vi.spyOn(log, 'info').mockImplementation(() => {});
-vi.spyOn(log, 'warn').mockImplementation(() => {});
-vi.spyOn(log, 'error').mockImplementation(() => {});
 
 describe('SessionCoordinator', () => {
   it('returns defaults when no session manager is available', async () => {
@@ -107,7 +113,7 @@ describe('SessionCoordinator', () => {
     const coordinator = new SessionCoordinator(manager as never);
 
     await expect(coordinator.tryAutoRestore()).resolves.toBeUndefined();
-    expect(log.error).toHaveBeenCalled();
+    expect(mockLog.error).toHaveBeenCalled();
   });
 
   it('creates sessions and starts refresh manager', async () => {
@@ -151,7 +157,7 @@ describe('SessionCoordinator', () => {
       serverHost: 'server'
     });
 
-    expect(log.warn).toHaveBeenCalled();
+    expect(mockLog.warn).toHaveBeenCalled();
   });
 
   it('throws when session creation fails', async () => {

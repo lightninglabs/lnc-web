@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-import { actionLog, grpcLog, log, Logger, LogLevel, wasmLog } from './log';
+import { createLogger, log, Logger, LogLevel, wasmLog } from './log';
 
 // Create a reference to the globalThis object with additional property types
 // needed for testing
@@ -183,16 +183,8 @@ describe('Logging System', () => {
       expect(log).toBeInstanceOf(Logger);
     });
 
-    it('should export grpc logger', () => {
-      expect(grpcLog).toBeInstanceOf(Logger);
-    });
-
     it('should export wasm logger', () => {
       expect(wasmLog).toBeInstanceOf(Logger);
-    });
-
-    it('should export action logger', () => {
-      expect(actionLog).toBeInstanceOf(Logger);
     });
   });
 
@@ -228,6 +220,27 @@ describe('Logging System', () => {
       const logger1 = new Logger(LogLevel.debug, 'namespace1');
       const logger2 = new Logger(LogLevel.info, 'namespace2');
 
+      expect(logger1).not.toBe(logger2);
+    });
+  });
+
+  describe('createLogger factory', () => {
+    it('should create a Logger instance with the given namespace', () => {
+      const logger = createLogger('TestClass');
+      expect(logger).toBeInstanceOf(Logger);
+    });
+
+    it('should pass the name as the debug namespace', () => {
+      localStorage.setItem('debug', '*');
+      const logger = createLogger('MyModule');
+      logger.info('test');
+
+      expect(testGlobal.lastDebugCall.namespace).toBe('MyModule');
+    });
+
+    it('should create independent loggers for different names', () => {
+      const logger1 = createLogger('ClassA');
+      const logger2 = createLogger('ClassB');
       expect(logger1).not.toBe(logger2);
     });
   });

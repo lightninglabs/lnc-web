@@ -59,9 +59,9 @@ yarn prettier-write     # Fix formatting
 **Patterns:**
 - Class-based with explicit interfaces. Default export for main classes, named exports for utilities.
 - Strategy pattern for authentication (`AuthStrategy` interface).
-- Error handling: `try/catch` with `log.error('[ClassName] message:', error)`. Return `boolean` for unlock/validation flows, `throw` for critical failures.
+- Error handling: `try/catch` with `log.error('message:', error)`. Return `boolean` for unlock/validation flows, `throw` for critical failures.
 - Async/await everywhere. No `.then()` chains.
-- Logging with context prefix: `log.info('[ClassName] message')`. Loggers: `log`, `grpcLog`, `wasmLog`, `actionLog`.
+- Scoped logging via `createLogger`: `import { createLogger } from '../util/log'; const log = createLogger('ClassName');`. Remaining singletons: `log` (main), `wasmLog` (wasm).
 - Private fields use underscore prefix (`_namespace`, `_wasmClientCode`).
 
 **Exports in lib/index.ts:**

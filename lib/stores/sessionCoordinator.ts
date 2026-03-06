@@ -1,7 +1,9 @@
 import SessionManager from '../sessions/sessionManager';
 import SessionRefreshManager from '../sessions/sessionRefreshManager';
 import { SessionCredentials } from '../sessions/types';
-import { log } from '../util/log';
+import { createLogger } from '../util/log';
+
+const log = createLogger('SessionCoordinator');
 
 /**
  * Coordinates session-related operations and lifecycle management.
@@ -67,7 +69,7 @@ export class SessionCoordinator {
     if (this.sessionManager) {
       this.stopRefreshManager();
       this.sessionManager.clearSession();
-      log.info('[SessionCoordinator] Session cleared');
+      log.info('Session cleared');
     }
   }
 
@@ -107,7 +109,7 @@ export class SessionCoordinator {
 
       return credentials;
     } catch (error) {
-      log.error('[SessionCoordinator] Session auto-restoration error:', error);
+      log.error('Session auto-restoration error:', error);
       return undefined;
     }
   }
@@ -117,9 +119,7 @@ export class SessionCoordinator {
    */
   async createSession(credentials: SessionCredentials): Promise<void> {
     if (!this.sessionManager) {
-      log.warn(
-        '[SessionCoordinator] No session manager available - skipping session creation'
-      );
+      log.warn('No session manager available - skipping session creation');
       return;
     }
 
@@ -127,7 +127,7 @@ export class SessionCoordinator {
       await this.sessionManager.createSession(credentials);
       this.startRefreshManager();
     } catch (error) {
-      log.error('[SessionCoordinator] Failed to create session:', error);
+      log.error('Failed to create session:', error);
       throw error;
     }
   }
@@ -166,7 +166,7 @@ export class SessionCoordinator {
 
     if (this.refreshManager && !this.refreshManager.isActive()) {
       this.refreshManager.start();
-      log.info('[SessionCoordinator] Automatic session refresh started');
+      log.info('Automatic session refresh started');
     }
   }
 
@@ -176,7 +176,7 @@ export class SessionCoordinator {
   private stopRefreshManager(): void {
     if (this.refreshManager && this.refreshManager.isActive()) {
       this.refreshManager.stop();
-      log.info('[SessionCoordinator] Automatic session refresh stopped');
+      log.info('Automatic session refresh stopped');
     }
   }
 }

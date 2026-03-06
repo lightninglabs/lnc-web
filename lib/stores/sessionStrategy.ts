@@ -1,8 +1,10 @@
 import SessionManager from '../sessions/sessionManager';
 import { SessionCredentials } from '../sessions/types';
 import { UnlockOptions } from '../types/lnc';
-import { log } from '../util/log';
+import { createLogger } from '../util/log';
 import { AuthStrategy } from './authStrategy';
+
+const log = createLogger('SessionStrategy');
 
 /**
  * Session-based authentication strategy.
@@ -44,7 +46,7 @@ export class SessionStrategy implements AuthStrategy {
       const session = await this.sessionManager.restoreSession();
       return !!session;
     } catch (error) {
-      log.error('[SessionStrategy] Session restore failed:', error);
+      log.error('Session restore failed:', error);
       return false;
     }
   }
@@ -65,7 +67,7 @@ export class SessionStrategy implements AuthStrategy {
    */
   async getCredential(key: string): Promise<string | undefined> {
     if (!this.isUnlocked) {
-      log.warn('[SessionStrategy] Cannot get credential - no active session');
+      log.warn('Cannot get credential - no active session');
       return undefined;
     }
 
@@ -76,7 +78,7 @@ export class SessionStrategy implements AuthStrategy {
       }
       return undefined;
     } catch (error) {
-      log.error(`[SessionStrategy] Failed to get credential ${key}:`, error);
+      log.error(`Failed to get credential ${key}:`, error);
       // don't throw an error here, just return undefined to indicate that the credential
       // could not be retrieved.
       return undefined;
@@ -89,7 +91,7 @@ export class SessionStrategy implements AuthStrategy {
   // eslint-disable-next-line @typescript-eslint/no-unused-vars
   async setCredential(key: string, value: string): Promise<void> {
     log.warn(
-      `[SessionStrategy] setCredential(${key}) not supported - use createSession() instead`
+      `setCredential(${key}) not supported - use createSession() instead`
     );
     throw new Error(
       'SessionStrategy does not support direct credential storage'

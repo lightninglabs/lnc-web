@@ -1,10 +1,17 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { log } from '../../util/log';
 import { SessionData } from '../types';
 import { SessionStorage } from './sessionStorage';
 
-vi.spyOn(log, 'info').mockImplementation(() => {});
-vi.spyOn(log, 'error').mockImplementation(() => {});
+const mockLog = vi.hoisted(() => ({
+  info: vi.fn(),
+  warn: vi.fn(),
+  error: vi.fn(),
+  debug: vi.fn()
+}));
+
+vi.mock('../../util/log', () => ({
+  createLogger: vi.fn(() => mockLog)
+}));
 
 describe('SessionStorage', () => {
   const namespace = 'test-namespace';
@@ -47,12 +54,12 @@ describe('SessionStorage', () => {
     };
 
     expect(loaded).toEqual(sampleSession);
-    expect(log.info).toHaveBeenCalledWith(
-      '[SessionStorage] Session saved to sessionStorage',
+    expect(mockLog.info).toHaveBeenCalledWith(
+      'Session saved to sessionStorage',
       details
     );
-    expect(log.info).toHaveBeenCalledWith(
-      '[SessionStorage] Session loaded from sessionStorage',
+    expect(mockLog.info).toHaveBeenCalledWith(
+      'Session loaded from sessionStorage',
       details
     );
   });
@@ -313,10 +320,10 @@ describe('SessionStorage', () => {
 
     expect(() => storage.save(sampleSession)).toThrow('storage error');
 
-    expect(log.error).toHaveBeenCalledWith(
-      '[SessionStorage] Failed to save session data',
-      { namespace, error }
-    );
+    expect(mockLog.error).toHaveBeenCalledWith('Failed to save session data', {
+      namespace,
+      error
+    });
   });
 
   it('handles error when clear fails', () => {
@@ -329,10 +336,10 @@ describe('SessionStorage', () => {
 
     storage.clear();
 
-    expect(log.error).toHaveBeenCalledWith(
-      '[SessionStorage] Failed to clear session data',
-      { namespace, error }
-    );
+    expect(mockLog.error).toHaveBeenCalledWith('Failed to clear session data', {
+      namespace,
+      error
+    });
   });
 
   it('returns false when hasData throws', () => {
@@ -358,8 +365,8 @@ describe('SessionStorage', () => {
     const loaded = storage.load();
 
     expect(loaded).toBeUndefined();
-    expect(log.error).toHaveBeenCalledWith(
-      '[SessionStorage] Failed to load session data',
+    expect(mockLog.error).toHaveBeenCalledWith(
+      'Failed to load session data',
       expect.objectContaining({ namespace })
     );
   });

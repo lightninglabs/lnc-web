@@ -3,11 +3,13 @@ import {
   CredentialStore,
   UnlockOptions
 } from '../types/lnc';
-import { log } from '../util/log';
+import { createLogger } from '../util/log';
 import { AuthStrategy } from './authStrategy';
 import { CredentialCache } from './credentialCache';
 import { SessionCoordinator } from './sessionCoordinator';
 import { StrategyManager } from './strategyManager';
+
+const log = createLogger('AuthenticationCoordinator');
 
 /**
  * The keys that will be persisted to the credential store.
@@ -57,7 +59,7 @@ export class AuthenticationCoordinator {
     this.sessionCoordinator.clearSession();
     this.sessionRestored = false;
     this.activeStrategy = undefined;
-    log.info('[AuthenticationCoordinator] Cleared session state');
+    log.info('Cleared session state');
   }
 
   /**
@@ -67,17 +69,13 @@ export class AuthenticationCoordinator {
     try {
       const strategy = this.strategyManager.getStrategy(options.method);
       if (!strategy) {
-        log.error(
-          `[AuthenticationCoordinator] Authentication method '${options.method}' not supported`
-        );
+        log.error(`Authentication method '${options.method}' not supported`);
         return false;
       }
 
       const success = await strategy.unlock(options);
       if (!success) {
-        log.error(
-          `[AuthenticationCoordinator] Failed to unlock with ${options.method}`
-        );
+        log.error(`Failed to unlock with ${options.method}`);
         return false;
       }
 
@@ -90,7 +88,7 @@ export class AuthenticationCoordinator {
 
       return true;
     } catch (error) {
-      log.error('[AuthenticationCoordinator] Unlock failed:', error);
+      log.error('Unlock failed:', error);
       return false;
     }
   }
@@ -151,7 +149,7 @@ export class AuthenticationCoordinator {
 
       return true;
     } catch (error) {
-      log.error('[AuthenticationCoordinator] Auto-restore failed:', error);
+      log.error('Auto-restore failed:', error);
     }
 
     return false;
@@ -203,7 +201,7 @@ export class AuthenticationCoordinator {
       });
     } catch (error) {
       log.error(
-        '[AuthenticationCoordinator] Session creation failed after ' +
+        'Session creation failed after ' +
           'successful unlock; session-based refresh will be unavailable:',
         error
       );
@@ -263,10 +261,7 @@ export class AuthenticationCoordinator {
         try {
           await strategy.setCredential(key, value);
         } catch (error) {
-          log.error(
-            `[AuthenticationCoordinator] Failed to persist ${key}:`,
-            error
-          );
+          log.error(`Failed to persist ${key}:`, error);
           failures.push(key);
         }
       }
@@ -290,10 +285,7 @@ export class AuthenticationCoordinator {
           this.credentialCache.set(key, value);
         }
       } catch (error) {
-        log.error(
-          `[AuthenticationCoordinator] Failed to load credential ${key}:`,
-          error
-        );
+        log.error(`Failed to load credential ${key}:`, error);
       }
     }
   }
@@ -312,10 +304,7 @@ export class AuthenticationCoordinator {
     try {
       await this.activeStrategy.setCredential(key, value);
     } catch (error) {
-      log.error(
-        `[AuthenticationCoordinator] Failed to save credential ${key}:`,
-        error
-      );
+      log.error(`Failed to save credential ${key}:`, error);
       throw error;
     }
   }

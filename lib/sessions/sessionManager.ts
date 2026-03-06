@@ -1,5 +1,5 @@
 import { SessionConfig } from '../types/lnc';
-import { log } from '../util/log';
+import { createLogger } from '../util/log';
 import { CredentialsEncrypter } from './crypto/CredentialsEncrypter';
 import { KeyWrapper } from './crypto/KeyWrapper';
 import CryptoService from './cryptoService';
@@ -7,6 +7,8 @@ import { DeviceBinder } from './device/DeviceBinder';
 import { OriginKeyManager } from './origin/OriginKeyManager';
 import { SessionStorage } from './storage/sessionStorage';
 import { SessionCredentials, SessionData } from './types';
+
+const log = createLogger('SessionManager');
 
 const DEFAULT_CONFIG: Readonly<Required<SessionConfig>> = Object.freeze({
   sessionDurationMs: 24 * 60 * 60 * 1000, // 24 hours
@@ -139,7 +141,7 @@ export default class SessionManager {
     };
 
     this.storage.save(sessionData);
-    log.info('[SessionManager] Session created successfully');
+    log.info('Session created successfully');
   }
 
   /**
@@ -166,7 +168,7 @@ export default class SessionManager {
       }
       return result;
     } catch (error) {
-      log.error('[SessionManager] Session restoration failed:', error);
+      log.error('Session restoration failed:', error);
       this.storage.clear();
       return undefined;
     }
@@ -183,9 +185,7 @@ export default class SessionManager {
    */
   async refreshSession(): Promise<boolean> {
     if (this.isRefreshing && this.refreshPromise) {
-      log.warn(
-        '[SessionManager] Refresh already in progress; waiting for result'
-      );
+      log.warn('Refresh already in progress; waiting for result');
       return this.refreshPromise;
     }
 
@@ -207,20 +207,20 @@ export default class SessionManager {
     // so the caller can distinguish "nothing to do" from infrastructure errors.
     const sessionData = this.storage.load();
     if (!sessionData) {
-      log.warn('[SessionManager] No session data available for refresh');
+      log.warn('No session data available for refresh');
       return false;
     }
 
     // Enforce the maximum number of refreshes per session.
     if (sessionData.refreshCount >= this.config.maxRefreshes) {
-      log.warn('[SessionManager] Maximum refresh count reached');
+      log.warn('Maximum refresh count reached');
       return false;
     }
 
     // Enforce the absolute maximum session age.
     const sessionAge = Date.now() - sessionData.createdAt;
     if (sessionAge >= this.config.maxSessionAgeMs) {
-      log.warn('[SessionManager] Maximum session age exceeded');
+      log.warn('Maximum session age exceeded');
       return false;
     }
 
@@ -228,9 +228,7 @@ export default class SessionManager {
     // caller, allowing it to count them as infrastructure failures.
     const credentials = await this.restoreSessionOrThrow();
     if (!credentials) {
-      log.warn(
-        '[SessionManager] Refresh aborted: session could not be restored'
-      );
+      log.warn('Refresh aborted: session could not be restored');
       return false;
     }
 
@@ -272,16 +270,16 @@ export default class SessionManager {
   private async restoreSessionOrThrow(): Promise<
     SessionCredentials | undefined
   > {
-    log.info('[SessionManager] Starting session restoration...');
+    log.info('Starting session restoration...');
 
     const sessionData = this.storage.load();
     if (!sessionData) {
-      log.info('[SessionManager] No session data found');
+      log.info('No session data found');
       return undefined;
     }
 
     if (Date.now() > sessionData.expiresAt) {
-      log.info('[SessionManager] Session expired');
+      log.info('Session expired');
       // Do not clear storage here -- let the caller decide. The catching
       // wrapper (restoreSession) clears on error; the throwing path
       // (refreshSession) leaves storage intact for circuit-breaker retries.
@@ -326,7 +324,7 @@ export default class SessionManager {
       ivB64: sessionData.credentialsIV
     });
 
-    log.info('[SessionManager] Session restoration successful!');
+    log.info('Session restoration successful!');
     return credentials;
   }
 

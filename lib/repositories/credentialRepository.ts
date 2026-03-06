@@ -1,5 +1,7 @@
 import { UnlockOptions } from '../types/lnc';
-import { log } from '../util/log';
+import { createLogger } from '../util/log';
+
+const log = createLogger('CredentialRepository');
 
 /**
  * Interface for credential repositories that manage how encrypted credentials are stored
@@ -167,7 +169,7 @@ export abstract class BaseCredentialRepository implements CredentialRepository {
     }
 
     const data = Object.fromEntries(this.credentials.entries());
-    log.info('[CredentialRepository] saving credentials to localStorage');
+    log.info('saving credentials to localStorage');
     globalThis.localStorage.setItem(this.storageKey, JSON.stringify(data));
   }
 
@@ -183,7 +185,7 @@ export abstract class BaseCredentialRepository implements CredentialRepository {
       try {
         const data = JSON.parse(cached);
         this.credentials = new Map(Object.entries(data));
-        log.info('[CredentialRepository] loaded credentials from localStorage');
+        log.info('loaded credentials from localStorage');
       } catch (error) {
         log.error(
           `Failed to parse cached credentials for ${this.namespace}:`,

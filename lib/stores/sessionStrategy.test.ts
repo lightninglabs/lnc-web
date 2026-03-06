@@ -1,6 +1,16 @@
 import { describe, expect, it, vi } from 'vitest';
-import { log } from '../util/log';
 import { SessionStrategy } from './sessionStrategy';
+
+const mockLog = vi.hoisted(() => ({
+  info: vi.fn(),
+  warn: vi.fn(),
+  error: vi.fn(),
+  debug: vi.fn()
+}));
+
+vi.mock('../util/log', () => ({
+  createLogger: vi.fn(() => mockLog)
+}));
 
 const createSessionManager = () => ({
   hasActiveSession: true,
@@ -15,9 +25,6 @@ const createSessionManager = () => ({
   hasValidSession: vi.fn().mockResolvedValue(true),
   clearSession: vi.fn()
 });
-
-vi.spyOn(log, 'warn').mockImplementation(() => {});
-vi.spyOn(log, 'error').mockImplementation(() => {});
 
 describe('SessionStrategy', () => {
   it('reports support and lock state', () => {
@@ -67,7 +74,7 @@ describe('SessionStrategy', () => {
     const result = await strategy.unlock({ method: 'session' });
 
     expect(result).toBe(false);
-    expect(log.error).toHaveBeenCalled();
+    expect(mockLog.error).toHaveBeenCalled();
   });
 
   it('checks auto-restore availability', async () => {
@@ -130,7 +137,7 @@ describe('SessionStrategy', () => {
     await strategy.unlock({ method: 'session' });
 
     await expect(strategy.getCredential('localKey')).resolves.toBeUndefined();
-    expect(log.error).toHaveBeenCalled();
+    expect(mockLog.error).toHaveBeenCalled();
   });
 
   it('throws on setCredential', async () => {

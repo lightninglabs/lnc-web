@@ -1,6 +1,16 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { log } from '../../util/log';
 import { OriginKeyData, OriginKeyManager } from './OriginKeyManager';
+
+const mockLog = vi.hoisted(() => ({
+  info: vi.fn(),
+  warn: vi.fn(),
+  error: vi.fn(),
+  debug: vi.fn()
+}));
+
+vi.mock('../../util/log', () => ({
+  createLogger: vi.fn(() => mockLog)
+}));
 
 interface FakeIndexedDB {
   indexedDB: IDBFactory;
@@ -357,30 +367,24 @@ describe('OriginKeyManager', () => {
 
     it('should warn when clearOriginKey delete fails', async () => {
       fakeIndexedDB.behavior.failDelete = true;
-      const warnSpy = vi.spyOn(log, 'warn').mockImplementation(() => undefined);
 
       await originKeyManager.clearOriginKey();
 
-      expect(warnSpy).toHaveBeenCalledWith(
+      expect(mockLog.warn).toHaveBeenCalledWith(
         'Failed to clear origin key:',
         expect.any(Error)
       );
-
-      warnSpy.mockRestore();
     });
 
     it('should warn when clearOriginKey cannot open database', async () => {
       fakeIndexedDB.behavior.failOpen = true;
-      const warnSpy = vi.spyOn(log, 'warn').mockImplementation(() => undefined);
 
       await originKeyManager.clearOriginKey();
 
-      expect(warnSpy).toHaveBeenCalledWith(
+      expect(mockLog.warn).toHaveBeenCalledWith(
         'Failed to clear origin key:',
         expect.any(Error)
       );
-
-      warnSpy.mockRestore();
     });
 
     it('should return undefined when openDB fails during load', async () => {

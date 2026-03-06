@@ -1,8 +1,10 @@
 import { PasskeyEncryptionService } from '../encryption/passkeyEncryptionService';
 import { PasskeyCredentialRepository } from '../repositories/passkeyCredentialRepository';
 import { UnlockOptions } from '../types/lnc';
-import { log } from '../util/log';
+import { createLogger } from '../util/log';
 import { AuthStrategy } from './authStrategy';
+
+const log = createLogger('PasskeyStrategy');
 
 /**
  * Passkey-based authentication strategy.
@@ -52,7 +54,7 @@ export class PasskeyStrategy implements AuthStrategy {
       await this.repository.unlock(options);
       return true;
     } catch (error) {
-      log.error('[PasskeyStrategy] Unlock failed:', error);
+      log.error('Unlock failed:', error);
       return false;
     }
   }
@@ -78,14 +80,14 @@ export class PasskeyStrategy implements AuthStrategy {
    */
   async getCredential(key: string): Promise<string | undefined> {
     if (!this.isUnlocked) {
-      log.warn('[PasskeyStrategy] Cannot get credential - not unlocked');
+      log.warn('Cannot get credential - not unlocked');
       return undefined;
     }
 
     try {
       return await this.repository.getCredential(key);
     } catch (error) {
-      log.error(`[PasskeyStrategy] Failed to get credential ${key}:`, error);
+      log.error(`Failed to get credential ${key}:`, error);
       return undefined;
     }
   }
@@ -96,14 +98,14 @@ export class PasskeyStrategy implements AuthStrategy {
    */
   async setCredential(key: string, value: string): Promise<void> {
     if (!this.isUnlocked) {
-      log.warn('[PasskeyStrategy] Cannot set credential - not unlocked');
+      log.warn('Cannot set credential - not unlocked');
       return;
     }
 
     try {
       await this.repository.setCredential(key, value);
     } catch (error) {
-      log.error(`[PasskeyStrategy] Failed to set credential ${key}:`, error);
+      log.error(`Failed to set credential ${key}:`, error);
       throw error;
     }
   }

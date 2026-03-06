@@ -3,7 +3,6 @@ import { CredentialOrchestrator } from './credentialOrchestrator';
 import { PasskeyEncryptionService } from './encryption/passkeyEncryptionService';
 import SessionManager from './sessions/sessionManager';
 import LncCredentialStore from './util/credentialStore';
-import { log } from './util/log';
 
 const createMockUnifiedStore = () => {
   const store: any = {
@@ -115,13 +114,15 @@ vi.mock('./encryption/passkeyEncryptionService', () => ({
   }
 }));
 
+const mockLog = vi.hoisted(() => ({
+  info: vi.fn(),
+  warn: vi.fn(),
+  error: vi.fn(),
+  debug: vi.fn()
+}));
+
 vi.mock('./util/log', () => ({
-  log: {
-    info: vi.fn(),
-    warn: vi.fn(),
-    error: vi.fn(),
-    debug: vi.fn()
-  }
+  createLogger: vi.fn(() => mockLog)
 }));
 
 describe('CredentialOrchestrator', () => {
@@ -377,8 +378,8 @@ describe('CredentialOrchestrator', () => {
       });
 
       expect(result).toBe(false);
-      expect(log.warn).toHaveBeenCalledWith(
-        '[CredentialOrchestrator] Legacy unlock failed: missing or empty password for method "password".'
+      expect(mockLog.warn).toHaveBeenCalledWith(
+        'Legacy unlock failed: missing or empty password for method "password".'
       );
     });
   });

@@ -1,7 +1,8 @@
 import { SessionConfig } from '../types/lnc';
-import { log } from '../util/log';
-
+import { createLogger } from '../util/log';
 import type SessionManager from './sessionManager';
+
+const log = createLogger('SessionRefreshManager');
 
 type SessionManagerDependency = Pick<
   SessionManager,
@@ -79,10 +80,7 @@ export default class SessionRefreshManager {
 
     // Guard against non-browser environments (SSR, Web Workers, Node.js).
     if (typeof document === 'undefined') {
-      log.warn(
-        '[SessionRefreshManager] No document available; ' +
-          'activity monitoring disabled'
-      );
+      log.warn('No document available; activity monitoring disabled');
       return;
     }
 
@@ -92,7 +90,7 @@ export default class SessionRefreshManager {
       const minMinutes = minDurationMs / 60_000;
       const actualMinutes = this.config.sessionDurationMs / 60_000;
       log.warn(
-        `[SessionRefreshManager] Session duration (${actualMinutes}m) is less ` +
+        `Session duration (${actualMinutes}m) is less ` +
           `than the minimum recommended for auto-refresh (${minMinutes}m). ` +
           `The periodic check may not observe the session inside the refresh ` +
           `window before it expires.`
@@ -209,7 +207,7 @@ export default class SessionRefreshManager {
       const recentActivity = Date.now() - this.lastActivity;
       if (recentActivity >= ACTIVITY_THRESHOLD_MS) {
         log.debug(
-          `[SessionRefreshManager] Refresh suppressed: user inactive ` +
+          `Refresh suppressed: user inactive ` +
             `for ${Math.round(recentActivity / 1000)}s`
         );
         return;
@@ -221,13 +219,13 @@ export default class SessionRefreshManager {
 
         if (refreshed) {
           this.consecutiveErrors = 0;
-          log.info('[SessionRefreshManager] Session automatically refreshed');
+          log.info('Session automatically refreshed');
         } else {
           // A false return from refreshSession means a terminal condition
           // (max refreshes or max session age reached). Stop polling since
           // the session will never be refreshable again.
           log.warn(
-            '[SessionRefreshManager] Session refresh declined ' +
+            'Session refresh declined ' +
               '(max refreshes or max age reached). Stopping.'
           );
           this.stop();
@@ -236,7 +234,7 @@ export default class SessionRefreshManager {
     } catch (error) {
       this.consecutiveErrors++;
       log.error(
-        `[SessionRefreshManager] Refresh check failed ` +
+        `Refresh check failed ` +
           `(attempt ${this.consecutiveErrors}/${MAX_CONSECUTIVE_ERRORS}):`,
         error
       );
@@ -249,7 +247,7 @@ export default class SessionRefreshManager {
         // errors to the UI would confuse users. The session will expire
         // naturally, prompting re-authentication. The log.error calls above
         // provide sufficient diagnostics for developers.
-        log.error('[SessionRefreshManager] Stopping after repeated failures');
+        log.error('Stopping after repeated failures');
         this.stop();
       }
     } finally {
@@ -314,9 +312,7 @@ export default class SessionRefreshManager {
    */
   public async forceRefreshCheck(): Promise<boolean> {
     if (!this.isRunning) {
-      log.warn(
-        '[SessionRefreshManager] forceRefreshCheck called while not running'
-      );
+      log.warn('forceRefreshCheck called while not running');
       return false;
     }
 
