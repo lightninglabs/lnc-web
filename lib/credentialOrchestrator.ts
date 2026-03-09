@@ -8,7 +8,9 @@ import {
   UnlockOptions
 } from './types/lnc';
 import LncCredentialStore from './util/credentialStore';
-import { log } from './util/log';
+import { createLogger } from './util/log';
+
+const log = createLogger('CredentialOrchestrator');
 
 /**
  * Orchestrates credential management and authentication operations.
@@ -53,9 +55,7 @@ export class CredentialOrchestrator {
   private createCredentialStore(config: LncConfig): CredentialStore {
     // If credential store is explicitly provided, use it
     if (config.credentialStore) {
-      log.info(
-        '[CredentialOrchestrator] Using custom credential store from config'
-      );
+      log.info('Using custom credential store from config');
       return config.credentialStore;
     }
 
@@ -75,10 +75,7 @@ export class CredentialOrchestrator {
     let sessionManager: SessionManager | undefined;
     if (config.enableSessions) {
       const namespace = config.namespace || 'default';
-      const sessionConfig = config.sessionDuration
-        ? { sessionDuration: config.sessionDuration }
-        : undefined;
-      sessionManager = new SessionManager(namespace, sessionConfig);
+      sessionManager = new SessionManager(namespace, config.sessionConfig);
     }
 
     const store = new UnifiedCredentialStore(config, sessionManager);
@@ -98,7 +95,7 @@ export class CredentialOrchestrator {
    * Create a legacy LncCredentialStore
    */
   private createLegacyStore(config: LncConfig): LncCredentialStore {
-    log.info('[CredentialOrchestrator] Creating legacy LncCredentialStore');
+    log.info('Creating legacy LncCredentialStore');
 
     const store = new LncCredentialStore(
       config.namespace || 'default',
@@ -139,7 +136,7 @@ export class CredentialOrchestrator {
     let clearedLegacyViaSession = false;
 
     if (session) {
-      log.info('[CredentialOrchestrator] clearing session credentials');
+      log.info('clearing session credentials');
       if (unifiedStore) {
         unifiedStore.clearSession();
       } else {
@@ -149,7 +146,7 @@ export class CredentialOrchestrator {
     }
 
     if (persisted) {
-      log.info('[CredentialOrchestrator] clearing persisted credentials');
+      log.info('clearing persisted credentials');
       if (!clearedLegacyViaSession) {
         this.currentCredentialStore.clear();
       }
@@ -191,12 +188,12 @@ export class CredentialOrchestrator {
         this.currentCredentialStore.password = options.password;
         return true;
       } catch (error) {
-        log.error('[CredentialOrchestrator] Legacy unlock failed:', error);
+        log.error('Legacy unlock failed:', error);
         return false;
       }
     }
     log.warn(
-      '[CredentialOrchestrator] Legacy unlock failed: missing or empty password for method "password".'
+      'Legacy unlock failed: missing or empty password for method "password".'
     );
     return false;
   }

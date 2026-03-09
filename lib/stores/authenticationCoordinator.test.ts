@@ -1,10 +1,20 @@
 import { describe, expect, it, vi } from 'vitest';
-import { log } from '../util/log';
 import { AuthenticationCoordinator } from './authenticationCoordinator';
 import { AuthStrategy } from './authStrategy';
 import { CredentialCache } from './credentialCache';
 import { SessionCoordinator } from './sessionCoordinator';
 import { StrategyManager } from './strategyManager';
+
+const mockLog = vi.hoisted(() => ({
+  info: vi.fn(),
+  warn: vi.fn(),
+  error: vi.fn(),
+  debug: vi.fn()
+}));
+
+vi.mock('../util/log', () => ({
+  createLogger: vi.fn(() => mockLog)
+}));
 
 const createStrategy = (method: AuthStrategy['method']) => ({
   method,
@@ -25,15 +35,14 @@ const createSessionCoordinator = (overrides?: Partial<SessionCoordinator>) => {
     hasActiveSession: false,
     getTimeRemaining: vi.fn().mockResolvedValue(0),
     clearSession: vi.fn(),
+    tryAutoRestore: vi.fn().mockResolvedValue({
+      localKey: 'local',
+      remoteKey: 'remote',
+      pairingPhrase: 'pairing',
+      serverHost: 'server'
+    }),
     getSessionManager: vi.fn().mockReturnValue({
-      restoreSession: vi.fn().mockResolvedValue({
-        localKey: 'local',
-        remoteKey: 'remote',
-        pairingPhrase: 'pairing',
-        serverHost: 'server',
-        expiresAt: Date.now()
-      }),
-      config: { sessionDuration: 1000 }
+      config: { sessionDurationMs: 1000 }
     })
   };
 
@@ -42,13 +51,12 @@ const createSessionCoordinator = (overrides?: Partial<SessionCoordinator>) => {
       createSession: ReturnType<typeof vi.fn>;
       getTimeRemaining: ReturnType<typeof vi.fn>;
       clearSession: ReturnType<typeof vi.fn>;
+      tryAutoRestore: ReturnType<typeof vi.fn>;
       getSessionManager: ReturnType<typeof vi.fn>;
     } & Partial<SessionCoordinator>;
 };
 
 describe('AuthenticationCoordinator', () => {
-  vi.spyOn(log, 'error').mockImplementation(() => {});
-
   it('returns false when strategy is missing', async () => {
     const strategyManager = {
       getStrategy: vi.fn().mockReturnValue(undefined)
@@ -116,7 +124,7 @@ describe('AuthenticationCoordinator', () => {
     });
 
     expect(result).toBe(false);
-    expect(log.error).toHaveBeenCalled();
+    expect(mockLog.error).toHaveBeenCalled();
   });
 
   it('loads credentials, persists, and creates session', async () => {
@@ -192,10 +200,10 @@ describe('AuthenticationCoordinator', () => {
 
     await coordinator.unlock({ method: 'password', password: 'pw' });
 
-    expect(log.error).toHaveBeenCalled();
+    expect(mockLog.error).toHaveBeenCalled();
   });
 
-  it('logs when persisting cached credentials fails', async () => {
+  it('returns false when persisting cached credentials fails', async () => {
     const strategy = createStrategy('password');
     strategy.setCredential.mockRejectedValue(new Error('boom'));
 
@@ -215,9 +223,56 @@ describe('AuthenticationCoordinator', () => {
       sessionCoordinator
     );
 
-    await coordinator.unlock({ method: 'password', password: 'pw' });
+    const result = await coordinator.unlock({
+      method: 'password',
+      password: 'pw'
+    });
 
-    expect(log.error).toHaveBeenCalled();
+    expect(result).toBe(false);
+    expect(mockLog.error).toHaveBeenCalledWith(
+      'Failed to persist localKey:',
+      expect.any(Error)
+    );
+  });
+
+  it('attempts all keys and reports all failures in persistence', async () => {
+    const strategy = createStrategy('password');
+    strategy.setCredential.mockRejectedValue(new Error('storage full'));
+
+    const strategyManager = {
+      getStrategy: vi.fn().mockReturnValue(strategy),
+      hasAnyCredentials: false,
+      preferredMethod: 'password'
+    } as unknown as StrategyManager;
+
+    const cache = new CredentialCache();
+    cache.set('localKey', 'local');
+    cache.set('remoteKey', 'remote');
+    // Disable auto-restore so only the explicit unlock populates the cache.
+    const sessionCoordinator = createSessionCoordinator({
+      isSessionAvailable: false
+    });
+
+    const coordinator = new AuthenticationCoordinator(
+      strategyManager,
+      cache,
+      sessionCoordinator
+    );
+
+    const result = await coordinator.unlock({
+      method: 'password',
+      password: 'pw'
+    });
+
+    expect(result).toBe(false);
+    // Both cached keys should have been attempted despite individual failures.
+    expect(strategy.setCredential).toHaveBeenCalledTimes(2);
+    expect(mockLog.error).toHaveBeenCalledWith(
+      'Unlock failed:',
+      expect.objectContaining({
+        message: expect.stringContaining('localKey')
+      })
+    );
   });
 
   it('skips persistence for session strategy', async () => {
@@ -331,7 +386,11 @@ describe('AuthenticationCoordinator', () => {
       preferredMethod: 'password'
     } as unknown as StrategyManager;
     const cache = new CredentialCache();
-    const sessionCoordinator = createSessionCoordinator();
+    // Use a coordinator whose tryAutoRestore returns undefined (failure) so
+    // that the constructor's initializeCache does not set sessionRestored.
+    const sessionCoordinator = createSessionCoordinator({
+      tryAutoRestore: vi.fn().mockResolvedValue(undefined)
+    } as never);
 
     const coordinator = new AuthenticationCoordinator(
       strategyManager,
@@ -339,14 +398,16 @@ describe('AuthenticationCoordinator', () => {
       sessionCoordinator
     );
 
+    // Wait for the constructor's initializeCache to finish.
+    await (coordinator as unknown as { initializeCachePromise: Promise<void> })
+      .initializeCachePromise;
+
+    // Set up state: an active strategy but no session restored.
     (
       coordinator as unknown as { activeStrategy?: AuthStrategy }
     ).activeStrategy = strategy;
     (coordinator as unknown as { sessionRestored: boolean }).sessionRestored =
       false;
-    (
-      coordinator as unknown as { tryAutoRestore: () => Promise<boolean> }
-    ).tryAutoRestore = vi.fn().mockResolvedValue(false);
 
     const loadSpy = vi.spyOn(
       coordinator as unknown as {
@@ -385,13 +446,14 @@ describe('AuthenticationCoordinator', () => {
 
   it('handles auto-restore failures gracefully', async () => {
     const sessionStrategy = createStrategy('session');
-    sessionStrategy.unlock.mockRejectedValue(new Error('boom'));
 
     const strategyManager = {
       getStrategy: vi.fn().mockReturnValue(sessionStrategy)
     } as unknown as StrategyManager;
     const cache = new CredentialCache();
-    const sessionCoordinator = createSessionCoordinator();
+    const sessionCoordinator = createSessionCoordinator({
+      tryAutoRestore: vi.fn().mockRejectedValue(new Error('boom'))
+    } as never);
 
     const coordinator = new AuthenticationCoordinator(
       strategyManager,
@@ -399,8 +461,12 @@ describe('AuthenticationCoordinator', () => {
       sessionCoordinator
     );
 
+    // Wait for the constructor's initializeCache to settle.
+    await (coordinator as unknown as { initializeCachePromise: Promise<void> })
+      .initializeCachePromise;
+
     await expect(coordinator.tryAutoRestore()).resolves.toBe(false);
-    expect(log.error).toHaveBeenCalled();
+    expect(mockLog.error).toHaveBeenCalled();
   });
 
   it('creates session after connection', async () => {
@@ -421,6 +487,9 @@ describe('AuthenticationCoordinator', () => {
       cache,
       sessionCoordinator
     );
+
+    // Unlock first so activeStrategy is set, matching real usage.
+    await coordinator.unlock({ method: 'password', password: 'pw' });
 
     await coordinator.createSessionAfterConnection();
 
@@ -530,6 +599,41 @@ describe('AuthenticationCoordinator', () => {
     );
   });
 
+  it('succeeds unlock even when session creation fails', async () => {
+    const strategy = createStrategy('password');
+    strategy.getCredential.mockResolvedValue(undefined);
+    const strategyManager = {
+      getStrategy: vi.fn().mockReturnValue(strategy),
+      hasAnyCredentials: false,
+      preferredMethod: 'password'
+    } as unknown as StrategyManager;
+    const cache = new CredentialCache();
+    const sessionCoordinator = createSessionCoordinator();
+    sessionCoordinator.createSession.mockRejectedValue(
+      new Error('Storage quota exceeded')
+    );
+
+    const coordinator = new AuthenticationCoordinator(
+      strategyManager,
+      cache,
+      sessionCoordinator
+    );
+
+    // Unlock should succeed even though session creation threw. Session
+    // creation is an optimization layer, not a prerequisite for auth.
+    const result = await coordinator.unlock({
+      method: 'password',
+      password: 'pw'
+    });
+    expect(result).toBe(true);
+    expect(mockLog.error).toHaveBeenCalledWith(
+      expect.stringContaining(
+        'Session creation failed after successful unlock'
+      ),
+      expect.any(Error)
+    );
+  });
+
   it('creates a session after connection with empty cache values', async () => {
     const strategy = createStrategy('password');
     const strategyManager = {
@@ -610,7 +714,7 @@ describe('AuthenticationCoordinator', () => {
       'boom'
     );
 
-    expect(log.error).toHaveBeenCalled();
+    expect(mockLog.error).toHaveBeenCalled();
   });
 
   it('clears session state', () => {

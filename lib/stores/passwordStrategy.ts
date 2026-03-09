@@ -1,8 +1,10 @@
 import { PasswordEncryptionService } from '../encryption/passwordEncryptionService';
 import { PasswordCredentialRepository } from '../repositories/passwordCredentialRepository';
 import { UnlockMethod, UnlockOptions } from '../types/lnc';
-import { log } from '../util/log';
+import { createLogger } from '../util/log';
 import { AuthStrategy } from './authStrategy';
+
+const log = createLogger('PasswordStrategy');
 
 /**
  * Password-based authentication strategy.
@@ -49,7 +51,7 @@ export class PasswordStrategy implements AuthStrategy {
     }
 
     if (!options.password) {
-      log.error('[PasswordStrategy] Password required for unlock');
+      log.error('Password required for unlock');
       return false;
     }
 
@@ -57,7 +59,7 @@ export class PasswordStrategy implements AuthStrategy {
       await this.repository.unlock(options);
       return true;
     } catch (error) {
-      log.error('[PasswordStrategy] Unlock failed:', error);
+      log.error('Unlock failed:', error);
       return false;
     }
   }
@@ -68,14 +70,14 @@ export class PasswordStrategy implements AuthStrategy {
    */
   async getCredential(key: string): Promise<string | undefined> {
     if (!this.isUnlocked) {
-      log.warn('[PasswordStrategy] Cannot get credential - not unlocked');
+      log.warn('Cannot get credential - not unlocked');
       return undefined;
     }
 
     try {
       return await this.repository.getCredential(key);
     } catch (error) {
-      log.error(`[PasswordStrategy] Failed to get credential ${key}:`, error);
+      log.error(`Failed to get credential ${key}:`, error);
       return undefined;
     }
   }
@@ -86,14 +88,14 @@ export class PasswordStrategy implements AuthStrategy {
    */
   async setCredential(key: string, value: string): Promise<void> {
     if (!this.isUnlocked) {
-      log.warn('[PasswordStrategy] Cannot set credential - not unlocked');
+      log.warn('Cannot set credential - not unlocked');
       return;
     }
 
     try {
       await this.repository.setCredential(key, value);
     } catch (error) {
-      log.error(`[PasswordStrategy] Failed to set credential ${key}:`, error);
+      log.error(`Failed to set credential ${key}:`, error);
       throw error;
     }
   }

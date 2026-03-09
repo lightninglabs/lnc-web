@@ -6,7 +6,7 @@ const lnc = new LNC({
   namespace: 'demo',
   allowPasskeys: true,
   enableSessions: true,
-  sessionDuration: 30 * 60 * 1000 // 30 minutes for testing
+  sessionConfig: { sessionDurationMs: 30 * 60 * 1000 } // 30 minutes for testing
 });
 
 /**

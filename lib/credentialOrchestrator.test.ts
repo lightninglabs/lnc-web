@@ -3,7 +3,6 @@ import { CredentialOrchestrator } from './credentialOrchestrator';
 import { PasskeyEncryptionService } from './encryption/passkeyEncryptionService';
 import SessionManager from './sessions/sessionManager';
 import LncCredentialStore from './util/credentialStore';
-import { log } from './util/log';
 
 const createMockUnifiedStore = () => {
   const store: any = {
@@ -105,7 +104,7 @@ vi.mock('./util/credentialStore', () => {
 
 vi.mock('./sessions/sessionManager', () => ({
   default: vi.fn().mockImplementation(() => ({
-    config: { sessionDuration: 24 * 60 * 60 * 1000 }
+    config: { sessionDurationMs: 24 * 60 * 60 * 1000 }
   }))
 }));
 
@@ -115,13 +114,15 @@ vi.mock('./encryption/passkeyEncryptionService', () => ({
   }
 }));
 
+const mockLog = vi.hoisted(() => ({
+  info: vi.fn(),
+  warn: vi.fn(),
+  error: vi.fn(),
+  debug: vi.fn()
+}));
+
 vi.mock('./util/log', () => ({
-  log: {
-    info: vi.fn(),
-    warn: vi.fn(),
-    error: vi.fn(),
-    debug: vi.fn()
-  }
+  createLogger: vi.fn(() => mockLog)
 }));
 
 describe('CredentialOrchestrator', () => {
@@ -155,14 +156,14 @@ describe('CredentialOrchestrator', () => {
       expect(orchestrator.credentialStore).toBe(mockUnifiedStore);
     });
 
-    it('should create unified store with custom session ttl', () => {
+    it('should create unified store with custom session config', () => {
       new CredentialOrchestrator({
         enableSessions: true,
-        sessionDuration: 3600000
+        sessionConfig: { sessionDurationMs: 3600000 }
       });
 
       expect(SessionManager).toHaveBeenCalledWith('default', {
-        sessionDuration: 3600000
+        sessionDurationMs: 3600000
       });
     });
 
@@ -377,8 +378,8 @@ describe('CredentialOrchestrator', () => {
       });
 
       expect(result).toBe(false);
-      expect(log.warn).toHaveBeenCalledWith(
-        '[CredentialOrchestrator] Legacy unlock failed: missing or empty password for method "password".'
+      expect(mockLog.warn).toHaveBeenCalledWith(
+        'Legacy unlock failed: missing or empty password for method "password".'
       );
     });
   });

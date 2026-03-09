@@ -1,5 +1,7 @@
 import { SessionCredentials } from '../sessions/types';
-import { log } from '../util/log';
+import { createLogger } from '../util/log';
+
+const log = createLogger('CredentialCache');
 
 /**
  * Handles in-memory credential storage and access.
@@ -48,7 +50,7 @@ export class CredentialCache {
    */
   clear(): void {
     this.cache.clear();
-    log.info('[CredentialCache] Cache cleared');
+    log.info('Cache cleared');
   }
 
   /**
@@ -66,7 +68,7 @@ export class CredentialCache {
       this.cache.set(key, value);
     }
 
-    log.info('[CredentialCache] Hydrated with credentials:', {
+    log.info('Hydrated with credentials:', {
       keys: Object.keys(credentials)
     });
   }
@@ -80,7 +82,7 @@ export class CredentialCache {
     this.cache.set('pairingPhrase', session.pairingPhrase);
     this.cache.set('serverHost', session.serverHost);
 
-    log.info('[CredentialCache] Hydrated from session:', {
+    log.info('Hydrated from session:', {
       hasLocalKey: !!session.localKey,
       hasRemoteKey: !!session.remoteKey,
       hasPairingPhrase: !!session.pairingPhrase,

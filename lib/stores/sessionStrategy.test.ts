@@ -1,6 +1,16 @@
 import { describe, expect, it, vi } from 'vitest';
-import { log } from '../util/log';
 import { SessionStrategy } from './sessionStrategy';
+
+const mockLog = vi.hoisted(() => ({
+  info: vi.fn(),
+  warn: vi.fn(),
+  error: vi.fn(),
+  debug: vi.fn()
+}));
+
+vi.mock('../util/log', () => ({
+  createLogger: vi.fn(() => mockLog)
+}));
 
 const createSessionManager = () => ({
   hasActiveSession: true,
@@ -16,12 +26,10 @@ const createSessionManager = () => ({
   clearSession: vi.fn()
 });
 
-vi.spyOn(log, 'warn').mockImplementation(() => {});
-vi.spyOn(log, 'error').mockImplementation(() => {});
-
 describe('SessionStrategy', () => {
   it('reports support and lock state', () => {
     const manager = createSessionManager();
+    manager.hasActiveSession = false;
     const strategy = new SessionStrategy(manager as never);
 
     expect(strategy.isSupported).toBe(true);
@@ -66,7 +74,7 @@ describe('SessionStrategy', () => {
     const result = await strategy.unlock({ method: 'session' });
 
     expect(result).toBe(false);
-    expect(log.error).toHaveBeenCalled();
+    expect(mockLog.error).toHaveBeenCalled();
   });
 
   it('checks auto-restore availability', async () => {
@@ -129,7 +137,7 @@ describe('SessionStrategy', () => {
     await strategy.unlock({ method: 'session' });
 
     await expect(strategy.getCredential('localKey')).resolves.toBeUndefined();
-    expect(log.error).toHaveBeenCalled();
+    expect(mockLog.error).toHaveBeenCalled();
   });
 
   it('throws on setCredential', async () => {
@@ -139,6 +147,14 @@ describe('SessionStrategy', () => {
     await expect(strategy.setCredential('localKey', 'value')).rejects.toThrow(
       'SessionStrategy does not support direct credential storage'
     );
+  });
+
+  it('returns false for canAutoRestore when hasValidSession is false', async () => {
+    const manager = createSessionManager();
+    manager.hasValidSession.mockResolvedValue(false);
+    const strategy = new SessionStrategy(manager as never);
+
+    await expect(strategy.canAutoRestore()).resolves.toBe(false);
   });
 
   it('clears session state', () => {

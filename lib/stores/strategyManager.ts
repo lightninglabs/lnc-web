@@ -1,10 +1,12 @@
 import SessionManager from '../sessions/sessionManager';
 import { LncConfig, UnlockMethod } from '../types/lnc';
-import { log } from '../util/log';
+import { createLogger } from '../util/log';
 import { AuthStrategy } from './authStrategy';
 import { PasskeyStrategy } from './passkeyStrategy';
 import { PasswordStrategy } from './passwordStrategy';
 import { SessionStrategy } from './sessionStrategy';
+
+const log = createLogger('StrategyManager');
 
 /**
  * Manages authentication strategies and their lifecycle.
@@ -78,7 +80,7 @@ export class StrategyManager {
    */
   clearAll(): void {
     this.strategies.forEach((strategy) => strategy.clear());
-    log.info('[StrategyManager] Cleared all strategies');
+    log.info('Cleared all strategies');
   }
 
   //
@@ -115,9 +117,7 @@ export class StrategyManager {
     }
 
     log.info(
-      `[StrategyManager] Registered strategies: ${Array.from(
-        this.strategies.keys()
-      ).join(', ')}`
+      `Registered strategies: ${Array.from(this.strategies.keys()).join(', ')}`
     );
   }
 }

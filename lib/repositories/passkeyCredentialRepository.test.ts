@@ -1,6 +1,16 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { log } from '../util/log';
 import { PasskeyCredentialRepository } from './passkeyCredentialRepository';
+
+const mockLog = vi.hoisted(() => ({
+  info: vi.fn(),
+  warn: vi.fn(),
+  error: vi.fn(),
+  debug: vi.fn()
+}));
+
+vi.mock('../util/log', () => ({
+  createLogger: vi.fn(() => mockLog)
+}));
 
 // Mock PasskeyEncryptionService
 const mockEncryptionService = {
@@ -212,12 +222,10 @@ describe('PasskeyCredentialRepository', () => {
       const error = new Error('Decryption error');
       mockEncryptionService.decrypt.mockRejectedValue(error);
 
-      const spy = vi.spyOn(log, 'error');
-
       const result = await repository.getCredential('test-key');
 
       expect(result).toBeUndefined();
-      expect(spy).toHaveBeenCalledWith(
+      expect(mockLog.error).toHaveBeenCalledWith(
         'Failed to decrypt credential test-key:',
         error
       );

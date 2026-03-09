@@ -90,21 +90,20 @@ export class Logger {
 }
 
 /**
+ * Create a Logger scoped to a specific class or module name.
+ * The name becomes the debug namespace, enabling targeted filtering
+ * (e.g., DEBUG=SessionManager or DEBUG=Session*).
+ */
+export function createLogger(name: string): Logger {
+  return Logger.fromEnv(name);
+}
+
+/**
  * the main logger for the app
  */
 export const log = Logger.fromEnv('main');
 
 /**
- * the logger for GRPC requests and responses
- */
-export const grpcLog = Logger.fromEnv('grpc');
-
-/**
  * the logger for WASM requests and responses
  */
 export const wasmLog = Logger.fromEnv('wasm');
-
-/**
- * the logger for state updates via mobx actions
- */
-export const actionLog = Logger.fromEnv('action');
