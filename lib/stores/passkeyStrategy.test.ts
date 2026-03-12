@@ -27,6 +27,7 @@ const mockRepository = {
   },
   _hasAnyCredentials: false,
   hasStoredAuthData: false,
+  storedCredentialId: undefined as string | undefined,
   clear: vi.fn()
 };
 
@@ -210,6 +211,20 @@ describe('PasskeyStrategy', () => {
 
       mockRepository.hasStoredAuthData = false;
       expect(strategy.hasStoredAuthData()).toBe(false);
+    });
+  });
+
+  describe('getCredentialId()', () => {
+    it('should return the stored credential ID from the repository', () => {
+      mockRepository.storedCredentialId = 'cred-id-123';
+
+      expect(strategy.getCredentialId()).toBe('cred-id-123');
+    });
+
+    it('should return undefined when no credential ID is stored', () => {
+      mockRepository.storedCredentialId = undefined;
+
+      expect(strategy.getCredentialId()).toBeUndefined();
     });
   });
 

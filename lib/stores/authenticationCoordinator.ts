@@ -1,8 +1,8 @@
 import {
   AuthenticationInfo,
-  CredentialStore,
   UnlockOptions
-} from '../types/lnc';
+} from '../types/lightningNodeConnect';
+import { CredentialStore } from '../types/lnc';
 import { createLogger } from '../util/log';
 import { AuthStrategy } from './authStrategy';
 import { CredentialCache } from './credentialCache';

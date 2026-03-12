@@ -1,6 +1,6 @@
 import { PasskeyEncryptionService } from '../encryption/passkeyEncryptionService';
 import { PasskeyCredentialRepository } from '../repositories/passkeyCredentialRepository';
-import { UnlockOptions } from '../types/lnc';
+import { UnlockOptions } from '../types/lightningNodeConnect';
 import { createLogger } from '../util/log';
 import { AuthStrategy } from './authStrategy';
 
@@ -72,6 +72,14 @@ export class PasskeyStrategy implements AuthStrategy {
    */
   hasStoredAuthData(): boolean {
     return this.repository.hasStoredAuthData;
+  }
+
+  /**
+   * Return the stored passkey credential ID, if any. Allows consumer apps
+   * to pass this ID when persisting credentials for a different namespace.
+   */
+  getCredentialId(): string | undefined {
+    return this.repository.storedCredentialId;
   }
 
   /**

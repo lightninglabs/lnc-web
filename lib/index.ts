@@ -13,15 +13,14 @@ if (!WebAssembly.instantiateStreaming) {
   };
 }
 
+export type { LncConfig, CredentialStore } from './types/lnc';
 export type {
-  LncConfig,
-  CredentialStore,
   SessionConfig,
   UnlockMethod,
   UnlockOptions,
   AuthenticationInfo,
   ClearOptions
-} from './types/lnc';
+} from './types/lightningNodeConnect';
 export * from '@lightninglabs/lnc-core';
 export default LNC;
 export { CredentialOrchestrator, WasmManager };

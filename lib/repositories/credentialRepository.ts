@@ -1,4 +1,4 @@
-import { UnlockOptions } from '../types/lnc';
+import { UnlockOptions } from '../types/lightningNodeConnect';
 import { createLogger } from '../util/log';
 
 const log = createLogger('CredentialRepository');
