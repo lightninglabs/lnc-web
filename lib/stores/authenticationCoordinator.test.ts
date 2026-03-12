@@ -128,6 +128,42 @@ describe('AuthenticationCoordinator', () => {
     expect(mockLog.error).toHaveBeenCalled();
   });
 
+  it('clears cache when loadCredentialsFromStrategy throws', async () => {
+    const strategy = createStrategy('password');
+    // First two keys succeed, third throws — simulating partial load.
+    let callCount = 0;
+    strategy.getCredential.mockImplementation(async () => {
+      callCount++;
+      if (callCount === 3) {
+        throw new Error('storage corrupted');
+      }
+      return `value-${callCount}`;
+    });
+
+    const strategyManager = {
+      getStrategy: vi.fn().mockReturnValue(strategy)
+    } as unknown as StrategyManager;
+    const cache = new CredentialCache();
+    const sessionCoordinator = createSessionCoordinator();
+
+    const coordinator = new AuthenticationCoordinator(
+      strategyManager,
+      cache,
+      sessionCoordinator
+    );
+
+    const result = await coordinator.unlock({
+      method: 'password',
+      password: 'pw'
+    });
+
+    expect(result).toBe(false);
+    expect(coordinator.isUnlocked).toBe(false);
+    // Cache must be empty after partial load failure.
+    expect(cache.get('localKey')).toBeUndefined();
+    expect(cache.get('remoteKey')).toBeUndefined();
+  });
+
   it('loads credentials into cache on unlock (no persist or session side effects)', async () => {
     const strategy = createStrategy('password');
     strategy.getCredential.mockImplementation(async (key: string) => {
@@ -493,6 +529,34 @@ describe('AuthenticationCoordinator', () => {
     const restored = await coordinator.tryAutoRestore();
 
     expect(restored).toBe(true);
+    expect(cache.get('localKey')).toBe('local');
+  });
+
+  it('short-circuits unlock({session}) when tryAutoRestore already succeeded', async () => {
+    const sessionStrategy = createStrategy('session');
+
+    const strategyManager = {
+      getStrategy: vi.fn().mockReturnValue(sessionStrategy)
+    } as unknown as StrategyManager;
+    const cache = new CredentialCache();
+    const sessionCoordinator = createSessionCoordinator();
+
+    const coordinator = new AuthenticationCoordinator(
+      strategyManager,
+      cache,
+      sessionCoordinator
+    );
+
+    // Wait for auto-restore to complete (populates cache + sets sessionRestored).
+    await (coordinator as unknown as { initializeCachePromise: Promise<void> })
+      .initializeCachePromise;
+
+    // Subsequent unlock({session}) should short-circuit without calling
+    // strategy.unlock() or the crypto restore pipeline.
+    const result = await coordinator.unlock({ method: 'session' });
+
+    expect(result).toBe(true);
+    expect(sessionStrategy.unlock).not.toHaveBeenCalled();
     expect(cache.get('localKey')).toBe('local');
   });
 
