@@ -106,6 +106,36 @@ lnd.lightning.subscribeChannelEvents(
 );
 ```
 
+#### Modern entrypoint (passkeys & sessions)
+
+For applications that need passkey-based authentication and session management, use the `LightningNodeConnect` named export:
+
+```typescript
+import { LightningNodeConnect } from '@lightninglabs/lnc-web';
+
+const lnc = new LightningNodeConnect({
+  namespace: 'my-app',
+  allowPasskeys: true,
+  enableSessions: true,
+  session: { sessionDurationMs: 24 * 60 * 60 * 1000 }
+});
+
+// pair with a new node
+await lnc.pair('artefact morning piano photo consider light');
+
+// persist credentials with a password or passkey
+await lnc.persistWithPassword('my-password');
+// or: await lnc.persistWithPasskey();
+
+// on subsequent visits, unlock and connect
+await lnc.unlock({ method: 'password', password: 'my-password' });
+await lnc.connect();
+
+// check authentication state
+const info = await lnc.getAuthenticationInfo();
+console.log(info.hasActiveSession, info.supportsPasskeys);
+```
+
 ## Further documentation
 
 - https://docs.lightning.engineering/lightning-network-tools/lightning-terminal/lnc-npm
