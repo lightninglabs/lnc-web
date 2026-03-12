@@ -90,17 +90,6 @@ export interface LncConfig extends BaseConnectionConfig {
    * browser's `localStorage`
    */
   credentialStore?: CredentialStore;
-  /**
-   * @deprecated Use LightningNodeConnectConfig instead. Temporarily retained
-   * for CredentialOrchestrator compatibility until it is removed.
-   */
-  enableSessions?: boolean;
-  /** @deprecated Use LightningNodeConnectConfig instead. */
-  sessionConfig?: import('./lightningNodeConnect').SessionConfig;
-  /** @deprecated Use LightningNodeConnectConfig instead. */
-  allowPasskeys?: boolean;
-  /** @deprecated Use LightningNodeConnectConfig instead. */
-  passkeyDisplayName?: string;
 }
 
 /**
