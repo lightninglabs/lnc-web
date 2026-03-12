@@ -1,3 +1,5 @@
+import { BaseConnectionConfig } from './baseConnection';
+
 export interface WasmGlobal {
   /**
    * Returns true if the WASM client has been started and is ready to accept
@@ -69,31 +71,14 @@ export interface WasmGlobal {
   onAuthData?: (macaroonHex: string) => void;
 }
 
-export interface LncConfig {
-  /**
-   * Specify a custom Lightning Node Connect proxy server. If not specified we'll
-   * default to `mailbox.terminal.lightning.today:443`.
-   */
-  serverHost?: string;
-  /**
-   * Custom location for the WASM client code. Can be remote or local. If not
-   * specified we’ll default to our instance on our CDN.
-   */
-  wasmClientCode?: string; // URL to WASM file
-  /**
-   * JavaScript namespace used for the main WASM calls. You can maintain multiple
-   * connections if you use different namespaces. If not specified we'll default
-   * to `default`.
-   */
-  namespace?: string;
-  /**
-   * The LNC pairing phrase used to initialize the connection to the LNC proxy.
-   * This value will be passed along to the credential store.
-   */
-  pairingPhrase?: string;
+/**
+ * Legacy configuration for the LNC class. Contains only connection fields
+ * plus password and optional custom CredentialStore.
+ */
+export interface LncConfig extends BaseConnectionConfig {
   /**
    * By default, this module will handle storage of your local and remote keys
-   * for you in local storage. This password ise used to encrypt the keys for
+   * for you in local storage. This password is used to encrypt the keys for
    * future use. If the password is not provided here, it must be
    * set directly via `lnc.credentials.password` in order to persist data
    * across page loads
@@ -106,88 +91,17 @@ export interface LncConfig {
    */
   credentialStore?: CredentialStore;
   /**
-   * Enable session-based authentication. When enabled, credentials are stored
-   * in sessionStorage for passwordless login during the browser session.
-   * Defaults to false for backward compatibility.
+   * @deprecated Use LightningNodeConnectConfig instead. Temporarily retained
+   * for CredentialOrchestrator compatibility until it is removed.
    */
   enableSessions?: boolean;
-  /**
-   * Session configuration options. Only used when enableSessions is true.
-   * See {@link SessionConfig} for available options and defaults.
-   */
-  sessionConfig?: SessionConfig;
-  /**
-   * When true, enables passkey-based authentication for credential encryption.
-   * Requires WebAuthn support in the browser.
-   * Default is false.
-   */
+  /** @deprecated Use LightningNodeConnectConfig instead. */
+  sessionConfig?: import('./lightningNodeConnect').SessionConfig;
+  /** @deprecated Use LightningNodeConnectConfig instead. */
   allowPasskeys?: boolean;
-  /**
-   * Display name shown to user during passkey creation.
-   * Used as the user.displayName in the WebAuthn credential.
-   * Defaults to "LNC User ({namespace})" if not provided.
-   */
+  /** @deprecated Use LightningNodeConnectConfig instead. */
   passkeyDisplayName?: string;
 }
-
-/**
- * Authentication information returned by getAuthenticationInfo()
- */
-export interface AuthenticationInfo {
-  /** True if any authentication method has been successfully applied */
-  isUnlocked: boolean;
-  /** True if any long-term credentials are stored */
-  hasStoredCredentials: boolean;
-  /** True if a valid session exists for passwordless login */
-  hasActiveSession: boolean;
-  /** Remaining session time in milliseconds */
-  sessionTimeRemaining: number;
-  /** True if passkeys are supported in this environment */
-  supportsPasskeys: boolean;
-  /** True if a passkey credential is available */
-  hasPasskey: boolean;
-  /** The recommended unlock method based on current state */
-  preferredUnlockMethod: UnlockMethod;
-}
-
-/**
- * Available unlock methods
- */
-export type UnlockMethod = 'password' | 'passkey' | 'session';
-
-/**
- * Unlock options for password-based authentication.
- */
-export interface PasswordUnlockOptions {
-  method: 'password';
-  password: string;
-  salt?: string;
-  cipher?: string;
-}
-
-/**
- * Unlock options for passkey-based authentication.
- */
-export interface PasskeyUnlockOptions {
-  method: 'passkey';
-  createIfMissing?: boolean;
-  credentialId?: string;
-}
-
-/**
- * Unlock options for session-based authentication.
- */
-export interface SessionUnlockOptions {
-  method: 'session';
-}
-
-/**
- * Unlock options for different authentication methods.
- */
-export type UnlockOptions =
-  | PasswordUnlockOptions
-  | PasskeyUnlockOptions
-  | SessionUnlockOptions;
 
 /**
  * The interface that must be implemented to provide `LNC` instances with storage
@@ -221,33 +135,4 @@ export interface CredentialStore {
    * The default is `undefined`.
    */
   clear(memoryOnly?: boolean): void;
-}
-
-/**
- * Configuration options for session-based credential management.
- *
- * All duration fields use milliseconds for consistency.
- */
-export interface SessionConfig {
-  /** Session duration in milliseconds (default: 24 hours). Must be a finite positive number. */
-  sessionDurationMs?: number;
-  /** Enable automatic session refresh based on activity (default: true). */
-  enableActivityRefresh?: boolean;
-  /** Maximum number of refreshes per session (default: 10). Must be a non-negative integer. */
-  maxRefreshes?: number;
-  /**
-   * Absolute maximum session age in milliseconds (default: 7 days).
-   * Must be a finite positive number and >= sessionDurationMs.
-   */
-  maxSessionAgeMs?: number;
-}
-
-/**
- * Options for clearing credentials
- */
-export interface ClearOptions {
-  /** clear the short-term credentials saved in session storage (default: true) */
-  session?: boolean;
-  /** clear the long-term pairing credentials saved in local storage (default: false) */
-  persisted?: boolean;
 }

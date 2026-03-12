@@ -1,5 +1,5 @@
 import SessionManager from '../sessions/sessionManager';
-import { LncConfig, UnlockMethod } from '../types/lnc';
+import { UnlockMethod } from '../types/lightningNodeConnect';
 import { createLogger } from '../util/log';
 import { AuthStrategy } from './authStrategy';
 import { PasskeyStrategy } from './passkeyStrategy';
@@ -9,13 +9,23 @@ import { SessionStrategy } from './sessionStrategy';
 const log = createLogger('StrategyManager');
 
 /**
+ * Minimal config shape the StrategyManager needs from its caller.
+ * Both LncConfig (legacy) and LightningNodeConnectConfig (modern) satisfy this.
+ */
+export interface StrategyManagerConfig {
+  namespace?: string;
+  allowPasskeys?: boolean;
+  passkeyDisplayName?: string;
+}
+
+/**
  * Manages authentication strategies and their lifecycle.
  * Handles strategy registration, lookup, and coordination.
  */
 export class StrategyManager {
   private strategies = new Map<UnlockMethod, AuthStrategy>();
 
-  constructor(config: LncConfig, sessionManager?: SessionManager) {
+  constructor(config: StrategyManagerConfig, sessionManager?: SessionManager) {
     this.registerStrategies(config, sessionManager);
   }
 
@@ -94,7 +104,7 @@ export class StrategyManager {
    * Session strategy is registered when sessionManager is provided.
    */
   private registerStrategies(
-    config: LncConfig,
+    config: StrategyManagerConfig,
     sessionManager?: SessionManager
   ): void {
     const namespace = config.namespace || 'default';

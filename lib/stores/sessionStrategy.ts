@@ -1,6 +1,6 @@
 import SessionManager from '../sessions/sessionManager';
 import { SessionCredentials } from '../sessions/types';
-import { UnlockOptions } from '../types/lnc';
+import { UnlockOptions } from '../types/lightningNodeConnect';
 import { createLogger } from '../util/log';
 import { AuthStrategy } from './authStrategy';
 

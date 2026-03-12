@@ -1,4 +1,4 @@
-import { UnlockMethod, UnlockOptions } from '../types/lnc';
+import { UnlockMethod, UnlockOptions } from '../types/lightningNodeConnect';
 
 /**
  * Interface for authentication strategies used by UnifiedCredentialStore.

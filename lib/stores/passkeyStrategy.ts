@@ -1,6 +1,6 @@
 import { PasskeyEncryptionService } from '../encryption/passkeyEncryptionService';
 import { PasskeyCredentialRepository } from '../repositories/passkeyCredentialRepository';
-import { UnlockOptions } from '../types/lnc';
+import { UnlockOptions } from '../types/lightningNodeConnect';
 import { createLogger } from '../util/log';
 import { AuthStrategy } from './authStrategy';
 
