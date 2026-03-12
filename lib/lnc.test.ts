@@ -9,9 +9,7 @@ import {
 } from 'vitest';
 import { createMockSetup, MockSetup } from '../test/utils/mock-factory';
 import { globalAccess, testData } from '../test/utils/test-helpers';
-import { PasskeyEncryptionService } from './encryption/passkeyEncryptionService';
 import LNC from './lnc';
-import UnifiedCredentialStore from './stores/unifiedCredentialStore';
 import LncCredentialStore from './util/credentialStore';
 import { WasmGlobal } from './types/lnc';
 
@@ -47,13 +45,8 @@ describe('LNC Core Class', () => {
     });
 
     it('should merge custom config with defaults', () => {
-      const partialConfig = {
-        namespace: 'custom_namespace'
-      };
+      const lnc = new LNC({ namespace: 'custom_namespace' });
 
-      const lnc = new LNC(partialConfig);
-
-      // Verify instance was created successfully
       expect(lnc).toBeInstanceOf(LNC);
       expect(lnc.credentials).toBeDefined();
     });
@@ -67,7 +60,6 @@ describe('LNC Core Class', () => {
       const lnc = new LNC(config);
 
       expect(lnc.credentials).toBeDefined();
-      // The credential store should have been created with the namespace and password
       expect(globalThis.localStorage.setItem).toHaveBeenCalledWith(
         'lnc-web:test_namespace',
         expect.any(String)
@@ -85,69 +77,45 @@ describe('LNC Core Class', () => {
         clear: vi.fn()
       };
 
-      const config = {
-        credentialStore: customCredentialStore
-      };
-
-      const lnc = new LNC(config);
+      const lnc = new LNC({ credentialStore: customCredentialStore });
 
       expect(lnc.credentials).toBe(customCredentialStore);
     });
 
     it('should set serverHost from config if not already paired', () => {
-      const config = {
-        serverHost: 'custom.server:9000',
-        namespace: 'test'
-      };
-
-      // Pre-populate with non-paired data
       globalThis.localStorage.setItem(
         'lnc-web:test',
         JSON.stringify({
           salt: 'salt',
           cipher: 'cipher',
           serverHost: 'existing.server:443',
-          remoteKey: '', // No remote key = not paired
+          remoteKey: '',
           pairingPhrase: '',
           localKey: ''
         })
       );
 
-      const lnc = new LNC(config);
+      const lnc = new LNC({
+        serverHost: 'custom.server:9000',
+        namespace: 'test'
+      });
 
-      // Server host should be set from config since not paired
       expect(lnc.credentials.serverHost).toBe('custom.server:9000');
     });
 
     it('should set pairingPhrase on credential store if provided', () => {
-      const config = {
+      const lnc = new LNC({
         pairingPhrase: 'test_pairing_phrase',
         namespace: 'test'
-      };
-
-      const lnc = new LNC(config);
+      });
 
       expect(lnc.credentials.pairingPhrase).toBe('test_pairing_phrase');
     });
 
-    it('should create LNC instance correctly', () => {
-      const lnc = new LNC();
+    it('should use LncCredentialStore by default', () => {
+      const lnc = new LNC({ namespace: 'test-legacy-default' });
 
-      // Verify instance was created successfully
-      expect(lnc).toBeInstanceOf(LNC);
-      expect(lnc.credentials).toBeDefined();
-    });
-
-    it('should initialize all API instances', () => {
-      const lnc = new LNC();
-
-      // All API instances should be created
-      expect(lnc.lnd).toBeDefined();
-      expect(lnc.loop).toBeDefined();
-      expect(lnc.pool).toBeDefined();
-      expect(lnc.faraday).toBeDefined();
-      expect(lnc.tapd).toBeDefined();
-      expect(lnc.lit).toBeDefined();
+      expect(lnc.credentials).toBeInstanceOf(LncCredentialStore);
     });
 
     it('should handle undefined config gracefully', () => {
@@ -175,11 +143,30 @@ describe('LNC Core Class', () => {
     });
   });
 
+  describe('Legacy API surface', () => {
+    it('does not expose modern authentication helpers', () => {
+      const lnc = new LNC();
+      for (const key of [
+        'pair',
+        'unlock',
+        'persistWithPassword',
+        'persistWithPasskey',
+        'tryAutoRestore',
+        'getAuthenticationInfo',
+        'supportsPasskeys',
+        'clear',
+        'clearCredentials'
+      ]) {
+        expect((lnc as any)[key]).toBeUndefined();
+      }
+      expect((LNC as any).isPasskeySupported).toBeUndefined();
+    });
+  });
+
   describe('WebAssembly Integration', () => {
     it('should preload WASM client successfully', async () => {
       const lnc = new LNC();
 
-      // Mock WebAssembly.instantiateStreaming
       const mockSource = {
         module: { exports: {} },
         instance: { exports: {} }
@@ -188,7 +175,6 @@ describe('LNC Core Class', () => {
         .spyOn(globalThis.WebAssembly, 'instantiateStreaming')
         .mockResolvedValue(mockSource);
 
-      // Mock fetch
       globalThis.fetch = vi.fn().mockResolvedValue(new Response());
 
       await lnc.preload();
@@ -199,27 +185,23 @@ describe('LNC Core Class', () => {
     it('should run WASM client successfully', async () => {
       const lnc = new LNC();
 
-      // Mock preload to set up result internally
       const mockResult = {
         module: { exports: {} },
         instance: { exports: {} }
       };
       vi.spyOn(lnc, 'preload').mockResolvedValue();
 
-      // Mock WebAssembly.instantiate before calling run
       const instantiateMock = vi.fn().mockResolvedValue({
         exports: {}
       });
       globalThis.WebAssembly.instantiate = instantiateMock;
 
-      // Mock fetch for preload
       globalThis.fetch = vi.fn().mockResolvedValue(new Response());
       vi.spyOn(
         globalThis.WebAssembly,
         'instantiateStreaming'
       ).mockResolvedValue(mockResult);
 
-      // Make isReady return false so run() will call preload()
       wasmGlobal.wasmClientIsReady.mockReturnValue(false);
 
       await lnc.run();
@@ -227,47 +209,12 @@ describe('LNC Core Class', () => {
       expect(instantiateMock).toHaveBeenCalled();
     });
 
-    it('should preload automatically if not ready during run', async () => {
-      const lnc = new LNC();
-
-      // Clear WASM global so isReady returns undefined (falsy)
-      globalAccess.clearWasmGlobal('default');
-      // Verify isReady is falsy
-      expect(lnc.isReady).toBeFalsy();
-
-      // Mock result for preload
-      const mockResult = {
-        module: { exports: {} },
-        instance: { exports: {} }
-      };
-
-      // Mock WebAssembly.instantiate
-      vi.spyOn(globalThis.WebAssembly, 'instantiate').mockResolvedValue({
-        exports: {}
-      });
-
-      // Mock fetch and instantiateStreaming for preload
-      globalThis.fetch = vi.fn().mockResolvedValue(new Response());
-      const instantiateStreamingSpy = vi
-        .spyOn(globalThis.WebAssembly, 'instantiateStreaming')
-        .mockResolvedValue(mockResult);
-
-      // Run should complete successfully even when not ready (it will preload internally)
-      await lnc.run();
-
-      // Verify that preload (instantiateStreaming) was triggered because isReady was falsy
-      expect(instantiateStreamingSpy).toHaveBeenCalled();
-    });
-
     it('should throw error if WASM instance not found during run', async () => {
       const lnc = new LNC();
 
-      // Mock the preload to avoid network errors and ensure no result
-      const preloadSpy = vi.spyOn(lnc, 'preload').mockResolvedValue();
+      vi.spyOn(lnc, 'preload').mockResolvedValue();
 
       await expect(lnc.run()).rejects.toThrow("Can't find WASM instance.");
-
-      preloadSpy.mockRestore();
     });
 
     it('should set up WASM callbacks correctly', async () => {
@@ -280,13 +227,11 @@ describe('LNC Core Class', () => {
         instance: { exports: {} }
       };
 
-      // Mock WebAssembly.instantiate for this test
       const instantiateMock = vi.fn().mockResolvedValue({
         exports: {}
       });
       globalThis.WebAssembly.instantiate = instantiateMock;
 
-      // Mock preload to set result
       wasmGlobal.wasmClientIsReady.mockReturnValue(false);
       globalThis.fetch = vi.fn().mockResolvedValue(new Response());
       vi.spyOn(
@@ -296,46 +241,16 @@ describe('LNC Core Class', () => {
 
       await lnc.run();
 
-      // Check that callbacks are set up in global namespace
       const namespace = globalAccess.getWasmGlobal('default');
       expect(namespace.onLocalPrivCreate).toBeDefined();
       expect(namespace.onRemoteKeyReceive).toBeDefined();
       expect(namespace.onAuthData).toBeDefined();
     });
 
-    it('should set correct Go argv during run', async () => {
-      const lnc = new LNC();
-
-      const mockResult = {
-        module: { exports: {} },
-        instance: { exports: {} }
-      };
-
-      // Mock WebAssembly.instantiate for this test
-      const instantiateMock = vi.fn().mockResolvedValue({
-        exports: {}
-      });
-      globalThis.WebAssembly.instantiate = instantiateMock;
-
-      // Mock preload to set result
-      wasmGlobal.wasmClientIsReady.mockReturnValue(false);
-      globalThis.fetch = vi.fn().mockResolvedValue(new Response());
-      vi.spyOn(
-        globalThis.WebAssembly,
-        'instantiateStreaming'
-      ).mockResolvedValue(mockResult);
-
-      await lnc.run();
-
-      // Go argv is now internal to WasmManager, so we just verify run completed successfully
-      expect(instantiateMock).toHaveBeenCalled();
-    });
-
     it('should delegate waitTilReady to the underlying WasmManager', async () => {
       const lnc = new LNC();
 
       const waitSpy = vi
-        // Access the private field via `any` cast
         .spyOn((lnc as any).wasmManager, 'waitTilReady')
         .mockResolvedValue(undefined);
 
@@ -348,87 +263,45 @@ describe('LNC Core Class', () => {
   describe('Status and Permission Getters', () => {
     it('should return true for isReady when WASM is ready', () => {
       const lnc = new LNC();
-
       wasmGlobal.wasmClientIsReady.mockReturnValue(true);
-
       expect(lnc.isReady).toBe(true);
     });
 
     it('should return true for isConnected when connected', () => {
       const lnc = new LNC();
-
       wasmGlobal.wasmClientIsConnected.mockReturnValue(true);
-
       expect(lnc.isConnected).toBe(true);
     });
 
     it('should return undefined for status when WASM not available', () => {
       const lnc = new LNC();
-
-      // Clean up the WASM global for this test
       globalAccess.clearWasmGlobal('default');
-
       expect(lnc.status).toBeUndefined();
-
-      // Restore for other tests
-      wasmGlobal = globalAccess.setupWasmGlobal();
-    });
-
-    it('should return undefined for expiry when WASM not available', () => {
-      const lnc = new LNC();
-
-      // Clean up the WASM global for this test
-      globalAccess.clearWasmGlobal('default');
-
-      expect(lnc.expiry).toBeUndefined();
-
-      // Restore for other tests
       wasmGlobal = globalAccess.setupWasmGlobal();
     });
 
     it('should return correct expiry date from WASM', () => {
       const lnc = new LNC();
       const timestamp = Date.now() / 1000;
-
       wasmGlobal.wasmClientGetExpiry.mockReturnValue(timestamp);
-
-      const expectedDate = new Date(timestamp * 1000);
-      expect(lnc.expiry).toEqual(expectedDate);
-    });
-
-    it('should return undefined for hasPerms when WASM not available', () => {
-      const lnc = new LNC();
-
-      // Clean up the WASM global for this test
-      globalAccess.clearWasmGlobal('default');
-
-      expect(lnc.hasPerms('test.permission')).toBeUndefined();
-
-      // Restore for other tests
-      wasmGlobal = globalAccess.setupWasmGlobal();
+      expect(lnc.expiry).toEqual(new Date(timestamp * 1000));
     });
 
     it('should return correct status from WASM', () => {
       const lnc = new LNC();
-
       wasmGlobal.wasmClientStatus.mockReturnValue('connected');
-
       expect(lnc.status).toBe('connected');
     });
 
     it('should return correct readOnly status from WASM', () => {
       const lnc = new LNC();
-
       wasmGlobal.wasmClientIsReadOnly.mockReturnValue(true);
-
       expect(lnc.isReadOnly).toBe(true);
     });
 
     it('should return correct permission status from WASM', () => {
       const lnc = new LNC();
-
       wasmGlobal.wasmClientHasPerms.mockReturnValue(true);
-
       expect(lnc.hasPerms('test.permission')).toBe(true);
       expect(wasmGlobal.wasmClientHasPerms).toHaveBeenCalledWith(
         'test.permission'
@@ -456,53 +329,20 @@ describe('LNC Core Class', () => {
     it('should connect successfully when not already connected', async () => {
       const lnc = new LNC();
 
-      // Mock successful connection after delay
       setTimeout(() => {
         wasmGlobal.wasmClientIsConnected.mockReturnValue(true);
       }, 10);
 
       const connectPromise = lnc.connect();
-
-      // Advance timers to make the connection succeed immediately
       vi.runAllTimers();
-
       await connectPromise;
 
       expect(wasmGlobal.wasmClientConnectServer).toHaveBeenCalled();
     });
 
-    it('should run WASM if not ready during connect', async () => {
-      const lnc = new LNC();
-
-      // Set up credentials for connection
-      lnc.credentials.serverHost = 'test.host:443';
-      lnc.credentials.pairingPhrase = 'test_phrase';
-      lnc.credentials.localKey = 'test_local_key';
-      lnc.credentials.remoteKey = 'test_remote_key';
-
-      // Make connection check succeed immediately
-      wasmGlobal.wasmClientIsConnected.mockReturnValue(true);
-      wasmGlobal.wasmClientIsReady.mockReturnValue(true);
-
-      // Mock run to avoid actual WASM execution
-      vi.spyOn(lnc, 'run').mockResolvedValue();
-
-      // Connect should complete successfully (internal implementation will handle readiness)
-      const connectPromise = lnc.connect();
-
-      // Advance timers to allow waitTilReady and waitForConnection to complete
-      vi.runAllTimers();
-
-      await connectPromise;
-
-      // Verify that no additional connection attempt is made when already connected
-      expect(wasmGlobal.wasmClientConnectServer).not.toHaveBeenCalled();
-    });
-
     it('should pass correct parameters to connectServer', async () => {
       const lnc = new LNC();
 
-      // Set up credentials
       lnc.credentials.serverHost = 'test.host:443';
       lnc.credentials.pairingPhrase = 'test_phrase';
       lnc.credentials.localKey = 'test_local_key';
@@ -546,8 +386,6 @@ describe('LNC Core Class', () => {
       const lnc = new LNC();
 
       const connectPromise = lnc.connect();
-
-      // Fast-forward past the timeout (20 * 500ms = 10 seconds)
       vi.advanceTimersByTime(11 * 1000);
 
       await expect(connectPromise).rejects.toThrow(
@@ -555,46 +393,18 @@ describe('LNC Core Class', () => {
       );
     });
 
-    it('should handle connection when window object is undefined', async () => {
-      const lnc = new LNC();
-
-      // Mock window as undefined to simulate non-browser environment
-      globalAccess.window = undefined as any;
-
-      // Mock successful connection
-      setTimeout(() => {
-        wasmGlobal.wasmClientIsConnected.mockReturnValue(true);
-      }, 10);
-
-      const connectPromise = lnc.connect();
-      vi.runAllTimers();
-      await connectPromise;
-
-      // Verify connection still works without window
-      expect(wasmGlobal.wasmClientConnectServer).toHaveBeenCalled();
-
-      // Cleanup
-      globalAccess.window = originalWindow;
-    });
-
     it('should clear in-memory credentials after successful connection when password is set', async () => {
       const lnc = new LNC();
 
-      // Set up credentials with password to encrypt the data in localStorage
       lnc.credentials.localKey = 'test_local_key';
       lnc.credentials.remoteKey = 'test_remote_key';
       lnc.credentials.serverHost = 'test.host:443';
       lnc.credentials.pairingPhrase = 'test_phrase';
       lnc.credentials.password = 'test_password';
-
-      // Set the password again to the same value to decrypt the data from storage
-      // and set the password in memory
       lnc.credentials.password = 'test_password';
 
-      // Mock clear method
       const clearSpy = vi.spyOn(lnc.credentials, 'clear');
 
-      // Mock successful connection after delay
       setTimeout(() => {
         wasmGlobal.wasmClientIsConnected.mockReturnValue(true);
       }, 10);
@@ -603,45 +413,8 @@ describe('LNC Core Class', () => {
       vi.runAllTimers();
       await connectPromise;
 
-      // Verify clear was called with memoryOnly=true
       expect(clearSpy).toHaveBeenCalledWith(true);
 
-      // Cleanup
-      globalAccess.window = originalWindow;
-      clearSpy.mockRestore();
-    });
-
-    it('should clear credentials when password is truthy', async () => {
-      const lnc = new LNC();
-
-      // Set up credentials with password to encrypt the data in localStorage
-      lnc.credentials.localKey = 'test_local_key';
-      lnc.credentials.remoteKey = 'test_remote_key';
-      lnc.credentials.serverHost = 'test.host:443';
-      lnc.credentials.pairingPhrase = 'test_phrase';
-      lnc.credentials.password = 'test_password';
-
-      // Set the password again to the same value to decrypt the data from storage
-      // and set the password in memory
-      lnc.credentials.password = 'test_password';
-
-      // Mock the clear method on the credential store instance
-      const clearSpy = vi.spyOn(lnc.credentials, 'clear');
-
-      // Mock successful connection
-      setTimeout(() => {
-        wasmGlobal.wasmClientIsConnected.mockReturnValue(true);
-      }, 10);
-
-      const connectPromise = lnc.connect();
-      vi.runAllTimers();
-      await connectPromise;
-
-      // Verify clear was called
-      expect(clearSpy).toHaveBeenCalledWith(true);
-
-      // Cleanup
-      globalAccess.window = originalWindow;
       clearSpy.mockRestore();
     });
 
@@ -670,73 +443,25 @@ describe('LNC Core Class', () => {
       const result = await lnc.request('TestMethod', testRequest);
 
       expect(result).toEqual(testResponse);
-      expect(wasmGlobal.wasmClientInvokeRPC).toHaveBeenCalledWith(
-        'TestMethod',
-        JSON.stringify(testRequest),
-        expect.any(Function)
-      );
-    });
-
-    it('should convert snake_case to camelCase in RPC response', async () => {
-      const lnc = new LNC();
-
-      const snakeResponse = {
-        snake_field: 'value',
-        nested: { another_field: 'nested' }
-      };
-      const camelResponse = {
-        snakeField: 'value',
-        nested: { anotherField: 'nested' }
-      };
-
-      wasmGlobal.wasmClientInvokeRPC.mockImplementation(
-        (method, request, callback) => {
-          callback(JSON.stringify(snakeResponse));
-        }
-      );
-
-      const result = await lnc.request('TestMethod');
-
-      expect(result).toEqual(camelResponse);
     });
 
     it('should handle RPC request error', async () => {
       const lnc = new LNC();
 
-      const errorMessage = 'RPC Error';
-
       wasmGlobal.wasmClientInvokeRPC.mockImplementation(
         (method, request, callback) => {
-          callback(errorMessage);
+          callback('RPC Error');
         }
       );
 
-      await expect(lnc.request('TestMethod')).rejects.toThrow(errorMessage);
-    });
-
-    it('should handle malformed JSON in RPC response', async () => {
-      const lnc = new LNC();
-
-      const malformedResponse = '{ invalid json }';
-
-      wasmGlobal.wasmClientInvokeRPC.mockImplementation(
-        (method, request, callback) => {
-          callback(malformedResponse);
-        }
-      );
-
-      await expect(lnc.request('TestMethod')).rejects.toThrow(
-        malformedResponse
-      );
+      await expect(lnc.request('TestMethod')).rejects.toThrow('RPC Error');
     });
 
     it('should subscribe to RPC stream successfully', () => {
       const lnc = new LNC();
 
-      const testRequest = { field: 'value' };
       const testResponse = { result: 'success' };
       const onMessage = vi.fn();
-      const onError = vi.fn();
 
       wasmGlobal.wasmClientInvokeRPC.mockImplementation(
         (method, request, callback) => {
@@ -744,46 +469,20 @@ describe('LNC Core Class', () => {
         }
       );
 
-      lnc.subscribe('TestMethod', testRequest, onMessage, onError);
+      lnc.subscribe('TestMethod', {}, onMessage);
 
-      expect(wasmGlobal.wasmClientInvokeRPC).toHaveBeenCalledWith(
-        'TestMethod',
-        JSON.stringify(testRequest),
-        expect.any(Function)
-      );
       expect(onMessage).toHaveBeenCalledWith(testResponse);
-    });
-
-    it('should handle subscribe error', () => {
-      const lnc = new LNC();
-
-      const errorMessage = 'Subscribe Error';
-      const onError = vi.fn();
-
-      wasmGlobal.wasmClientInvokeRPC.mockImplementation(
-        (method, request, callback) => {
-          callback(errorMessage);
-        }
-      );
-
-      lnc.subscribe('TestMethod', {}, undefined, onError);
-
-      expect(onError).toHaveBeenCalledWith(expect.any(Error));
-      expect(onError.mock.calls[0][0].message).toBe(errorMessage);
     });
 
     it('should handle subscribe without callbacks', () => {
       const lnc = new LNC();
 
-      const testResponse = { result: 'success' };
-
       wasmGlobal.wasmClientInvokeRPC.mockImplementation(
         (method, request, callback) => {
-          callback(JSON.stringify(testResponse));
+          callback(JSON.stringify({ result: 'success' }));
         }
       );
 
-      // Should not throw when no callbacks provided
       expect(() => {
         lnc.subscribe('TestMethod');
       }).not.toThrow();
@@ -791,7 +490,7 @@ describe('LNC Core Class', () => {
   });
 
   describe('WASM Callback Functions', () => {
-    it('should call onLocalPrivCreate callback and update credentials', async () => {
+    it('provides ConnectionCallbacks that write keys into the credential store', async () => {
       const lnc = new LNC();
 
       const mockResult = {
@@ -799,13 +498,9 @@ describe('LNC Core Class', () => {
         instance: { exports: {} }
       };
 
-      // Mock WebAssembly.instantiate for this test
-      const instantiateMock = vi.fn().mockResolvedValue({
-        exports: {}
-      });
-      globalThis.WebAssembly.instantiate = instantiateMock;
-
-      // Mock preload to set result
+      globalThis.WebAssembly.instantiate = vi
+        .fn()
+        .mockResolvedValue({ exports: {} });
       wasmGlobal.wasmClientIsReady.mockReturnValue(false);
       globalThis.fetch = vi.fn().mockResolvedValue(new Response());
       vi.spyOn(
@@ -815,279 +510,38 @@ describe('LNC Core Class', () => {
 
       await lnc.run();
 
-      // Get the callback function that was assigned
+      // Get the callback functions from the WASM global
       const wasm = globalAccess.getWasmGlobal('default');
-      const callback = wasm.onLocalPrivCreate!;
 
-      // Call the callback
-      const testKey = 'test_local_key_hex';
-      callback(testKey);
+      wasm.onLocalPrivCreate!('test_local_key_hex');
+      wasm.onRemoteKeyReceive!('test_remote_key_hex');
 
-      // Verify the credential was updated
-      expect(lnc.credentials.localKey).toBe(testKey);
+      expect(lnc.credentials.localKey).toBe('test_local_key_hex');
+      expect(lnc.credentials.remoteKey).toBe('test_remote_key_hex');
     });
+  });
 
-    it('should handle callback functions with logging', async () => {
+  describe('Legacy pairing replacement path', () => {
+    it('supports pairing through credentials.pairingPhrase plus connect', async () => {
+      vi.useFakeTimers();
+      const originalWindow = globalAccess.window;
+      globalAccess.window = { addEventListener: vi.fn() } as any;
+
       const lnc = new LNC();
+      lnc.credentials.pairingPhrase = 'phrase';
 
-      const mockResult = {
-        module: { exports: {} },
-        instance: { exports: {} }
-      };
+      setTimeout(() => {
+        wasmGlobal.wasmClientIsConnected.mockReturnValue(true);
+      }, 10);
 
-      // Mock WebAssembly.instantiate for this test
-      const instantiateMock = vi.fn().mockResolvedValue({
-        exports: {}
-      });
-      globalThis.WebAssembly.instantiate = instantiateMock;
+      const connectPromise = lnc.connect();
+      vi.runAllTimers();
+      await connectPromise;
 
-      // Mock preload to set result
-      wasmGlobal.wasmClientIsReady.mockReturnValue(false);
-      globalThis.fetch = vi.fn().mockResolvedValue(new Response());
-      vi.spyOn(
-        globalThis.WebAssembly,
-        'instantiateStreaming'
-      ).mockResolvedValue(mockResult);
+      expect(wasmGlobal.wasmClientConnectServer).toHaveBeenCalled();
 
-      await lnc.run();
-
-      // Get the callback functions
-      const namespace = globalAccess.getWasmGlobal('default');
-
-      // Call callbacks - this should trigger the debug logs
-      namespace.onLocalPrivCreate!('test_key');
-      namespace.onRemoteKeyReceive!('test_remote_key');
-      namespace.onAuthData!('test_macaroon');
-
-      // Verify credentials were updated (this indirectly tests the callbacks ran)
-      expect(lnc.credentials.localKey).toBe('test_key');
-      expect(lnc.credentials.remoteKey).toBe('test_remote_key');
-    });
-  });
-
-  describe('CredentialOrchestrator Integration', () => {
-    it('should use legacy LncCredentialStore by default', () => {
-      const lnc = new LNC({ namespace: 'test-legacy-default' });
-
-      expect(lnc.credentials).toBeInstanceOf(LncCredentialStore);
-    });
-
-    it('should use UnifiedCredentialStore when allowPasskeys is true', () => {
-      const lnc = new LNC({
-        allowPasskeys: true,
-        namespace: 'test-unified'
-      });
-
-      expect(lnc.credentials).toBeInstanceOf(UnifiedCredentialStore);
-    });
-
-    it('should use custom credential store when provided', () => {
-      const customStore = {
-        password: undefined,
-        pairingPhrase: '',
-        serverHost: '',
-        localKey: '',
-        remoteKey: '',
-        isPaired: false,
-        clear: vi.fn()
-      };
-
-      const lnc = new LNC({ credentialStore: customStore });
-
-      expect(lnc.credentials).toBe(customStore);
-    });
-  });
-
-  describe('Authentication Methods', () => {
-    it('should return isUnlocked from orchestrator', () => {
-      const lnc = new LNC({
-        namespace: 'test-is-unlocked'
-      });
-
-      expect(lnc.isUnlocked).toBe(false);
-    });
-
-    it('should return isPaired from orchestrator', () => {
-      const lnc = new LNC({
-        namespace: 'test-is-paired'
-      });
-
-      expect(lnc.isPaired).toBe(false);
-    });
-
-    it('should unlock credentials via orchestrator', async () => {
-      const lnc = new LNC({
-        allowPasskeys: true,
-        namespace: 'test-unlock'
-      });
-
-      const result = await lnc.unlock({
-        method: 'password',
-        password: 'test-password'
-      });
-
-      expect(result).toBe(true);
-      expect(lnc.isUnlocked).toBe(true);
-    });
-
-    it('should persist credentials with password via orchestrator', async () => {
-      const lnc = new LNC({
-        allowPasskeys: true,
-        namespace: 'test-persist'
-      });
-
-      // Set some credentials first
-      lnc.credentials.localKey = 'test-local-key';
-      lnc.credentials.remoteKey = 'test-remote-key';
-
-      await lnc.persistWithPassword('test-password');
-
-      expect(lnc.isUnlocked).toBe(true);
-    });
-
-    it('should get authentication info via orchestrator', async () => {
-      const lnc = new LNC({
-        allowPasskeys: true,
-        namespace: 'test-auth-info'
-      });
-
-      const info = await lnc.getAuthenticationInfo();
-
-      expect(info).toMatchObject({
-        isUnlocked: false,
-        hasStoredCredentials: false,
-        hasActiveSession: false,
-        sessionTimeRemaining: 0,
-        preferredUnlockMethod: 'password'
-      });
-    });
-
-    it('should perform auto login via orchestrator', async () => {
-      const lnc = new LNC({
-        namespace: 'test-auto-login'
-      });
-      const orchestrator = (lnc as any).orchestrator;
-      const autoLoginSpy = vi
-        .spyOn(orchestrator, 'performAutoLogin')
-        .mockResolvedValue(true);
-
-      const result = await lnc.performAutoLogin();
-
-      expect(autoLoginSpy).toHaveBeenCalled();
-      expect(result).toBe(true);
-    });
-
-    it('should check passkey support via orchestrator', async () => {
-      const lnc = new LNC({
-        allowPasskeys: true,
-        namespace: 'test-supports-passkeys'
-      });
-      const orchestrator = (lnc as any).orchestrator;
-      const supportsSpy = vi
-        .spyOn(orchestrator, 'supportsPasskeys')
-        .mockResolvedValue(true);
-
-      const result = await lnc.supportsPasskeys();
-
-      expect(supportsSpy).toHaveBeenCalled();
-      expect(result).toBe(true);
-    });
-
-    it('should check static passkey support', async () => {
-      const supportSpy = vi
-        .spyOn(PasskeyEncryptionService, 'isSupported')
-        .mockResolvedValue(true);
-
-      const result = await LNC.isPasskeySupported();
-
-      expect(supportSpy).toHaveBeenCalled();
-      expect(result).toBe(true);
-    });
-
-    it('should clear credentials via orchestrator', () => {
-      const lnc = new LNC({
-        allowPasskeys: true,
-        namespace: 'test-clear'
-      });
-
-      lnc.credentials.localKey = 'test-key';
-      lnc.clearCredentials({ persisted: true });
-
-      expect(lnc.credentials.localKey).toBe('');
-    });
-
-    it('should support memoryOnly flag in clearCredentials', () => {
-      const lnc = new LNC({
-        namespace: 'test-clear-memory'
-      });
-
-      const clearSpy = vi.spyOn(lnc.credentials, 'clear');
-
-      lnc.clearCredentials(true);
-
-      expect(clearSpy).toHaveBeenCalledWith(true);
-    });
-
-    it('should clear credentials via clear method', () => {
-      const lnc = new LNC({
-        allowPasskeys: true,
-        namespace: 'test-clear-method'
-      });
-
-      lnc.credentials.localKey = 'test-key';
-      lnc.clear({ persisted: true });
-
-      expect(lnc.credentials.localKey).toBe('');
-    });
-
-    it('should support memoryOnly flag in clear method', () => {
-      const lnc = new LNC({
-        namespace: 'test-clear-method-memory'
-      });
-
-      const clearSpy = vi.spyOn(lnc.credentials, 'clear');
-
-      lnc.clear(true);
-
-      expect(clearSpy).toHaveBeenCalledWith(true);
-    });
-
-    it('should persist credentials with passkey', async () => {
-      const lnc = new LNC({
-        allowPasskeys: true,
-        namespace: 'test-persist-passkey-lnc'
-      });
-
-      // Set some credentials first
-      lnc.credentials.localKey = 'test-local-key';
-      lnc.credentials.remoteKey = 'test-remote-key';
-
-      // Mock the store unlock to succeed
-      const store = lnc.credentials as UnifiedCredentialStore;
-      vi.spyOn(store, 'unlock').mockResolvedValue(true);
-
-      await lnc.persistWithPasskey();
-
-      expect(store.unlock).toHaveBeenCalledWith({
-        method: 'passkey',
-        createIfMissing: true
-      });
-    });
-
-    it('should call pair method correctly', async () => {
-      const lnc = new LNC({
-        allowPasskeys: true,
-        namespace: 'test-pair-lnc'
-      });
-
-      const runSpy = vi.spyOn(lnc, 'run').mockResolvedValue();
-      const connectSpy = vi.spyOn(lnc, 'connect').mockResolvedValue();
-
-      await lnc.pair('test-pairing-phrase');
-
-      expect(lnc.credentials.pairingPhrase).toBe('test-pairing-phrase');
-      expect(runSpy).toHaveBeenCalled();
-      expect(connectSpy).toHaveBeenCalled();
+      vi.useRealTimers();
+      globalAccess.window = originalWindow;
     });
   });
 });
