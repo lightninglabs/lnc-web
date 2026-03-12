@@ -85,4 +85,27 @@ describe('Index Module', () => {
       );
     });
   });
+
+  describe('package exports', () => {
+    it('exports LNC as default and LightningNodeConnect as named', async () => {
+      const mod = await import('./index');
+      expect(mod.default).toBeDefined();
+      expect(mod.LightningNodeConnect).toBeDefined();
+    });
+
+    it('does not export CredentialOrchestrator', async () => {
+      const mod = await import('./index');
+      expect((mod as any).CredentialOrchestrator).toBeUndefined();
+    });
+
+    it('LNC does not have isPasskeySupported', async () => {
+      const mod = await import('./index');
+      expect((mod.default as any).isPasskeySupported).toBeUndefined();
+    });
+
+    it('LightningNodeConnect has isPasskeySupported', async () => {
+      const mod = await import('./index');
+      expect(mod.LightningNodeConnect.isPasskeySupported).toBeDefined();
+    });
+  });
 });
