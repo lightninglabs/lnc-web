@@ -434,6 +434,34 @@ describe('AuthenticationCoordinator', () => {
     expect(cache.get('localKey')).toBe('local');
   });
 
+  it('short-circuits unlock({session}) when tryAutoRestore already succeeded', async () => {
+    const sessionStrategy = createStrategy('session');
+
+    const strategyManager = {
+      getStrategy: vi.fn().mockReturnValue(sessionStrategy)
+    } as unknown as StrategyManager;
+    const cache = new CredentialCache();
+    const sessionCoordinator = createSessionCoordinator();
+
+    const coordinator = new AuthenticationCoordinator(
+      strategyManager,
+      cache,
+      sessionCoordinator
+    );
+
+    // Wait for auto-restore to complete (populates cache + sets sessionRestored).
+    await (coordinator as unknown as { initializeCachePromise: Promise<void> })
+      .initializeCachePromise;
+
+    // Subsequent unlock({session}) should short-circuit without calling
+    // strategy.unlock() or the crypto restore pipeline.
+    const result = await coordinator.unlock({ method: 'session' });
+
+    expect(result).toBe(true);
+    expect(sessionStrategy.unlock).not.toHaveBeenCalled();
+    expect(cache.get('localKey')).toBe('local');
+  });
+
   it('handles auto-restore failures gracefully', async () => {
     const sessionStrategy = createStrategy('session');
 

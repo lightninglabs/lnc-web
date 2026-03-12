@@ -63,10 +63,20 @@ export class AuthenticationCoordinator {
   }
 
   /**
-   * Unlock the credential store using the specified method
+   * Unlock the credential store using the specified method.
+   *
+   * When the session strategy already restored credentials via tryAutoRestore(),
+   * the cache is already populated and the crypto pipeline does not need to run
+   * again. This avoids redundant device-fingerprint, origin-key, unwrap, and
+   * decrypt operations that would otherwise fire on every unlock({session}) call.
    */
   async unlock(options: UnlockOptions): Promise<boolean> {
     try {
+      // Session credentials were already restored and cached — nothing to do.
+      if (options.method === 'session' && this.sessionRestored) {
+        return true;
+      }
+
       const strategy = this.strategyManager.getStrategy(options.method);
       if (!strategy) {
         log.error(`Authentication method '${options.method}' not supported`);
@@ -86,6 +96,7 @@ export class AuthenticationCoordinator {
       return true;
     } catch (error) {
       log.error('Unlock failed:', error);
+      this.activeStrategy = undefined;
       return false;
     }
   }
@@ -232,11 +243,15 @@ export class AuthenticationCoordinator {
   }
 
   /**
-   * Load the credentials from the strategy
+   * Load credentials from the strategy into the cache. Attempts all keys
+   * even if some fail, then throws an aggregate error so the caller knows
+   * the cache may be incomplete.
    */
   private async loadCredentialsFromStrategy(
     strategy: AuthStrategy
   ): Promise<void> {
+    const failures: string[] = [];
+
     for (const key of KEYS_TO_PERSIST) {
       try {
         const value = await strategy.getCredential(key);
@@ -245,7 +260,12 @@ export class AuthenticationCoordinator {
         }
       } catch (error) {
         log.error(`Failed to load credential ${key}:`, error);
+        failures.push(key);
       }
+    }
+
+    if (failures.length > 0) {
+      throw new Error(`Failed to load credentials: ${failures.join(', ')}`);
     }
   }
 }
