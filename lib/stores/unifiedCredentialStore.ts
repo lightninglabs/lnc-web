@@ -2,11 +2,10 @@ import SessionManager from '../sessions/sessionManager';
 import { SessionCredentials } from '../sessions/types';
 import {
   AuthenticationInfo,
-  CredentialStore,
-  LncConfig,
   UnlockMethod,
   UnlockOptions
-} from '../types/lnc';
+} from '../types/lightningNodeConnect';
+import { CredentialStore, LncConfig } from '../types/lnc';
 import { createLogger } from '../util/log';
 import { AuthenticationCoordinator } from './authenticationCoordinator';
 import { CredentialCache } from './credentialCache';

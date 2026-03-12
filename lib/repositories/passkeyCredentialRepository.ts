@@ -1,5 +1,5 @@
 import { PasskeyEncryptionService } from '../encryption/passkeyEncryptionService';
-import { UnlockOptions } from '../types/lnc';
+import { UnlockOptions } from '../types/lightningNodeConnect';
 import { createLogger } from '../util/log';
 import { BaseCredentialRepository } from './credentialRepository';
 
@@ -23,8 +23,11 @@ export class PasskeyCredentialRepository extends BaseCredentialRepository {
       throw new Error('Passkey repository requires passkey unlock method');
     }
 
-    // Load credential ID from localStorage directly (already in base64url format for WebAuthn)
-    const credentialId = this.get('passkeyCredentialId');
+    // Load credential ID from localStorage directly (already in base64url format for WebAuthn).
+    // Fall back to the credentialId provided in unlock options, which allows consumer
+    // apps to reuse a passkey from a different namespace (e.g. multi-node).
+    const credentialId =
+      this.get('passkeyCredentialId') ?? options.credentialId;
 
     await this.encryption.unlock({
       method: 'passkey',
@@ -86,6 +89,14 @@ export class PasskeyCredentialRepository extends BaseCredentialRepository {
    */
   get hasStoredAuthData(): boolean {
     return this.hasCredential('passkeyCredentialId');
+  }
+
+  /**
+   * Return the stored passkey credential ID, if any. Consumer apps can use
+   * this to reuse a passkey across namespaces (e.g. multi-node setups).
+   */
+  get storedCredentialId(): string | undefined {
+    return this.get('passkeyCredentialId');
   }
 
   /**

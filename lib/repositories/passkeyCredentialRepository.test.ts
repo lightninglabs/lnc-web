@@ -281,6 +281,18 @@ describe('PasskeyCredentialRepository', () => {
     });
   });
 
+  describe('storedCredentialId getter', () => {
+    it('should return the stored credential ID when present', () => {
+      repository['credentials'].set('passkeyCredentialId', 'stored-cred-id');
+
+      expect(repository.storedCredentialId).toBe('stored-cred-id');
+    });
+
+    it('should return undefined when no credential ID is stored', () => {
+      expect(repository.storedCredentialId).toBeUndefined();
+    });
+  });
+
   describe('hasStoredAuthData()', () => {
     it('should return true when credential ID exists', () => {
       repository['credentials'].set(

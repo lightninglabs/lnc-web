@@ -12,10 +12,9 @@ import { PasskeyEncryptionService } from './encryption/passkeyEncryptionService'
 import {
   AuthenticationInfo,
   ClearOptions,
-  CredentialStore,
-  LncConfig,
   UnlockOptions
-} from './types/lnc';
+} from './types/lightningNodeConnect';
+import { CredentialStore, LncConfig } from './types/lnc';
 import { WasmManager } from './wasmManager';
 
 /** The default values for the LncConfig options */

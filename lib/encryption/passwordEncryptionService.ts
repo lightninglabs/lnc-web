@@ -1,4 +1,4 @@
-import { UnlockMethod, UnlockOptions } from '../types/lnc';
+import { UnlockMethod, UnlockOptions } from '../types/lightningNodeConnect';
 import {
   createTestCipher,
   decrypt,

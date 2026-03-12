@@ -1,12 +1,8 @@
 import { PasskeyEncryptionService } from './encryption/passkeyEncryptionService';
 import SessionManager from './sessions/sessionManager';
 import UnifiedCredentialStore from './stores/unifiedCredentialStore';
-import {
-  ClearOptions,
-  CredentialStore,
-  LncConfig,
-  UnlockOptions
-} from './types/lnc';
+import { ClearOptions, UnlockOptions } from './types/lightningNodeConnect';
+import { CredentialStore, LncConfig } from './types/lnc';
 import LncCredentialStore from './util/credentialStore';
 import { createLogger } from './util/log';
 

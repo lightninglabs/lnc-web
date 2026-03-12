@@ -1,4 +1,4 @@
-import { UnlockMethod, UnlockOptions } from '../types/lnc';
+import { UnlockMethod, UnlockOptions } from '../types/lightningNodeConnect';
 
 /**
  * Interface for authentication strategies used by UnifiedCredentialStore.
@@ -32,4 +32,5 @@ export interface AuthStrategy {
 
   /** Strategy-specific methods that may be implemented */
   hasStoredAuthData?(): boolean; // For passkeys
+  getCredentialId?(): string | undefined; // For passkeys
 }
