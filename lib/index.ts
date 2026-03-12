@@ -1,7 +1,6 @@
 // eslint-disable-next-line @typescript-eslint/no-require-imports
 require('./wasm_exec');
 
-import { CredentialOrchestrator } from './credentialOrchestrator';
 import LNC from './lnc';
 import { WasmManager } from './wasmManager';
 
@@ -23,4 +22,4 @@ export type {
 } from './types/lightningNodeConnect';
 export * from '@lightninglabs/lnc-core';
 export default LNC;
-export { CredentialOrchestrator, WasmManager };
+export { WasmManager };
