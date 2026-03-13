@@ -1,4 +1,4 @@
-import { UnlockMethod, UnlockOptions } from '../types/lnc';
+import { UnlockMethod, UnlockOptions } from '../types/lightningNodeConnect';
 import { arrayBufferToBase64, base64ToArrayBuffer } from '../util/encoding';
 import { EncryptionService } from './encryptionService';
 

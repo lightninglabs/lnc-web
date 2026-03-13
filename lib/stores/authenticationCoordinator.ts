@@ -1,8 +1,8 @@
 import {
   AuthenticationInfo,
-  CredentialStore,
   UnlockOptions
-} from '../types/lnc';
+} from '../types/lightningNodeConnect';
+import { CredentialStore } from '../types/lnc';
 import { createLogger } from '../util/log';
 import { AuthStrategy } from './authStrategy';
 import { CredentialCache } from './credentialCache';
@@ -63,10 +63,20 @@ export class AuthenticationCoordinator {
   }
 
   /**
-   * Unlock the credential store using the specified method
+   * Unlock the credential store using the specified method.
+   *
+   * When the session strategy already restored credentials via tryAutoRestore(),
+   * the cache is already populated and the crypto pipeline does not need to run
+   * again. This avoids redundant device-fingerprint, origin-key, unwrap, and
+   * decrypt operations that would otherwise fire on every unlock({session}) call.
    */
   async unlock(options: UnlockOptions): Promise<boolean> {
     try {
+      // Session credentials were already restored and cached — nothing to do.
+      if (options.method === 'session' && this.sessionRestored) {
+        return true;
+      }
+
       const strategy = this.strategyManager.getStrategy(options.method);
       if (!strategy) {
         log.error(`Authentication method '${options.method}' not supported`);
@@ -82,13 +92,11 @@ export class AuthenticationCoordinator {
       this.activeStrategy = strategy;
 
       await this.loadCredentialsFromStrategy(strategy);
-      await this.persistCachedCredentials(strategy);
-
-      await this.tryCreateSession(strategy);
 
       return true;
     } catch (error) {
       log.error('Unlock failed:', error);
+      this.activeStrategy = undefined;
       return false;
     }
   }
@@ -156,17 +164,10 @@ export class AuthenticationCoordinator {
   }
 
   /**
-   * Create a new session after a connection is established
+   * Create a new session from the current CredentialCache contents.
+   * Only creates the session — does not persist credentials to a strategy.
    */
   async createSessionAfterConnection(): Promise<void> {
-    for (const key of KEYS_TO_PERSIST) {
-      const value = this.credentialCache.get(key);
-      if (value) {
-        await this.saveCredentialToStrategy(key, value);
-      }
-    }
-
-    // if sessions are enabled, create a new session
     if (this.sessionCoordinator.isSessionAvailable) {
       await this.sessionCoordinator.createSession({
         localKey: this.getCachedCredential('localKey'),
@@ -174,37 +175,6 @@ export class AuthenticationCoordinator {
         pairingPhrase: this.getCachedCredential('pairingPhrase'),
         serverHost: this.getCachedCredential('serverHost')
       });
-    }
-  }
-
-  /**
-   * Best-effort session creation after a successful unlock. Session creation
-   * is an optimization layer (enables auto-refresh and tab-resume) rather
-   * than a prerequisite for authentication, so failures are logged but do not
-   * propagate to the caller.
-   */
-  private async tryCreateSession(strategy: AuthStrategy): Promise<void> {
-    if (
-      !this.sessionCoordinator.isSessionAvailable ||
-      strategy.method === 'session' ||
-      !this.isUnlocked
-    ) {
-      return;
-    }
-
-    try {
-      await this.sessionCoordinator.createSession({
-        localKey: this.getCachedCredential('localKey'),
-        remoteKey: this.getCachedCredential('remoteKey'),
-        pairingPhrase: this.getCachedCredential('pairingPhrase'),
-        serverHost: this.getCachedCredential('serverHost')
-      });
-    } catch (error) {
-      log.error(
-        'Session creation failed after ' +
-          'successful unlock; session-based refresh will be unavailable:',
-        error
-      );
     }
   }
 
@@ -244,11 +214,11 @@ export class AuthenticationCoordinator {
   /**
    * Persist the cached credentials to the strategy. Attempts all keys even if
    * some fail, then throws an aggregate error if any persistence failed so the
-   * caller can handle partial persistence appropriately.
+   * caller can handle partial persistence appropriately. Also sets the active
+   * strategy so subsequent session creation uses the same non-session strategy.
    */
-  private async persistCachedCredentials(
-    strategy: AuthStrategy
-  ): Promise<void> {
+  async persistCachedCredentials(strategy: AuthStrategy): Promise<void> {
+    this.activeStrategy = strategy;
     if (strategy.method === 'session') {
       return;
     }
@@ -273,11 +243,15 @@ export class AuthenticationCoordinator {
   }
 
   /**
-   * Load the credentials from the strategy
+   * Load credentials from the strategy into the cache. Attempts all keys
+   * even if some fail, then throws an aggregate error so the caller knows
+   * the cache may be incomplete.
    */
   private async loadCredentialsFromStrategy(
     strategy: AuthStrategy
   ): Promise<void> {
+    const failures: string[] = [];
+
     for (const key of KEYS_TO_PERSIST) {
       try {
         const value = await strategy.getCredential(key);
@@ -286,26 +260,12 @@ export class AuthenticationCoordinator {
         }
       } catch (error) {
         log.error(`Failed to load credential ${key}:`, error);
+        failures.push(key);
       }
     }
-  }
 
-  /**
-   * Save the credential to the strategy
-   */
-  private async saveCredentialToStrategy(
-    key: string,
-    value: string
-  ): Promise<void> {
-    if (!this.activeStrategy || this.activeStrategy.method === 'session') {
-      return;
-    }
-
-    try {
-      await this.activeStrategy.setCredential(key, value);
-    } catch (error) {
-      log.error(`Failed to save credential ${key}:`, error);
-      throw error;
+    if (failures.length > 0) {
+      throw new Error(`Failed to load credentials: ${failures.join(', ')}`);
     }
   }
 }

@@ -1,5 +1,5 @@
 import { PasskeyEncryptionService } from '../encryption/passkeyEncryptionService';
-import { UnlockOptions } from '../types/lnc';
+import { UnlockOptions } from '../types/lightningNodeConnect';
 import { createLogger } from '../util/log';
 import { BaseCredentialRepository } from './credentialRepository';
 

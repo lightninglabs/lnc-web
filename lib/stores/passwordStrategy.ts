@@ -1,6 +1,6 @@
 import { PasswordEncryptionService } from '../encryption/passwordEncryptionService';
 import { PasswordCredentialRepository } from '../repositories/passwordCredentialRepository';
-import { UnlockMethod, UnlockOptions } from '../types/lnc';
+import { UnlockMethod, UnlockOptions } from '../types/lightningNodeConnect';
 import { createLogger } from '../util/log';
 import { AuthStrategy } from './authStrategy';
 

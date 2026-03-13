@@ -1,7 +1,6 @@
 import { Lightning } from '@lightninglabs/lnc-core/dist/types/proto/lnrpc';
 import { WalletKit } from '@lightninglabs/lnc-core/dist/types/proto/walletrpc';
-import { beforeEach, describe, expect, it, Mocked, vi } from 'vitest';
-import LNC from '../lnc';
+import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { createRpc } from './createRpc';
 
 // Mock the external dependency
@@ -13,11 +12,16 @@ vi.mock('@lightninglabs/lnc-core', () => ({
   ]
 }));
 
-// Create the mocked LNC instance
-const mockLnc = {
+// Create the mocked client using only the structural type that createRpc requires.
+type RpcClient = {
+  request: ReturnType<typeof vi.fn>;
+  subscribe: ReturnType<typeof vi.fn>;
+};
+
+const mockClient: RpcClient = {
   request: vi.fn(),
   subscribe: vi.fn()
-} as unknown as Mocked<LNC>;
+};
 
 describe('RPC Creation', () => {
   beforeEach(() => {
@@ -27,7 +31,7 @@ describe('RPC Creation', () => {
   describe('createRpc function', () => {
     it('should create a proxy object', () => {
       const packageName = 'lnrpc.Lightning';
-      const rpc = createRpc(packageName, mockLnc);
+      const rpc = createRpc(packageName, mockClient);
 
       expect(typeof rpc).toBe('object');
       expect(rpc).toBeInstanceOf(Object);
@@ -39,7 +43,7 @@ describe('RPC Creation', () => {
     let rpc: Lightning;
 
     beforeEach(() => {
-      rpc = createRpc(packageName, mockLnc);
+      rpc = createRpc(packageName, mockClient);
     });
 
     describe('Method name capitalization', () => {
@@ -53,7 +57,7 @@ describe('RPC Creation', () => {
         const request = { includeChannels: true };
         method(request);
 
-        expect(mockLnc.request).toHaveBeenCalledWith(
+        expect(mockClient.request).toHaveBeenCalledWith(
           'lnrpc.Lightning.GetInfo',
           request
         );
@@ -65,7 +69,7 @@ describe('RPC Creation', () => {
         const request = {};
         method(request);
 
-        expect(mockLnc.request).toHaveBeenCalledWith(
+        expect(mockClient.request).toHaveBeenCalledWith(
           'lnrpc.Lightning.Method123',
           request
         );
@@ -78,13 +82,13 @@ describe('RPC Creation', () => {
         expect(typeof method).toBe('function');
 
         const mockResponse = { identityPubkey: 'test' };
-        mockLnc.request.mockResolvedValue(mockResponse);
+        mockClient.request.mockResolvedValue(mockResponse);
 
         const request = {};
         const result = await method(request);
 
         expect(result).toBe(mockResponse);
-        expect(mockLnc.request).toHaveBeenCalledWith(
+        expect(mockClient.request).toHaveBeenCalledWith(
           'lnrpc.Lightning.GetInfo',
           request
         );
@@ -94,11 +98,11 @@ describe('RPC Creation', () => {
         const method = rpc.getInfo;
         const request = {};
 
-        mockLnc.request.mockResolvedValue({});
+        mockClient.request.mockResolvedValue({});
 
         await method(request);
 
-        expect(mockLnc.request).toHaveBeenCalledWith(
+        expect(mockClient.request).toHaveBeenCalledWith(
           'lnrpc.Lightning.GetInfo',
           request
         );
@@ -118,7 +122,7 @@ describe('RPC Creation', () => {
 
         method(request, callback, errCallback);
 
-        expect(mockLnc.subscribe).toHaveBeenCalledWith(
+        expect(mockClient.subscribe).toHaveBeenCalledWith(
           'lnrpc.Lightning.SubscribeInvoices',
           request,
           callback,
@@ -137,7 +141,7 @@ describe('RPC Creation', () => {
 
         method(request, callback, errCallback);
 
-        expect(mockLnc.subscribe).toHaveBeenCalledWith(
+        expect(mockClient.subscribe).toHaveBeenCalledWith(
           'lnrpc.Lightning.ChannelAcceptor',
           request,
           callback,
@@ -148,13 +152,13 @@ describe('RPC Creation', () => {
 
     describe('Method classification', () => {
       it('should handle different package names correctly', () => {
-        const walletRpc = createRpc<WalletKit>('lnrpc.WalletKit', mockLnc);
+        const walletRpc = createRpc<WalletKit>('lnrpc.WalletKit', mockClient);
         const method = walletRpc.listUnspent;
 
         const request = { minConfs: 1 };
         method(request);
 
-        expect(mockLnc.request).toHaveBeenCalledWith(
+        expect(mockClient.request).toHaveBeenCalledWith(
           'lnrpc.WalletKit.ListUnspent',
           request
         );
@@ -162,10 +166,10 @@ describe('RPC Creation', () => {
     });
 
     describe('Error handling', () => {
-      it('should handle LNC request errors', async () => {
+      it('should handle client request errors', async () => {
         const method = rpc.getInfo;
         const error = new Error('RPC Error');
-        mockLnc.request.mockRejectedValueOnce(error);
+        mockClient.request.mockRejectedValueOnce(error);
 
         const request = {};
         await expect(method(request)).rejects.toThrow('RPC Error');

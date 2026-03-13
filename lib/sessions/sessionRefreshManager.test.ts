@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { SessionConfig } from '../types/lnc';
+import { SessionConfig } from '../types/lightningNodeConnect';
 import SessionRefreshManager from './sessionRefreshManager';
 
 const mockLog = vi.hoisted(() => ({
