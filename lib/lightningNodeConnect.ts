@@ -38,7 +38,7 @@ export const DEFAULT_CONFIG: LightningNodeConnectConfig = {
  * authentication. Does not expose a public CredentialStore — credential
  * lifecycle is managed internally through the auth stack.
  */
-export class LightningNodeConnect {
+export default class LightningNodeConnect {
   lnd: LndApi;
   loop: LoopApi;
   pool: PoolApi;

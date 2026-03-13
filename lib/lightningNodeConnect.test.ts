@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { LightningNodeConnect } from './lightningNodeConnect';
+import LightningNodeConnect from './lightningNodeConnect';
 
 // Mock all heavy dependencies so tests run fast and without real WASM/crypto.
 vi.mock('./wasmManager', () => {
