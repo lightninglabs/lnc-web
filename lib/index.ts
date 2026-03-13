@@ -1,7 +1,7 @@
 // eslint-disable-next-line @typescript-eslint/no-require-imports
 require('./wasm_exec');
 
-import { LightningNodeConnect } from './lightningNodeConnect';
+import LightningNodeConnect from './lightningNodeConnect';
 import LNC from './lnc';
 import { WasmManager } from './wasmManager';
 
