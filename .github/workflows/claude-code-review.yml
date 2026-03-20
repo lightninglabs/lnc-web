@@ -50,6 +50,18 @@ jobs:
           claude_code_oauth_token: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
           plugin_marketplaces: 'https://github.com/anthropics/claude-code.git'
           plugins: 'code-review@claude-code-plugins'
+          # We use github-mcp-server review tools instead of `gh api` because
+          # the Bash tool's shell security checks block the complex JSON
+          # payloads needed for the reviews endpoint (quoted newlines, brace
+          # expansion, metacharacters all get rejected). MCP tools accept
+          # structured parameters natively, avoiding shell escaping entirely.
+          #
+          # The prompt references both old and new github-mcp-server tool
+          # names because claude-code-action pins the Docker image to a
+          # specific SHA. The old image uses separate tools (e.g.
+          # create_pending_pull_request_review) while newer versions
+          # consolidate them into pull_request_review_write with a method
+          # param. Listing both ensures the workflow survives image bumps.
           prompt: |
             /code-review:code-review ${{ github.repository }}/pull/${{ github.event.pull_request.number }} --comment
 
@@ -57,8 +69,28 @@ jobs:
             already commented on this PR. Skip the "already reviewed" check
             in step 1. This workflow runs on every push, so re-reviews are
             expected.
-          claude_args: >-
-            --model claude-opus-4-6
-            --allowedTools
-            "mcp__github_inline_comment__create_inline_comment,Bash(grep:*),Bash(head:*),Bash(tail:*),Bash(cat:*),Bash(wc:*),Bash(find:*),Bash(ls:*),Bash(git diff:*),Bash(git log:*),Bash(git show:*),Bash(git blame:*),Bash(gh pr diff:*),Bash(gh pr view:*),Bash(gh pr comment:*),Bash(gh api:*),Bash(jq:*),Bash(node:*),Bash(npx tsc:*),Bash(yarn:*)"
+
+            IMPORTANT: You MUST post all comments as a single pull request
+            review. Prefer the pending review workflow below over individual
+            comment tools (mcp__github_inline_comment__create_inline_comment,
+            gh pr comment, or gh api). Only fall back to those if the pending
+            review tools are unavailable.
+
+            Use the GitHub MCP pending review workflow (3 steps):
+            Step 1 - Create pending review (use whichever tool is available):
+              Old: mcp__github__create_pending_pull_request_review
+                Params: {owner, repo, pullNumber, commitID, body: "<concise summary of changes>"}
+              New: mcp__github__pull_request_review_write
+                Params: {method: "create", owner, repo, pullNumber, commitID, body: "<concise summary of changes>"}
+            Step 2 - Add each inline comment to the pending review:
+              Tool: mcp__github__add_comment_to_pending_review
+              Params: {owner, repo, pullNumber, body, path, line, side, subjectType: "LINE"}
+              Call this once per comment.
+            Step 3 - Submit the pending review (use whichever tool is available):
+              Old: mcp__github__submit_pending_pull_request_review
+                Params: {owner, repo, pullNumber, event: "COMMENT"}
+              New: mcp__github__pull_request_review_write
+                Params: {method: "submit_pending", owner, repo, pullNumber, event: "COMMENT"}
+          # prettier-ignore
+          claude_args: '--model claude-opus-4-6 --allowedTools "Read,Glob,Grep,mcp__github__create_pending_pull_request_review,mcp__github__submit_pending_pull_request_review,mcp__github__pull_request_review_write,mcp__github__add_comment_to_pending_review,mcp__github_inline_comment__create_inline_comment,Bash(grep:*),Bash(head:*),Bash(tail:*),Bash(cat:*),Bash(wc:*),Bash(find:*),Bash(ls:*),Bash(git diff:*),Bash(git log:*),Bash(git show:*),Bash(git blame:*),Bash(gh pr diff:*),Bash(gh pr view:*),Bash(gh pr comment:*),Bash(gh api:*),Bash(jq:*),Bash(npx tsc:*),Bash(yarn lint:*),Bash(yarn tsc:*),Bash(yarn test:*),Bash(yarn prettier:*)"'
           display_report: true
