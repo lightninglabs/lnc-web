@@ -1,4 +1,4 @@
-import { UnlockOptions } from '../types/lnc';
+import { UnlockOptions } from '../types/lightningNodeConnect';
 import { createLogger } from '../util/log';
 
 const log = createLogger('CredentialRepository');
@@ -145,7 +145,7 @@ export abstract class BaseCredentialRepository implements CredentialRepository {
    */
   protected set(key: string, value: string): void {
     this.credentials.set(key, value);
-    this.save();
+    this.save(key);
   }
 
   /**
@@ -159,7 +159,7 @@ export abstract class BaseCredentialRepository implements CredentialRepository {
   /**
    * Save all credentials to storage as a JSON string under a single key
    */
-  private save() {
+  private save(key?: string) {
     // do nothing if localStorage is not available on the backend
     if (typeof globalThis.localStorage === 'undefined') return;
 
@@ -169,7 +169,8 @@ export abstract class BaseCredentialRepository implements CredentialRepository {
     }
 
     const data = Object.fromEntries(this.credentials.entries());
-    log.info('saving credentials to localStorage');
+    const context = key ? ` (${key} updated)` : '';
+    log.info(`Saving credentials to localStorage${context}`);
     globalThis.localStorage.setItem(this.storageKey, JSON.stringify(data));
   }
 

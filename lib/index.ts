@@ -1,7 +1,7 @@
 // eslint-disable-next-line @typescript-eslint/no-require-imports
 require('./wasm_exec');
 
-import { CredentialOrchestrator } from './credentialOrchestrator';
+import LightningNodeConnect from './lightningNodeConnect';
 import LNC from './lnc';
 import { WasmManager } from './wasmManager';
 
@@ -13,15 +13,16 @@ if (!WebAssembly.instantiateStreaming) {
   };
 }
 
+export type { LncConfig, CredentialStore } from './types/lnc';
 export type {
-  LncConfig,
-  CredentialStore,
+  LightningNodeConnectConfig,
   SessionConfig,
   UnlockMethod,
   UnlockOptions,
   AuthenticationInfo,
-  ClearOptions
-} from './types/lnc';
+  ClearOptions,
+  PersistOptions
+} from './types/lightningNodeConnect';
 export * from '@lightninglabs/lnc-core';
 export default LNC;
-export { CredentialOrchestrator, WasmManager };
+export { LightningNodeConnect, WasmManager };

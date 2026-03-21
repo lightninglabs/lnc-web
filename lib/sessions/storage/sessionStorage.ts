@@ -45,19 +45,36 @@ const isValidSessionData = (data: SessionData): boolean => {
 };
 
 /**
- * Handles session data persistence in sessionStorage.
+ * Handles session data persistence in sessionStorage with a lazy in-memory
+ * cache.
  */
 export class SessionStorage {
-  constructor(private namespace: string) {}
+  /**
+   * The cache eliminates redundant reads during session restore and
+   * credential access flows. It uses a write-through strategy: save() and
+   * clear() update both sessionStorage and the cache atomically.
+   *
+   * Cache states:
+   *   undefined — not yet loaded (cold; triggers a read on first access).
+   *   null     — loaded but empty (no data in sessionStorage).
+   *   SessionData — loaded and valid.
+   */
+  private _cache: SessionData | null | undefined = undefined;
+  private _namespace: string;
+
+  constructor(namespace: string) {
+    this._namespace = namespace;
+  }
 
   save(sessionData: SessionData): void {
     if (typeof sessionStorage === 'undefined') return;
 
     try {
-      const storageKey = `${STORAGE_PREFIX}${this.namespace}`;
+      const storageKey = `${STORAGE_PREFIX}${this._namespace}`;
       sessionStorage.setItem(storageKey, JSON.stringify(sessionData));
+      this._cache = sessionData;
       log.info('Session saved to sessionStorage', {
-        namespace: this.namespace,
+        namespace: this._namespace,
         sessionId: sessionData.sessionId,
         createdAt: sessionData.createdAt,
         expiresAt: sessionData.expiresAt,
@@ -65,7 +82,7 @@ export class SessionStorage {
       });
     } catch (error) {
       log.error('Failed to save session data', {
-        namespace: this.namespace,
+        namespace: this._namespace,
         error
       });
       throw error;
@@ -75,11 +92,17 @@ export class SessionStorage {
   load(): SessionData | undefined {
     if (typeof sessionStorage === 'undefined') return undefined;
 
+    // Return cached result if the cache has been populated.
+    if (this._cache !== undefined) {
+      return this._cache ?? undefined;
+    }
+
     try {
-      const storageKey = `${STORAGE_PREFIX}${this.namespace}`;
+      const storageKey = `${STORAGE_PREFIX}${this._namespace}`;
       const stored = sessionStorage.getItem(storageKey);
 
       if (!stored) {
+        this._cache = null;
         return undefined;
       }
 
@@ -91,15 +114,17 @@ export class SessionStorage {
         !isValidSessionData(parsed as SessionData)
       ) {
         log.error('Invalid session data', {
-          namespace: this.namespace
+          namespace: this._namespace
         });
         sessionStorage.removeItem(storageKey);
+        this._cache = null;
         return undefined;
       }
 
       const sessionData = parsed as SessionData;
+      this._cache = sessionData;
       log.info('Session loaded from sessionStorage', {
-        namespace: this.namespace,
+        namespace: this._namespace,
         sessionId: sessionData.sessionId,
         createdAt: sessionData.createdAt,
         expiresAt: sessionData.expiresAt,
@@ -109,18 +134,19 @@ export class SessionStorage {
       return sessionData;
     } catch (error) {
       log.error('Failed to load session data', {
-        namespace: this.namespace,
+        namespace: this._namespace,
         error
       });
       try {
-        const storageKey = `${STORAGE_PREFIX}${this.namespace}`;
+        const storageKey = `${STORAGE_PREFIX}${this._namespace}`;
         sessionStorage.removeItem(storageKey);
       } catch (cleanupError) {
         log.warn('Cleanup failed during error recovery', {
-          namespace: this.namespace,
+          namespace: this._namespace,
           cleanupError
         });
       }
+      this._cache = null;
       return undefined;
     }
   }
@@ -129,11 +155,12 @@ export class SessionStorage {
     if (typeof sessionStorage === 'undefined') return;
 
     try {
-      const storageKey = `${STORAGE_PREFIX}${this.namespace}`;
+      const storageKey = `${STORAGE_PREFIX}${this._namespace}`;
       sessionStorage.removeItem(storageKey);
+      this._cache = null;
     } catch (error) {
       log.error('Failed to clear session data', {
-        namespace: this.namespace,
+        namespace: this._namespace,
         error
       });
     }
@@ -142,11 +169,11 @@ export class SessionStorage {
   hasData(): boolean {
     if (typeof sessionStorage === 'undefined') return false;
 
-    try {
-      const storageKey = `${STORAGE_PREFIX}${this.namespace}`;
-      return sessionStorage.getItem(storageKey) !== null;
-    } catch {
-      return false;
+    // Delegate to load() so the cache is populated for subsequent calls.
+    if (this._cache === undefined) {
+      this.load();
     }
+
+    return this._cache != null;
   }
 }

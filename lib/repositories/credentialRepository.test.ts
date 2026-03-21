@@ -1,6 +1,17 @@
-import { beforeEach, describe, expect, it } from 'vitest';
-import { UnlockOptions } from '../types/lnc';
+import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { UnlockOptions } from '../types/lightningNodeConnect';
 import { BaseCredentialRepository } from './credentialRepository';
+
+const mockLog = vi.hoisted(() => ({
+  info: vi.fn(),
+  warn: vi.fn(),
+  error: vi.fn(),
+  debug: vi.fn()
+}));
+
+vi.mock('../util/log', () => ({
+  createLogger: vi.fn(() => mockLog)
+}));
 
 /**
  * Concrete implementation of BaseCredentialRepository for testing
@@ -38,6 +49,7 @@ describe('BaseCredentialRepository', () => {
 
   beforeEach(() => {
     localStorage.clear();
+    vi.clearAllMocks();
     repository = new TestCredentialRepository('test-namespace');
   });
 
@@ -111,6 +123,25 @@ describe('BaseCredentialRepository', () => {
       expect(localStorage.getItem('lnc-web:test-namespace')).not.toBeNull();
       repository.clear();
       expect(localStorage.getItem('lnc-web:test-namespace')).toBeNull();
+    });
+
+    it('should log the updated key when setting a credential', async () => {
+      await repository.unlock({ method: 'password', password: 'test' });
+      await repository.setCredential('localKey', 'value1');
+      expect(mockLog.info).toHaveBeenCalledWith(
+        'Saving credentials to localStorage (localKey updated)'
+      );
+    });
+
+    it('should log without a key context when removing a credential', async () => {
+      await repository.unlock({ method: 'password', password: 'test' });
+      await repository.setCredential('key1', 'value1');
+      await repository.setCredential('key2', 'value2');
+      vi.clearAllMocks();
+      await repository.removeCredential('key1');
+      expect(mockLog.info).toHaveBeenCalledWith(
+        'Saving credentials to localStorage'
+      );
     });
 
     it('should handle invalid JSON in localStorage gracefully', async () => {
