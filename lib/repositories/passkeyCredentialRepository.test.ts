@@ -143,7 +143,7 @@ describe('PasskeyCredentialRepository', () => {
       );
     });
 
-    it('should not store credential ID when already exists', async () => {
+    it('should overwrite credential ID when already exists', async () => {
       repository['credentials'].set('passkeyCredentialId', 'existing-id');
       mockEncryptionService._isUnlocked = true;
 
@@ -154,7 +154,11 @@ describe('PasskeyCredentialRepository', () => {
 
       await repository.unlock(options);
 
-      expect(mockEncryptionService.getCredentialId).not.toHaveBeenCalled();
+      // Always persists the latest credential ID from the encryption service.
+      expect(mockEncryptionService.getCredentialId).toHaveBeenCalled();
+      expect(repository['credentials'].get('passkeyCredentialId')).toBe(
+        'test-credential-id'
+      );
     });
 
     it('should not store credential ID when not unlocked', async () => {
@@ -281,6 +285,18 @@ describe('PasskeyCredentialRepository', () => {
     });
   });
 
+  describe('storedCredentialId getter', () => {
+    it('should return the stored credential ID when present', () => {
+      repository['credentials'].set('passkeyCredentialId', 'stored-cred-id');
+
+      expect(repository.storedCredentialId).toBe('stored-cred-id');
+    });
+
+    it('should return undefined when no credential ID is stored', () => {
+      expect(repository.storedCredentialId).toBeUndefined();
+    });
+  });
+
   describe('hasStoredAuthData()', () => {
     it('should return true when credential ID exists', () => {
       repository['credentials'].set(
@@ -340,7 +356,7 @@ describe('PasskeyCredentialRepository', () => {
 
       expect(repository['credentials'].has('passkeyCredentialId')).toBe(true);
 
-      // Second unlock should not recreate it
+      // Second unlock should still persist the credential ID.
       repository.lock();
       mockEncryptionService.getCredentialId.mockClear();
 
@@ -349,7 +365,7 @@ describe('PasskeyCredentialRepository', () => {
         createIfMissing: false
       });
 
-      expect(mockEncryptionService.getCredentialId).not.toHaveBeenCalled();
+      expect(mockEncryptionService.getCredentialId).toHaveBeenCalled();
     });
 
     it('should handle existing credential ID correctly', async () => {
@@ -363,8 +379,8 @@ describe('PasskeyCredentialRepository', () => {
         createIfMissing: false
       });
 
-      // Should not get new credential ID since one already exists
-      expect(mockEncryptionService.getCredentialId).not.toHaveBeenCalled();
+      // Always persists the latest credential ID from the encryption service.
+      expect(mockEncryptionService.getCredentialId).toHaveBeenCalled();
     });
 
     it('should work with different namespaces', () => {

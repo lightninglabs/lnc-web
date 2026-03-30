@@ -58,9 +58,11 @@ describe('SessionStorage', () => {
       'Session saved to sessionStorage',
       details
     );
-    expect(mockLog.info).toHaveBeenCalledWith(
+    // After save(), load() returns the cached value without re-reading
+    // sessionStorage, so the "loaded" log is not emitted.
+    expect(mockLog.info).not.toHaveBeenCalledWith(
       'Session loaded from sessionStorage',
-      details
+      expect.anything()
     );
   });
 
@@ -369,6 +371,78 @@ describe('SessionStorage', () => {
       'Failed to load session data',
       expect.objectContaining({ namespace })
     );
+  });
+
+  describe('in-memory cache', () => {
+    it('serves subsequent loads from cache without reading sessionStorage', () => {
+      const storageKey = `lnc-session:${namespace}`;
+      sessionStorage.setItem(storageKey, JSON.stringify(sampleSession));
+
+      const getItemSpy = vi.spyOn(globalThis.sessionStorage, 'getItem');
+
+      // First load reads from sessionStorage.
+      const first = storage.load();
+      expect(first).toEqual(sampleSession);
+      expect(getItemSpy).toHaveBeenCalledTimes(1);
+
+      // Second load returns cached value without another read.
+      getItemSpy.mockClear();
+      const second = storage.load();
+      expect(second).toEqual(sampleSession);
+      expect(getItemSpy).not.toHaveBeenCalled();
+    });
+
+    it('populates cache on save so load skips sessionStorage', () => {
+      const getItemSpy = vi.spyOn(globalThis.sessionStorage, 'getItem');
+
+      storage.save(sampleSession);
+      const loaded = storage.load();
+
+      expect(loaded).toEqual(sampleSession);
+      expect(getItemSpy).not.toHaveBeenCalled();
+    });
+
+    it('invalidates cache on clear', () => {
+      storage.save(sampleSession);
+      storage.clear();
+
+      expect(storage.load()).toBeUndefined();
+      expect(storage.hasData()).toBe(false);
+    });
+
+    it('invalidates cache on save with new data', () => {
+      storage.save(sampleSession);
+
+      const updated = { ...sampleSession, refreshCount: 5 };
+      storage.save(updated);
+
+      expect(storage.load()).toEqual(updated);
+    });
+
+    it('hasData uses cache after first load', () => {
+      const storageKey = `lnc-session:${namespace}`;
+      sessionStorage.setItem(storageKey, JSON.stringify(sampleSession));
+
+      // Warm the cache.
+      storage.load();
+
+      const getItemSpy = vi.spyOn(globalThis.sessionStorage, 'getItem');
+      expect(storage.hasData()).toBe(true);
+      expect(getItemSpy).not.toHaveBeenCalled();
+    });
+
+    it('caches null when sessionStorage is empty', () => {
+      const getItemSpy = vi.spyOn(globalThis.sessionStorage, 'getItem');
+
+      // First load reads and finds nothing.
+      expect(storage.load()).toBeUndefined();
+      expect(getItemSpy).toHaveBeenCalledTimes(1);
+
+      // Second load returns cached null without another read.
+      getItemSpy.mockClear();
+      expect(storage.load()).toBeUndefined();
+      expect(getItemSpy).not.toHaveBeenCalled();
+    });
   });
 
   describe('when sessionStorage is undefined', () => {

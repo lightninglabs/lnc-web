@@ -3,13 +3,25 @@ import { WasmGlobal } from './types/lnc';
 import { waitFor } from './util/async';
 import { wasmLog as log } from './util/log';
 
-export interface CredentialProvider {
+/**
+ * Plain data object passed to WasmManager.connect() with everything needed
+ * to establish a connection.
+ */
+export interface ConnectionParams {
   pairingPhrase: string;
-  localKey: string;
-  remoteKey: string;
   serverHost: string;
-  password?: string;
-  clear(memoryOnly?: boolean): void;
+  localKey?: string;
+  remoteKey?: string;
+}
+
+/**
+ * Callback interface that WasmManager invokes during the WASM handshake.
+ * Each entrypoint provides its own callbacks to write keys back to the
+ * appropriate store.
+ */
+export interface ConnectionCallbacks {
+  onLocalKeyCreated(keyHex: string): void;
+  onRemoteKeyReceived(keyHex: string): void;
 }
 
 /**
@@ -50,25 +62,23 @@ export class WasmManager {
   private _wasmClientCode: string;
   private _namespace: string;
   private _preloadPromise?: Promise<WebAssembly.WebAssemblyInstantiatedSource>;
+  private _callbacks: ConnectionCallbacks;
   private go: GoInstance;
   private result?: {
     module: WebAssembly.Module;
     instance: WebAssembly.Instance;
   };
-  private credentialProvider?: CredentialProvider;
 
-  constructor(namespace: string, wasmClientCode: string) {
+  constructor(
+    namespace: string,
+    wasmClientCode: string,
+    callbacks: ConnectionCallbacks
+  ) {
     this._namespace = namespace;
     this._wasmClientCode = wasmClientCode;
+    this._callbacks = callbacks;
     // Pull Go off of the global object. This is injected by the wasm_exec.js file.
     this.go = new lncGlobal.Go();
-  }
-
-  /**
-   * Set the credential provider for connection operations
-   */
-  setCredentialProvider(provider: CredentialProvider): void {
-    this.credentialProvider = provider;
   }
 
   /**
@@ -152,7 +162,8 @@ export class WasmManager {
   }
 
   /**
-   * Loads keys from storage and runs the WASM client binary
+   * Initializes the WASM namespace, registers callbacks, and starts the
+   * WASM client binary.
    */
   async run(): Promise<void> {
     // Make sure the WASM client binary is downloaded first
@@ -160,9 +171,12 @@ export class WasmManager {
       await this.preload();
     }
 
-    // Create the namespace object in the global scope if it doesn't exist
+    // Create a fresh namespace object in the global scope if it doesn't exist.
+    // Shallow-clone via spread so each WasmManager instance gets its own
+    // object — assigning DEFAULT_WASM_GLOBAL directly would let one instance's
+    // callback writes contaminate every other instance sharing the reference.
     if (typeof this.wasm !== 'object') {
-      this.wasm = DEFAULT_WASM_GLOBAL;
+      this.wasm = { ...DEFAULT_WASM_GLOBAL };
     }
 
     // Set up WASM callbacks
@@ -194,35 +208,29 @@ export class WasmManager {
   }
 
   /**
-   * Connects to the LNC proxy server
+   * Connects to the LNC proxy server using plain connection parameters.
    */
-  async connect(credentialProvider?: CredentialProvider): Promise<void> {
-    // Use provided credential provider or stored one
-    const credentials = credentialProvider || this.credentialProvider;
-    if (!credentials) {
-      throw new Error('No credential provider available');
-    }
-
+  async connect(params: ConnectionParams): Promise<void> {
     // Do not attempt to connect multiple times
     if (this.isConnected) {
       return;
     }
 
-    // Ensure the WASM binary is loaded
+    // Ensure the WASM binary is loaded.
     if (!this.isReady) {
       await this.run();
       await this.waitTilReady();
     }
 
-    const { pairingPhrase, localKey, remoteKey, serverHost } = credentials;
+    const { pairingPhrase, localKey, remoteKey, serverHost } = params;
 
     // Connect to the server
     this.wasm.wasmClientConnectServer(
       serverHost,
       false,
       pairingPhrase,
-      localKey,
-      remoteKey
+      localKey ?? '',
+      remoteKey ?? ''
     );
 
     // Add an event listener to disconnect if the page is unloaded
@@ -233,23 +241,7 @@ export class WasmManager {
     }
 
     // Wait for connection to be established
-    await this.waitForConnection(credentials);
-  }
-
-  /**
-   * Initiate the initial pairing process with the LNC proxy server
-   */
-  async pair(
-    pairingPhrase: string,
-    credentialProvider?: CredentialProvider
-  ): Promise<void> {
-    const credentials = credentialProvider || this.credentialProvider;
-    if (!credentials) {
-      throw new Error('No credential provider available');
-    }
-
-    credentials.pairingPhrase = pairingPhrase;
-    await this.connect(credentials);
+    await this.waitForConnection();
   }
 
   /**
@@ -313,27 +305,19 @@ export class WasmManager {
   //
 
   /**
-   * Set up WASM callback functions
+   * Set up WASM callback functions using the stored ConnectionCallbacks.
+   * Guarded so that a re-entrant run() via connect() does not overwrite
+   * callbacks that are already wired up.
    */
   private setupWasmCallbacks(): void {
     if (!this.wasm.onLocalPrivCreate) {
       this.wasm.onLocalPrivCreate = (keyHex: string) => {
-        if (this.credentialProvider) {
-          this.credentialProvider.localKey = keyHex;
-        } else {
-          log.warn(
-            'no credential provider available to store local private key'
-          );
-        }
+        this._callbacks.onLocalKeyCreated(keyHex);
       };
     }
     if (!this.wasm.onRemoteKeyReceive) {
       this.wasm.onRemoteKeyReceive = (keyHex: string) => {
-        if (this.credentialProvider) {
-          this.credentialProvider.remoteKey = keyHex;
-        } else {
-          log.warn('no credential provider available to store remote key');
-        }
+        this._callbacks.onRemoteKeyReceived(keyHex);
       };
     }
     if (!this.wasm.onAuthData) {
@@ -344,21 +328,14 @@ export class WasmManager {
   }
 
   /**
-   * Wait for connection to be established
+   * Wait for connection to be established. No post-connect cleanup — each
+   * entrypoint handles its own credential lifecycle.
    */
-  private async waitForConnection(
-    credentials: CredentialProvider
-  ): Promise<void> {
+  private async waitForConnection(): Promise<void> {
     await waitFor(
       () => this.isConnected,
       'Failed to connect the WASM client to the proxy server'
     );
     log.info('The WASM client is connected to the server');
-
-    // Clear the in-memory credentials after connecting if the
-    // credentials are persisted in local storage
-    if (credentials.password) {
-      credentials.clear(true);
-    }
   }
 }

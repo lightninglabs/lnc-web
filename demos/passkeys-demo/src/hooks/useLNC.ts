@@ -1,12 +1,12 @@
 import { useCallback, useEffect, useState } from 'react';
-import LNC, { AuthenticationInfo, UnlockOptions } from '@lightninglabs/lnc-web';
+import { AuthenticationInfo, LightningNodeConnect, UnlockOptions } from '@lightninglabs/lnc-web';
 
-// create a singleton instance of LNC that will live for the lifetime of the app
-const lnc = new LNC({
+// Create a singleton instance that will live for the lifetime of the app.
+const lnc = new LightningNodeConnect({
   namespace: 'demo',
   allowPasskeys: true,
   enableSessions: true,
-  sessionConfig: { sessionDurationMs: 30 * 60 * 1000 } // 30 minutes for testing
+  session: { sessionDurationMs: 30 * 60 * 1000 } // 30 minutes for testing
 });
 
 /**

@@ -1,4 +1,4 @@
-import { UnlockMethod, UnlockOptions } from '../types/lnc';
+import { UnlockMethod, UnlockOptions } from '../types/lightningNodeConnect';
 
 /**
  * Pure encryption service interface - no storage dependencies

@@ -25,12 +25,16 @@ yarn prettier-write     # Fix formatting
 
 ## Architecture
 
-`LNC` (lib/lnc.ts) is the main public class. It delegates to:
+Two public entrypoints:
 
-- **WasmManager** (lib/wasmManager.ts) — WASM binary lifecycle, connection management, RPC proxying via `wasmClientInvokeRPC`.
-- **CredentialOrchestrator** (lib/credentialOrchestrator.ts) — Routes to the correct credential store based on config.
+- **LightningNodeConnect** (lib/lightningNodeConnect.ts) — Modern entrypoint supporting password, passkey, and session-based authentication. Credential lifecycle is managed internally through the auth stack (`AuthenticationCoordinator`, `StrategyManager`, `SessionCoordinator`). Does not expose a public `CredentialStore`.
+- **LNC** (lib/lnc.ts) — Legacy password-only facade. Manages its own credential lifecycle via `CredentialStore`, with post-connect cleanup handled in `LNC.connect()`.
 
-**Credential store selection:** If `enableSessions || allowPasskeys` → `UnifiedCredentialStore` (strategy-based: password/passkey/session). Otherwise → `LncCredentialStore` (legacy, CryptoJS AES). If a custom `credentialStore` is provided in config, it's used directly.
+Both delegate to:
+
+- **WasmManager** (lib/wasmManager.ts) — WASM binary lifecycle, connection management, RPC proxying via `wasmClientInvokeRPC`. Accepts `ConnectionParams` and `ConnectionCallbacks` (no mutable `CredentialProvider`).
+
+**Auth stack (modern entrypoint):** `StrategyManager` selects the correct `AuthStrategy` (password/passkey/session) based on unlock options. `AuthenticationCoordinator` orchestrates unlock and credential caching. `SessionCoordinator` manages session creation and auto-restore.
 
 **RPC flow:** Typed API call → `createRpc.ts` Proxy → `wasmClientInvokeRPC` → WASM → response parsed from JSON → `snakeKeysToCamel` conversion → returned to caller.
 
@@ -38,18 +42,23 @@ yarn prettier-write     # Fix formatting
 
 | File | Purpose |
 |------|---------|
-| lib/types/lnc.ts | All public interfaces (`LncConfig`, `CredentialStore`, `UnlockOptions`, etc.) |
-| lib/lnc.ts | Main `LNC` class — the public API surface |
-| lib/credentialOrchestrator.ts | Credential store routing and auth orchestration |
+| lib/lightningNodeConnect.ts | Modern `LightningNodeConnect` class — password/passkey/session auth |
+| lib/types/lightningNodeConnect.ts | Types for the modern entrypoint (`LightningNodeConnectConfig`, `UnlockOptions`, etc.) |
+| lib/types/baseConnection.ts | Shared connection fields between legacy and modern entrypoints |
+| lib/lnc.ts | Legacy `LNC` class — password-only facade |
+| lib/types/lnc.ts | Legacy public interfaces (`LncConfig`, `CredentialStore`) |
 | lib/wasmManager.ts | WASM binary loading, connection lifecycle, RPC bridge |
-| lib/stores/unifiedCredentialStore.ts | Modern auth (password + passkey + session strategies) |
+| lib/stores/authenticationCoordinator.ts | Unlock orchestration and credential caching |
+| lib/stores/strategyManager.ts | Auth strategy selection (password/passkey/session) |
+| lib/stores/sessionCoordinator.ts | Session creation, refresh, and auto-restore |
 | lib/util/credentialStore.ts | Legacy auth (CryptoJS password encryption) |
 | lib/api/createRpc.ts | Proxy-based RPC function creation |
 | lib/index.ts | Entry point — loads wasm_exec.js, re-exports everything |
 
 **Files that change together:**
-- `lib/lnc.ts` + `lib/types/lnc.ts` — feature additions need both
-- `lib/credentialOrchestrator.ts` + credential stores — auth flow changes
+- `lib/lightningNodeConnect.ts` + `lib/types/lightningNodeConnect.ts` — modern entrypoint changes
+- `lib/lnc.ts` + `lib/types/lnc.ts` — legacy entrypoint changes
+- `lib/stores/authenticationCoordinator.ts` + strategy files — auth flow changes
 - Source file + colocated `.test.ts` — always add/update tests with changes
 
 ## Code Conventions
@@ -65,8 +74,10 @@ yarn prettier-write     # Fix formatting
 - Private fields use underscore prefix (`_namespace`, `_wasmClientCode`).
 
 **Exports in lib/index.ts:**
-- `export default LNC` — the main class
-- `export { CredentialOrchestrator, WasmManager }` — named exports for advanced use
+- `export default LNC` — the legacy entrypoint
+- `export { LightningNodeConnect, WasmManager }` — modern entrypoint and advanced use
+- `export type { LncConfig, CredentialStore }` — legacy types
+- `export type { LightningNodeConnectConfig, SessionConfig, UnlockMethod, ... }` — modern types
 - `export * from '@lightninglabs/lnc-core'` — full re-export of typed APIs
 
 ## Testing
@@ -86,9 +97,9 @@ Vitest with globals enabled (no imports needed for `describe`/`it`/`expect`). Se
 - `unload` event listener for disconnect is only added after successful connection. Partial connection failures may leave dangling state.
 
 **Credential Stores:**
-- No migration path between legacy `LncCredentialStore` and `UnifiedCredentialStore`. Switching store types requires re-pairing.
-- Legacy store: setting `password` triggers immediate encrypt/decrypt and then **wipes in-memory plaintext** via `clear(true)`. After setting password, credential getters return empty strings until decryption.
-- Orchestrator uses `instanceof UnifiedCredentialStore` checks (3 places). Custom stores that don't extend it may break.
+- The modern `LightningNodeConnect` entrypoint manages credentials internally — no public `CredentialStore` is exposed.
+- The legacy `LNC` entrypoint uses `LncCredentialStore` (CryptoJS AES). Setting `password` triggers immediate encrypt/decrypt and then **wipes in-memory plaintext** via `clear(true)`. After setting password, credential getters return empty strings until decryption.
+- No migration path between legacy and modern auth. Switching entrypoints requires re-pairing.
 - `serverHost` from config is only set on first pairing. To switch servers, call `clear()` first.
 
 **Config:**

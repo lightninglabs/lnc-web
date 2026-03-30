@@ -1,4 +1,4 @@
-import { SessionConfig } from '../types/lnc';
+import { SessionConfig } from '../types/lightningNodeConnect';
 import { createLogger } from '../util/log';
 import { CredentialsEncrypter } from './crypto/CredentialsEncrypter';
 import { KeyWrapper } from './crypto/KeyWrapper';

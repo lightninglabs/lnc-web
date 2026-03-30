@@ -9,7 +9,7 @@ interface Props {
 }
 
 const Page: React.FC<Props> = ({ children }) => {
-  const { lnc, logout } = useLNC();
+  const { lnc, auth, logout } = useLNC();
 
   const handleLogout = async () => {
     await logout();
@@ -40,7 +40,7 @@ const Page: React.FC<Props> = ({ children }) => {
                     Logout
                   </Button>
                 </>
-              ) : lnc.credentials.isPaired ? (
+              ) : auth.hasStoredCredentials ? (
                 <Link to="/login">
                   <Button>Login</Button>
                 </Link>

@@ -1,5 +1,18 @@
 import { subscriptionMethods } from '@lightninglabs/lnc-core';
-import LNC from '../lnc';
+
+/**
+ * Structural type for any object that can handle RPC requests and subscriptions.
+ * Both LNC and LightningNodeConnect satisfy this contract.
+ */
+export type RpcClient = {
+  request<TRes>(method: string, request?: object): Promise<TRes>;
+  subscribe<TRes>(
+    method: string,
+    request?: object,
+    onMessage?: (res: TRes) => void,
+    onError?: (res: Error) => void
+  ): void;
+};
 
 // capitalize the first letter in the string
 const capitalize = (s: string) => s && s[0].toUpperCase() + s.slice(1);
@@ -8,7 +21,10 @@ const capitalize = (s: string) => s && s[0].toUpperCase() + s.slice(1);
  * Creates a typed Proxy object which calls the WASM request or
  * subscribe methods depending on which function is called on the object
  */
-export function createRpc<T extends object>(packageName: string, lnc: LNC): T {
+export function createRpc<T extends object>(
+  packageName: string,
+  client: RpcClient
+): T {
   const rpc = {};
   return new Proxy(rpc, {
     get(target, key) {
@@ -23,12 +39,12 @@ export function createRpc<T extends object>(packageName: string, lnc: LNC): T {
           callback: (msg: object) => void,
           errCallback?: (err: Error) => void
         ): void => {
-          lnc.subscribe(method, request, callback, errCallback);
+          client.subscribe(method, request, callback, errCallback);
         };
       } else {
         // call request for unary methods
         return async (request: object): Promise<unknown> => {
-          return await lnc.request(method, request);
+          return await client.request(method, request);
         };
       }
     }
