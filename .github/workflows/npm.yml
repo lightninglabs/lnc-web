@@ -18,4 +18,6 @@ jobs:
           node-version: '24.x'
           registry-url: 'https://registry.npmjs.org'
       - run: yarn install --frozen-lockfile
-      - run: npm publish
+      # Use the latest tag explicitly. New versions of npm will fail without it
+      # due to our versions having `-alpha` suffixes.
+      - run: npm publish --tag latest

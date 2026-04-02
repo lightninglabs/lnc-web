@@ -351,10 +351,10 @@
   resolved "https://registry.yarnpkg.com/@lightninglabs/ai-docs-sync/-/ai-docs-sync-0.1.0.tgz#6f1fd672d50d0ad00238b0fa7eab8c4496ebda88"
   integrity sha512-u3CRCuMLaFDFvMCQT/aPgNcPYxVy8/bfp/uV8f1Z9C/KSz3YuJYh2KPTonmTen+KV/lm5B3a7kGjKWGYteEE5g==
 
-"@lightninglabs/lnc-core@0.3.5-alpha":
-  version "0.3.5-alpha"
-  resolved "https://registry.yarnpkg.com/@lightninglabs/lnc-core/-/lnc-core-0.3.5-alpha.tgz#7874d21eeb1bd01254d96fe5e37da7f06915e810"
-  integrity sha512-20rOA3ZiPxYRCppqLBxXEgaLCoSX4B5L1GTUrvuCaZAU29Ua0Yc1sJrd/A67vNxLOxxWFPkK0jKcSem3ZaGQLQ==
+"@lightninglabs/lnc-core@^0.3.6-alpha":
+  version "0.3.6-alpha"
+  resolved "https://registry.yarnpkg.com/@lightninglabs/lnc-core/-/lnc-core-0.3.6-alpha.tgz#43cf66c6134cbc6edfcf55c857cc32c2a9ee825d"
+  integrity sha512-ObzY5wi+PS0GQduFHYDjGJpYZxKD27vtMf3fUVne2gGNMej1mvvJAOwATgef8YV/IZodAzy73Z/F2zfaQ+iE4Q==
 
 "@nodelib/fs.scandir@2.1.5":
   version "2.1.5"
