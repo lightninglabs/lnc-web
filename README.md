@@ -1,114 +1,14 @@
 # @lightninglabs/lnc-web
 
-## A npm module for Lightning Node Connect
+A JavaScript library for connecting to Lightning Network nodes via [Lightning Node Connect](https://docs.lightning.engineering/lightning-network-tools/lightning-terminal/lightning-node-connect). Supports password and passkey authentication, automatic session management, and typed RPC access to LND, Loop, Pool, Faraday, Taproot Assets, and Lightning Terminal.
 
 ## Install
 
-`npm i @lightninglabs/lnc-web`
-
-## API Design
-
-#### Set-up and connection
-
-The constructor for the LNC object takes a parameters object with the three following fields:
-
--   `pairingPhrase` (string): Your LNC pairing phrase
--   `serverHost` (string): Specify a custom Lightning Node Connect proxy server. If not specified we'll default to `mailbox.terminal.lightning.today:443`.
--   `wasmClientCode` (string): Custom location for the WASM client code. Can be remote or local. If not specified we’ll default to our instance on our CDN.
--   `namespace` (string): JavaScript namespace used for the main WASM calls. You can maintain multiple connections if you use different namespaces. If not specified we'll default to `default`.
--   `password` (string): By default, this module will handle storage of your local and remote keys for you in local storage. We highly recommend encrypting that data with a password you set here.
-
-```typescript
-import LNC from ‘@lightninglabs/lnc-web’;
-
-const pairingPhrase = ‘artefact morning piano photo consider light’;
-const password = 'u*E0F?gU\d($N&Ckh8u)tLm';
-
-// default connection using WASM from CDN
-// WASM loaded on object creation
-// default host: mailbox.terminal.lightning.today:443
-// password used for encrypting credentials
-const lnc = new LNC({
-   pairingPhrase,
-   password
-});
-
-// using custom Lightning Node Connect proxy server
-const lnc = new LNC({
-   pairingPhrase,
-   serverHost: ‘custom.lnd-server.host:443’
-});
-
-// using WASM pulled into app
-const lnc = new LNC({
-   pairingPhrase,
-   wasmClientCode: ‘/path/to/​​wasm-client.wasm’
-});
-
-// using WASM from external link
-const lnc = new LNC({
-   pairingPhrase,
-   wasmClientCode: ‘https://dev.example/wasm-client.wasm’
-});
-
-// check ready status
-lnc.isReady();
-
-// connect
-lnc.connect();
-
-// check connection status
-lnc.isConnected();
-
-// disconnect
-lnc.disconnect();
+```bash
+npm i @lightninglabs/lnc-web
 ```
 
-#### Base functions
-
-All of the services (lnd, loop, pool, faraday) will be objects under the main lnc object. Each services’ sub-services will be underneath each service object, and each sub-service function below that (except in the case of faraday which only has one service - its functions will live directly under it). All service, function, and param names will be camel-cased.
-
-```typescript
-const { lnd, loop, pool, faraday } = lnc;
-
-// all functions on the base object should have proper types
-// sub-servers exist as objects on each main service
-lnd.lightning.listInvoices();
-lnd.lightning.connectPeer({ addr: ‘03aa49c1e98ff4f216d886c09da9961c516aca22812c108af1b187896ded89807e@m3keajflswtfq3bw4kzvxtbru7r4z4cp5stlreppdllhp5a7vuvjzqyd.onion:9735’ });
-
-const signature = lnd.signer.signMessage({...params});
-
-const swaps = await loop.swapClient.listSwaps();
-const poolAccount = await pool.trader.initAccount({
-   accountValue: 100000000,
-   relativeHeight: 1000
- });
-
-const insights = await faraday.channelInsights();
-```
-
-#### Subscriptions
-
-```typescript
-const { lnd } = lnc;
-
-// handle subscriptions
-lnd.lightning.subscribeTransactions(
-   params,
-   transaction => handleNewData(transaction),
-   error => handleError(error),
-);
-
-lnd.lightning.subscribeChannelEvents(
-   params,
-   event => handleNewChannelEventData(event),
-   error => handleError(error),
-);
-```
-
-#### Modern entrypoint (passkeys & sessions)
-
-For applications that need passkey-based authentication and session management, use the `LightningNodeConnect` named export:
+## Quick Start
 
 ```typescript
 import { LightningNodeConnect } from '@lightninglabs/lnc-web';
@@ -117,25 +17,463 @@ const lnc = new LightningNodeConnect({
   namespace: 'my-app',
   allowPasskeys: true,
   enableSessions: true,
-  session: { sessionDurationMs: 24 * 60 * 60 * 1000 }
 });
 
-// pair with a new node
-await lnc.pair('artefact morning piano photo consider light');
+// First-time pairing (connects and persists in one step)
+await lnc.pair('artefact morning piano photo consider light', {
+  method: 'password',
+  password: 'my-secure-password',
+});
 
-// persist credentials with a password or passkey
-await lnc.persistWithPassword('my-password');
-// or: await lnc.persistWithPasskey();
+// Returning user login
+await lnc.login({ method: 'password', password: 'my-secure-password' });
 
-// on subsequent visits, unlock and connect
-await lnc.unlock({ method: 'password', password: 'my-password' });
-await lnc.connect();
-
-// check authentication state
-const info = await lnc.getAuthenticationInfo();
-console.log(info.hasActiveSession, info.supportsPasskeys);
+// Access services
+const info = await lnc.lnd.lightning.getInfo();
+const channels = await lnc.lnd.lightning.listChannels();
 ```
 
-## Further documentation
+## Configuration
 
-- https://docs.lightning.engineering/lightning-network-tools/lightning-terminal/lnc-npm
+The constructor accepts a `LightningNodeConnectConfig` object:
+
+```typescript
+const lnc = new LightningNodeConnect({
+  // LNC proxy server (default: mailbox.terminal.lightning.today:443)
+  serverHost: 'mailbox.terminal.lightning.today:443',
+
+  // Custom WASM binary URL - local or remote (default: Lightning Engineering CDN)
+  wasmClientCode: 'https://lightning.engineering/lnc-v0.3.5-alpha.wasm',
+
+  // Unique namespace for this connection (default: 'default')
+  namespace: 'my-app',
+
+  // Enable passkey-based authentication (default: true)
+  allowPasskeys: true,
+
+  // Display name shown during passkey creation (default: 'LNC User ({namespace})')
+  passkeyDisplayName: 'My App',
+
+  // Enable session-based authentication (default: true)
+  enableSessions: true,
+
+  // Session timing (see Sessions section below)
+  session: {
+    sessionDurationMs: 24 * 60 * 60 * 1000,    // 24 hours (default)
+    enableActivityRefresh: true,                 // auto-extend on activity (default)
+    maxRefreshes: 10,                            // max extensions per session (default)
+    maxSessionAgeMs: 7 * 24 * 60 * 60 * 1000,   // absolute max age: 7 days (default)
+  },
+});
+```
+
+### Custom Proxy Server
+
+Some consumer apps construct the `LightningNodeConnect` instance on page load but allow users to specify a custom proxy server on the pairing screen. Use the `serverHost` setter:
+
+```typescript
+const lnc = new LightningNodeConnect({ namespace: 'my-app' });
+
+// Later, when the user provides a custom host...
+lnc.serverHost = 'custom.proxy-server.host:443';
+
+await lnc.pair(pairingPhrase, { method: 'password', password });
+```
+
+## Pairing
+
+Pairing is a one-time operation that connects your app to a Lightning node using a pairing phrase generated by LND or Lightning Terminal. After pairing and persisting credentials, the connection keys are stored locally so the user doesn't need to pair again.
+
+### One-step pairing (recommended)
+
+Connect and persist credentials in a single call:
+
+```typescript
+// With password
+await lnc.pair('artefact morning piano photo consider light', {
+  method: 'password',
+  password: 'my-secure-password',
+});
+
+// With passkey (biometric / hardware key)
+await lnc.pair('artefact morning piano photo consider light', {
+  method: 'passkey',
+});
+```
+
+### Two-step pairing
+
+For more control (e.g., verifying the connection before persisting):
+
+```typescript
+// Step 1: pair and connect
+await lnc.pair('artefact morning piano photo consider light');
+
+// Step 2: verify the connection works
+await lnc.lnd.lightning.listChannels();
+
+// Step 3: persist credentials
+await lnc.persistWithPassword('my-secure-password');
+// or: await lnc.persistWithPasskey();
+```
+
+## Detecting Saved Credentials
+
+Use `getAuthenticationInfo()` to check whether the user has previously paired and how they should log in:
+
+```typescript
+const auth = await lnc.getAuthenticationInfo();
+
+if (!auth.hasStoredCredentials) {
+  // New user - show pairing screen
+  showPairingScreen();
+} else if (auth.hasActiveSession) {
+  // Active session - can auto-connect (see Sessions below)
+  await lnc.login({ method: 'session' });
+} else if (auth.hasPasskey) {
+  // Returning user with passkey - prompt for biometric
+  await lnc.login({ method: 'passkey' });
+} else {
+  // Returning user with password - prompt for password
+  await lnc.login({ method: 'password', password: userInput });
+}
+```
+
+The `AuthenticationInfo` object contains:
+
+| Field                   | Type      | Description                                             |
+| ----------------------- | --------- | ------------------------------------------------------- |
+| `isUnlocked`            | `boolean` | True if credentials have been decrypted into memory     |
+| `hasStoredCredentials`  | `boolean` | True if long-term credentials exist (password or passkey) |
+| `hasActiveSession`      | `boolean` | True if a valid session exists for passwordless login   |
+| `sessionTimeRemaining`  | `number`  | Milliseconds until the current session expires          |
+| `supportsPasskeys`      | `boolean` | True if passkeys are enabled in config and supported by the browser |
+| `hasPasskey`            | `boolean` | True if a passkey credential has been stored            |
+| `preferredUnlockMethod` | `string`  | `'session'`, `'passkey'`, or `'password'` - recommended method based on current state |
+| `passkeyCredentialId`   | `string?` | The stored passkey credential ID, if any (for reusing across namespaces)              |
+
+## Login
+
+Returning users authenticate with one of three methods:
+
+```typescript
+// Password
+await lnc.login({ method: 'password', password: 'my-secure-password' });
+
+// Passkey (triggers browser biometric / hardware key prompt)
+await lnc.login({ method: 'passkey' });
+
+// Session (no user interaction needed)
+await lnc.login({ method: 'session' });
+```
+
+`login()` is a convenience that calls `unlock()` (decrypts credentials) followed by `connect()` (connects to the proxy). It throws if unlock fails, so wrap in try/catch. You can also call them separately if you need to inspect state between the two steps:
+
+```typescript
+const success = await lnc.unlock({ method: 'password', password });
+if (success) {
+  await lnc.connect();
+}
+```
+
+## Accessing Services
+
+All Lightning services are available as typed properties on the `lnc` object. Sub-services are nested, and all names are camelCased.
+
+```typescript
+const { lnd, loop, pool, faraday, tapd, lit } = lnc;
+
+// LND
+const info = await lnd.lightning.getInfo();
+const channels = await lnd.lightning.listChannels();
+const invoices = await lnd.lightning.listInvoices();
+await lnd.lightning.connectPeer({
+  addr: { pubkey: '03aa49c1...', host: 'host:9735' },
+});
+const signature = await lnd.signer.signMessage({ msg: myBuffer });
+
+// Loop
+const swaps = await loop.swapClient.listSwaps();
+
+// Pool
+const account = await pool.trader.initAccount({
+  accountValue: 100000000,
+  relativeHeight: 1000,
+});
+
+// Faraday
+const insights = await faraday.faradayServer.channelInsights();
+
+// Taproot Assets
+const assets = await tapd.taprootAssets.listAssets();
+
+// Lightning Terminal
+const sessions = await lit.sessions.listSessions();
+```
+
+### Subscriptions
+
+For streaming RPC endpoints, pass a message handler and an optional error handler:
+
+```typescript
+// Subscribe to on-chain transactions
+lnc.lnd.lightning.subscribeTransactions(
+  {},
+  (transaction) => console.log('New tx:', transaction),
+  (error) => console.error('Stream error:', error),
+);
+
+// Subscribe to channel events
+lnc.lnd.lightning.subscribeChannelEvents(
+  {},
+  (event) => console.log('Channel event:', event),
+  (error) => console.error('Stream error:', error),
+);
+```
+
+## Sessions
+
+When `enableSessions` is `true` (the default), a session is automatically created after each successful connection. Sessions allow returning users to reconnect without re-entering their password or triggering a passkey prompt, as long as the browser tab/window remains open.
+
+Sessions are stored in `sessionStorage` and are scoped to the browser tab. They expire based on the `session` config.
+
+### How sessions work
+
+1. After a successful `pair()` or `login()`, the library encrypts the connection keys and stores them in `sessionStorage`.
+2. On the next page load (within the same tab), `getAuthenticationInfo()` will report `hasActiveSession: true`.
+3. Calling `login({ method: 'session' })` restores the keys without any user interaction.
+4. If `enableActivityRefresh` is `true`, the session is automatically extended on activity, up to `maxRefreshes` times.
+5. Once `maxSessionAgeMs` is reached or the tab is closed, the session expires.
+
+### Auto-restore on page load
+
+You can use `tryAutoRestore()` to pre-check whether a session can be restored, without connecting:
+
+```typescript
+const restored = await lnc.tryAutoRestore();
+if (restored) {
+  // Credentials are in memory - connect when ready
+  await lnc.connect();
+}
+```
+
+### Session configuration
+
+```typescript
+const lnc = new LightningNodeConnect({
+  enableSessions: true,
+  session: {
+    sessionDurationMs: 30 * 60 * 1000,    // 30 minutes
+    enableActivityRefresh: true,            // extend session on activity
+    maxRefreshes: 5,                        // allow up to 5 extensions
+    maxSessionAgeMs: 4 * 60 * 60 * 1000,   // hard cap at 4 hours
+  },
+});
+```
+
+To disable sessions entirely:
+
+```typescript
+const lnc = new LightningNodeConnect({ enableSessions: false });
+```
+
+## Passkeys
+
+Passkeys use the [WebAuthn](https://webauthn.guide/) standard to encrypt stored credentials with biometric authentication (fingerprint, Face ID) or a hardware security key. This provides a passwordless experience for returning users.
+
+### How passkeys work
+
+1. During pairing, calling `persistWithPasskey()` (or using `pair(phrase, { method: 'passkey' })`) creates a WebAuthn credential and uses it to encrypt the connection keys.
+2. The encrypted keys are stored in IndexedDB (not localStorage).
+3. On subsequent visits, calling `login({ method: 'passkey' })` triggers the browser's biometric prompt. The resulting WebAuthn assertion is used to decrypt the keys.
+
+### Checking passkey support
+
+```typescript
+// Instance method - checks config AND browser support
+if (lnc.supportsPasskeys()) {
+  // Show passkey option in UI
+}
+
+// Static method - checks browser support only (no instance needed)
+if (await LightningNodeConnect.isPasskeySupported()) {
+  // Browser supports passkeys
+}
+```
+
+### Passkey configuration
+
+```typescript
+const lnc = new LightningNodeConnect({
+  allowPasskeys: true,                  // enable passkey support (default: true)
+  passkeyDisplayName: 'My Lightning App', // name shown during passkey creation
+});
+```
+
+To disable passkeys:
+
+```typescript
+const lnc = new LightningNodeConnect({ allowPasskeys: false });
+```
+
+## Clearing Credentials
+
+The `clear()` method supports two levels of cleanup:
+
+```typescript
+// Logout - clears session only (default). User can still log back in with password/passkey.
+lnc.clear();
+
+// Forget this node - clears session AND long-term stored credentials.
+// User will need to pair again with a new phrase.
+lnc.clear({ persisted: true });
+```
+
+`clear()` options:
+
+| Option      | Default | Description                                              |
+| ----------- | ------- | -------------------------------------------------------- |
+| `session`   | `true`  | Clear the short-term session from `sessionStorage`       |
+| `persisted` | `false` | Clear long-term credentials from `localStorage` / IndexedDB |
+
+> **Note:** `clear()` only removes stored credentials — it does not tear down the active WASM connection. To fully disconnect, perform a page reload after clearing (e.g. `window.location.reload()`).
+
+## Status Properties
+
+```typescript
+lnc.isReady;        // true when WASM client is loaded and ready
+lnc.isConnected;    // true when connected to the LNC proxy server
+lnc.status;         // current status string
+lnc.expiry;         // Date when the LNC session token expires
+lnc.isReadOnly;     // true if the connection has read-only permissions
+
+lnc.hasPerms('lnrpc.Lightning.SendPaymentSync');  // check a specific permission
+```
+
+## Preloading WASM
+
+The WASM binary (~5 MB) is downloaded on first connection. To improve perceived performance, preload it on your pairing/login screens while waiting for user input:
+
+```typescript
+const lnc = new LightningNodeConnect({ namespace: 'my-app' });
+
+// Start downloading WASM immediately (e.g., in a useEffect or on app mount)
+lnc.preload();
+
+// Later, when the user is ready to pair or log in, the WASM is already cached
+await lnc.pair(phrase, { method: 'password', password });
+```
+
+## Multiple Connections
+
+Use unique `namespace` values to maintain simultaneous connections to different nodes:
+
+```typescript
+const alice = new LightningNodeConnect({ namespace: 'alice' });
+const bob = new LightningNodeConnect({ namespace: 'bob' });
+
+await alice.pair(alicePhrase, { method: 'password', password: alicePassword });
+await bob.pair(bobPhrase, { method: 'password', password: bobPassword });
+
+// Each instance has its own credentials, sessions, and service objects
+const aliceChannels = await alice.lnd.lightning.listChannels();
+const bobChannels = await bob.lnd.lightning.listChannels();
+```
+
+Credentials, sessions, and passkeys are all scoped to the namespace, so they won't collide.
+
+## React Integration
+
+A common pattern is to create a singleton instance in a custom hook:
+
+```typescript
+import { useCallback, useEffect, useState } from 'react';
+import {
+  AuthenticationInfo,
+  LightningNodeConnect,
+  PersistOptions,
+  UnlockOptions,
+} from '@lightninglabs/lnc-web';
+
+const lnc = new LightningNodeConnect({
+  namespace: 'my-app',
+  allowPasskeys: true,
+  enableSessions: true,
+});
+
+const useLNC = () => {
+  const [auth, setAuth] = useState<AuthenticationInfo | null>(null);
+
+  useEffect(() => {
+    lnc.getAuthenticationInfo().then(setAuth);
+  }, []);
+
+  const pair = useCallback(
+    async (phrase: string, options: PersistOptions) => {
+      await lnc.pair(phrase);
+      await lnc.lnd.lightning.listChannels(); // verify connection
+
+      if (options.method === 'password') {
+        await lnc.persistWithPassword(options.password);
+      } else if (options.method === 'passkey') {
+        await lnc.persistWithPasskey();
+      }
+    },
+    [],
+  );
+
+  const login = useCallback(async (options: UnlockOptions) => {
+    await lnc.login(options);
+  }, []);
+
+  const logout = useCallback(() => {
+    lnc.clear();
+    window.location.reload();
+  }, []);
+
+  return { lnc, pair, login, logout, auth };
+};
+
+export default useLNC;
+```
+
+### Auto-connect with sessions
+
+Restore sessions automatically when the page loads:
+
+```typescript
+import { useEffect, useState } from 'react';
+import useLNC from './useLNC';
+
+export const useAutoConnect = () => {
+  const { lnc, login, auth } = useLNC();
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState('');
+
+  useEffect(() => {
+    if (auth?.hasActiveSession && !lnc.isConnected) {
+      setLoading(true);
+      login({ method: 'session' })
+        .catch((err) => setError((err as Error).message))
+        .finally(() => setLoading(false));
+    }
+  }, [auth?.hasActiveSession, lnc.isConnected, login]);
+
+  return { loading, error };
+};
+```
+
+## Legacy API
+
+The original `LNC` class is still available as the default export for backwards compatibility:
+
+```typescript
+import LNC from '@lightninglabs/lnc-web';
+```
+
+See [LEGACY_LNC.md](LEGACY_LNC.md) for the legacy API documentation and [LEGACY_MIGRATE.md](LEGACY_MIGRATE.md) for migration instructions.
+
+## Further Documentation
+
+- [Lightning Node Connect](https://docs.lightning.engineering/lightning-network-tools/lightning-terminal/lightning-node-connect)
+- [LNC npm package docs](https://docs.lightning.engineering/lightning-network-tools/lightning-terminal/lnc-npm)
