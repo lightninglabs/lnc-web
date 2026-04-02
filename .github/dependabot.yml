@@ -4,3 +4,5 @@ updates:
     directory: "/"
     schedule:
       interval: "weekly"
+    # Disable version update PRs; only security updates will be opened.
+    open-pull-requests-limit: 0
