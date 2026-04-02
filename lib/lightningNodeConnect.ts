@@ -39,7 +39,7 @@ type ResolvedConfig = Required<
 
 /** The default values for the LightningNodeConnectConfig options. */
 export const DEFAULT_CONFIG: LightningNodeConnectConfig = {
-  wasmClientCode: 'https://lightning.engineering/lnc-v0.3.5-alpha.wasm',
+  wasmClientCode: 'https://lightning.engineering/lnc-v0.3.6-alpha.wasm',
   namespace: 'default',
   serverHost: 'mailbox.terminal.lightning.today:443',
   allowPasskeys: true,
