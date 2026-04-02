@@ -45,7 +45,7 @@
     "@eslint/js": "^9.39.1",
     "@lightninglabs/ai-docs-sync": "^0.1.0",
     "@types/crypto-js": "4.1.1",
-    "@types/debug": "4.1.7",
+    "@types/debug": "4.1.13",
     "@types/node": "17.0.16",
     "@vitest/coverage-v8": "3.2.4",
     "@vitest/ui": "3.2.4",
