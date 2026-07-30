@@ -7,6 +7,7 @@ import {
   TaprootAssetsApi
 } from '@lightninglabs/lnc-core';
 import { createRpc } from './api/createRpc';
+import { WASM_CLIENT_URL } from './constants';
 import { PasskeyEncryptionService } from './encryption/passkeyEncryptionService';
 import SessionManager from './sessions/sessionManager';
 import { AuthenticationCoordinator } from './stores/authenticationCoordinator';
@@ -39,7 +40,7 @@ type ResolvedConfig = Required<
 
 /** The default values for the LightningNodeConnectConfig options. */
 export const DEFAULT_CONFIG: LightningNodeConnectConfig = {
-  wasmClientCode: 'https://lightning.engineering/lnc-v0.3.6-alpha.wasm',
+  wasmClientCode: WASM_CLIENT_URL,
   namespace: 'default',
   serverHost: 'mailbox.terminal.lightning.today:443',
   allowPasskeys: true,
