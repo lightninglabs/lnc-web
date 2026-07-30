@@ -7,13 +7,14 @@ import {
   TaprootAssetsApi
 } from '@lightninglabs/lnc-core';
 import { createRpc } from './api/createRpc';
+import { WASM_CLIENT_URL } from './constants';
 import { CredentialStore, LncConfig } from './types/lnc';
 import LncCredentialStore from './util/credentialStore';
 import { ConnectionParams, WasmManager } from './wasmManager';
 
 /** The default values for the LncConfig options. */
 export const DEFAULT_CONFIG = {
-  wasmClientCode: 'https://lightning.engineering/lnc-v0.3.6-alpha.wasm',
+  wasmClientCode: WASM_CLIENT_URL,
   namespace: 'default',
   serverHost: 'mailbox.terminal.lightning.today:443'
 } as Required<LncConfig>;
