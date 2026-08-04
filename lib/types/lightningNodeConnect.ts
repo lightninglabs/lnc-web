@@ -94,6 +94,8 @@ export interface ClearOptions {
   session?: boolean;
   /** clear the long-term pairing credentials saved in local storage (default: false) */
   persisted?: boolean;
+  /** also tear down the active WASM connection, equivalent to calling disconnect() (default: false) */
+  disconnect?: boolean;
 }
 
 /**
