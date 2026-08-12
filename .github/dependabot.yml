@@ -6,3 +6,18 @@ updates:
       interval: "weekly"
     # Disable version update PRs; only security updates will be opened.
     open-pull-requests-limit: 0
+
+  # The demo apps are unpublished examples pinned to the unmaintained
+  # react-scripts toolchain, which is the source of nearly all of their
+  # transitive advisories. Bumping individual transitive packages cannot
+  # clear that tree, so the alerts are not actionable. Ignoring every
+  # dependency here suppresses both version and security update PRs for
+  # these directories without affecting the published package at the root.
+  - package-ecosystem: "npm"
+    directories:
+      - "/demos/*"
+    schedule:
+      interval: "weekly"
+    open-pull-requests-limit: 0
+    ignore:
+      - dependency-name: "*"
