@@ -10,7 +10,10 @@ const log = createLogger('PasskeyCredentialRepository');
  * Uses localStorage directly for storage and PasskeyEncryptionService for encryption.
  */
 export class PasskeyCredentialRepository extends BaseCredentialRepository {
-  constructor(namespace: string, private encryption: PasskeyEncryptionService) {
+  constructor(
+    namespace: string,
+    private encryption: PasskeyEncryptionService
+  ) {
     super(namespace);
   }
 
