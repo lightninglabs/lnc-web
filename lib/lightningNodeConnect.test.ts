@@ -715,6 +715,22 @@ describe('LightningNodeConnect', () => {
       expect(mocks.authCoordinator.clearSession).not.toHaveBeenCalled();
       expect(mocks.strategyManager.clearAll).toHaveBeenCalled();
     });
+
+    it('does not disconnect by default', () => {
+      const lnc = new LightningNodeConnect();
+      const mocks = createModernMockSetup(lnc);
+      lnc.clear({ persisted: true });
+      expect(mocks.wasmManager.disconnect).not.toHaveBeenCalled();
+    });
+
+    it('disconnects when disconnect: true', () => {
+      const lnc = new LightningNodeConnect();
+      const mocks = createModernMockSetup(lnc);
+      lnc.clear({ persisted: true, disconnect: true });
+      expect(mocks.authCoordinator.clearSession).toHaveBeenCalled();
+      expect(mocks.strategyManager.clearAll).toHaveBeenCalled();
+      expect(mocks.wasmManager.disconnect).toHaveBeenCalled();
+    });
   });
 
   describe('getAuthenticationInfo', () => {

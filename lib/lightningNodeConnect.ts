@@ -396,10 +396,14 @@ export default class LightningNodeConnect {
   /**
    * Clear credentials. By default clears session data only.
    * Pass `{ persisted: true }` to also clear long-term stored credentials.
+   * Pass `{ disconnect: true }` to also tear down the active WASM connection
+   * (equivalent to calling `disconnect()`) — a full logout is
+   * `clear({ persisted: true, disconnect: true })`.
    */
   clear(options?: ClearOptions): void {
     const clearSession = options?.session !== false;
     const clearPersisted = options?.persisted === true;
+    const shouldDisconnect = options?.disconnect === true;
 
     if (clearSession) {
       this._authCoordinator.clearSession();
@@ -407,6 +411,10 @@ export default class LightningNodeConnect {
 
     if (clearPersisted) {
       this._strategyManager.clearAll();
+    }
+
+    if (shouldDisconnect) {
+      this.disconnect();
     }
   }
 

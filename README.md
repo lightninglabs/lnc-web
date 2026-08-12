@@ -327,16 +327,21 @@ lnc.clear();
 // Forget this node - clears session AND long-term stored credentials.
 // User will need to pair again with a new phrase.
 lnc.clear({ persisted: true });
+
+// Full logout - clears credentials AND tears down the active WASM connection
+// in a single call, equivalent to calling clear() followed by disconnect().
+lnc.clear({ persisted: true, disconnect: true });
 ```
 
 `clear()` options:
 
-| Option      | Default | Description                                              |
-| ----------- | ------- | -------------------------------------------------------- |
-| `session`   | `true`  | Clear the short-term session from `sessionStorage`       |
-| `persisted` | `false` | Clear long-term credentials from `localStorage` / IndexedDB |
+| Option       | Default | Description                                                  |
+| ------------ | ------- | ------------------------------------------------------------ |
+| `session`    | `true`  | Clear the short-term session from `sessionStorage`           |
+| `persisted`  | `false` | Clear long-term credentials from `localStorage` / IndexedDB  |
+| `disconnect` | `false` | Also tear down the active WASM connection (same as calling `disconnect()`) |
 
-> **Note:** `clear()` only removes stored credentials — it does not tear down the active WASM connection. To fully disconnect, perform a page reload after clearing (e.g. `window.location.reload()`).
+> **Note:** By default, `clear()` only removes stored credentials — it does not tear down the active WASM connection. Pass `{ disconnect: true }` to also disconnect, or call `disconnect()` separately.
 
 ## Status Properties
 
