@@ -261,17 +261,27 @@ export class WasmManager {
     return new Promise((resolve, reject) => {
       log.debug(`${method} request`, request);
       const reqJSON = JSON.stringify(request || {});
-      this.wasm.wasmClientInvokeRPC(method, reqJSON, (response: string) => {
-        try {
-          const rawRes = JSON.parse(response);
-          const res = snakeKeysToCamel(rawRes);
-          log.debug(`${method} response`, res);
-          resolve(res as TRes);
-        } catch (error) {
-          log.debug(`${method} parser error`, { response, error });
-          reject(new Error(response));
+      const syncResult = this.wasm.wasmClientInvokeRPC(
+        method,
+        reqJSON,
+        (response: string) => {
+          try {
+            const rawRes = JSON.parse(response);
+            const res = snakeKeysToCamel(rawRes);
+            log.debug(`${method} response`, res);
+            resolve(res as TRes);
+          } catch (error) {
+            log.debug(`${method} parser error`, { response, error });
+            reject(new Error(response));
+          }
         }
-      });
+      );
+
+      // The client returns an error string instead of calling back when it
+      // rejects the call before starting the RPC.
+      if (typeof syncResult === 'string') {
+        reject(new Error(syncResult));
+      }
     });
   }
 
@@ -286,18 +296,26 @@ export class WasmManager {
   ): void {
     log.debug(`${method} request`, request);
     const reqJSON = JSON.stringify(request || {});
-    this.wasm.wasmClientInvokeRPC(method, reqJSON, (response: string) => {
-      try {
-        const rawRes = JSON.parse(response);
-        const res = snakeKeysToCamel(rawRes);
-        log.debug(`${method} response`, res);
-        if (onMessage) onMessage(res as TRes);
-      } catch (error) {
-        log.debug(`${method} error`, error);
-        const err = new Error(response);
-        if (onError) onError(err);
+    const syncResult = this.wasm.wasmClientInvokeRPC(
+      method,
+      reqJSON,
+      (response: string) => {
+        try {
+          const rawRes = JSON.parse(response);
+          const res = snakeKeysToCamel(rawRes);
+          log.debug(`${method} response`, res);
+          if (onMessage) onMessage(res as TRes);
+        } catch (error) {
+          log.debug(`${method} error`, error);
+          const err = new Error(response);
+          if (onError) onError(err);
+        }
       }
-    });
+    );
+
+    if (typeof syncResult === 'string' && onError) {
+      onError(new Error(syncResult));
+    }
   }
 
   //

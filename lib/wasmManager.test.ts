@@ -591,6 +591,42 @@ describe('WasmManager', () => {
       });
     });
 
+    it('rejects a synchronous WASM error without invoking the callback', async () => {
+      const namespace = 'request-sync-error';
+      const invoke = vi.fn().mockReturnValue('RPC connection not ready');
+      const wasm = createWasmNamespace({
+        wasmClientInvokeRPC: invoke
+      });
+      registerNamespace(namespace, wasm);
+
+      const manager = new WasmManager(namespace, 'code', createCallbacks());
+      await expect(manager.request('lnrpc.GetInfo')).rejects.toThrow(
+        'RPC connection not ready'
+      );
+      expect(invoke).toHaveBeenCalledTimes(1);
+      expect(invoke.mock.calls[0][2]).toEqual(expect.any(Function));
+    });
+
+    it('resolves when the WASM client returns null and then calls back', async () => {
+      const namespace = 'request-null-return';
+      const wasm = createWasmNamespace({
+        wasmClientInvokeRPC: vi
+          .fn()
+          .mockImplementation(
+            (_method: string, _req: string, cb: (res: string) => void) => {
+              cb(JSON.stringify({ ok: true }));
+              return null;
+            }
+          )
+      });
+      registerNamespace(namespace, wasm);
+
+      const manager = new WasmManager(namespace, 'code', createCallbacks());
+      await expect(manager.request('lnrpc.GetInfo')).resolves.toEqual({
+        ok: true
+      });
+    });
+
     it('rejects when response is not valid JSON', async () => {
       const namespace = 'request-error';
       const wasm = createWasmNamespace({
@@ -684,6 +720,61 @@ describe('WasmManager', () => {
 
       expect(onError).toHaveBeenCalledWith(expect.any(Error));
       expect(onError.mock.calls[0][0].message).toBe('bad json');
+    });
+
+    it('reports a synchronous WASM error through onError', () => {
+      const namespace = 'subscribe-sync-error';
+      const wasm = createWasmNamespace({
+        wasmClientInvokeRPC: vi
+          .fn()
+          .mockReturnValue('rpc with name lnrpc.Nope not found')
+      });
+      registerNamespace(namespace, wasm);
+
+      const manager = new WasmManager(namespace, 'code', createCallbacks());
+      const onMessage = vi.fn();
+      const onError = vi.fn();
+      manager.subscribe('lnrpc.Nope', {}, onMessage, onError);
+
+      expect(onMessage).not.toHaveBeenCalled();
+      expect(onError).toHaveBeenCalledTimes(1);
+      expect(onError.mock.calls[0][0]).toEqual(
+        new Error('rpc with name lnrpc.Nope not found')
+      );
+    });
+
+    it('does not throw when a synchronous error has no onError handler', () => {
+      const namespace = 'subscribe-sync-error-silent';
+      const wasm = createWasmNamespace({
+        wasmClientInvokeRPC: vi.fn().mockReturnValue('RPC connection not ready')
+      });
+      registerNamespace(namespace, wasm);
+
+      const manager = new WasmManager(namespace, 'code', createCallbacks());
+      expect(() => manager.subscribe('lnrpc.Nope')).not.toThrow();
+    });
+
+    it('delivers messages when the WASM client returns null', () => {
+      const namespace = 'subscribe-null-return';
+      const wasm = createWasmNamespace({
+        wasmClientInvokeRPC: vi
+          .fn()
+          .mockImplementation(
+            (_method: string, _req: string, cb: (res: string) => void) => {
+              cb(JSON.stringify({ ok: true }));
+              return null;
+            }
+          )
+      });
+      registerNamespace(namespace, wasm);
+
+      const manager = new WasmManager(namespace, 'code', createCallbacks());
+      const onMessage = vi.fn();
+      const onError = vi.fn();
+      manager.subscribe('lnrpc.Subscribe', {}, onMessage, onError);
+
+      expect(onMessage).toHaveBeenCalledWith({ ok: true });
+      expect(onError).not.toHaveBeenCalled();
     });
 
     it('does not throw when onMessage and onError are omitted', () => {

@@ -25,14 +25,15 @@ export interface WasmGlobal {
    */
   wasmClientDisconnect: () => void;
   /**
-   * Invokes an RPC command with a request object and executes the provided callback
-   * with the response
+   * Invokes an RPC command with a request object and executes the provided
+   * callback with the response. A returned string is a synchronous error;
+   * the callback is not invoked in that case.
    */
   wasmClientInvokeRPC: (
     rpcName: string,
     request: string,
     callback: (response: string) => void
-  ) => void;
+  ) => string | null | undefined;
   /**
    * Returns true if client has specific permissions
    * e.g. 'lnrpc.Lightning.GetInfo'
