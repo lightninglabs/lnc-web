@@ -439,12 +439,13 @@ describe('LNC Core Class', () => {
       clearSpy.mockRestore();
     });
 
-    it('should disconnect successfully', () => {
+    it('should disconnect successfully', async () => {
       const lnc = new LNC();
 
-      lnc.disconnect();
+      await lnc.disconnect();
 
-      expect(wasmGlobal.wasmClientDisconnect).toHaveBeenCalled();
+      expect(wasmGlobal.wasmClientDisconnect).toHaveBeenCalledTimes(1);
+      expect(wasmGlobal.wasmClientDisconnect.mock.calls[0]).toEqual([]);
     });
   });
 

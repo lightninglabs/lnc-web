@@ -154,8 +154,8 @@ export default class LNC {
   /**
    * Disconnects from the proxy server.
    */
-  disconnect() {
-    this.wasmManager.disconnect();
+  disconnect(): Promise<void> {
+    return this.wasmManager.disconnect();
   }
 
   /**
