@@ -458,6 +458,7 @@ describe('LNC Core Class', () => {
       wasmGlobal.wasmClientInvokeRPC.mockImplementation(
         (method, request, callback) => {
           callback(JSON.stringify(testResponse));
+          return undefined;
         }
       );
 
@@ -472,6 +473,7 @@ describe('LNC Core Class', () => {
       wasmGlobal.wasmClientInvokeRPC.mockImplementation(
         (method, request, callback) => {
           callback('RPC Error');
+          return undefined;
         }
       );
 
@@ -487,6 +489,7 @@ describe('LNC Core Class', () => {
       wasmGlobal.wasmClientInvokeRPC.mockImplementation(
         (method, request, callback) => {
           callback(JSON.stringify(testResponse));
+          return undefined;
         }
       );
 
@@ -501,6 +504,7 @@ describe('LNC Core Class', () => {
       wasmGlobal.wasmClientInvokeRPC.mockImplementation(
         (method, request, callback) => {
           callback(JSON.stringify({ result: 'success' }));
+          return undefined;
         }
       );
 
