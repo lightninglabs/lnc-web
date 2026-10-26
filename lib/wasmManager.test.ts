@@ -469,22 +469,90 @@ describe('WasmManager', () => {
   });
 
   describe('disconnect', () => {
-    it('removes unload listener and calls wasmClientDisconnect', () => {
+    it('removes the unload listener and resolves after the callback', async () => {
       const namespace = 'disconnect-test';
-      const wasm = createWasmNamespace();
+      let onDisconnect: (() => void) | undefined;
+      const wasm = createWasmNamespace({
+        wasmClientDisconnect: vi.fn((callback?: () => void) => {
+          onDisconnect = callback;
+        })
+      });
       registerNamespace(namespace, wasm);
 
       const removeEventListener = vi.fn();
       (globalThis as any).window = { removeEventListener } as any;
 
       const manager = new WasmManager(namespace, 'code', createCallbacks());
-      manager.disconnect();
+      let settled = false;
+      const pending = manager.disconnect().then(() => {
+        settled = true;
+      });
+
+      await Promise.resolve();
+      expect(settled).toBe(false);
+      expect(removeEventListener).toHaveBeenCalledWith(
+        'unload',
+        wasm.wasmClientDisconnect
+      );
+      expect(onDisconnect).toEqual(expect.any(Function));
+
+      onDisconnect?.();
+      await pending;
+      expect(settled).toBe(true);
+    });
+
+    it('resolves immediately when nothing is connected', async () => {
+      const namespace = 'disconnect-idle';
+      const wasm = createWasmNamespace({
+        wasmClientIsConnected: vi.fn().mockReturnValue(false)
+      });
+      registerNamespace(namespace, wasm);
+
+      const removeEventListener = vi.fn();
+      (globalThis as any).window = { removeEventListener } as any;
+
+      const manager = new WasmManager(namespace, 'code', createCallbacks());
+      await manager.disconnect();
 
       expect(removeEventListener).toHaveBeenCalledWith(
         'unload',
         wasm.wasmClientDisconnect
       );
-      expect(wasm.wasmClientDisconnect).toHaveBeenCalled();
+      expect(wasm.wasmClientDisconnect).toHaveBeenCalledTimes(1);
+      expect(wasm.wasmClientDisconnect.mock.calls[0]).toEqual([]);
+    });
+
+    it('resolves when the WASM namespace was never registered', async () => {
+      const removeEventListener = vi.fn();
+      (globalThis as any).window = { removeEventListener } as any;
+
+      const manager = new WasmManager(
+        'disconnect-missing',
+        'code',
+        createCallbacks()
+      );
+
+      await expect(manager.disconnect()).resolves.toBeUndefined();
+      expect(removeEventListener).not.toHaveBeenCalled();
+    });
+
+    it('disconnects without a window', async () => {
+      const namespace = 'disconnect-no-window';
+      let onDisconnect: (() => void) | undefined;
+      const wasm = createWasmNamespace({
+        wasmClientDisconnect: vi.fn((callback?: () => void) => {
+          onDisconnect = callback;
+        })
+      });
+      registerNamespace(namespace, wasm);
+      delete (globalThis as any).window;
+
+      const manager = new WasmManager(namespace, 'code', createCallbacks());
+      const pending = manager.disconnect();
+
+      expect(onDisconnect).toEqual(expect.any(Function));
+      onDisconnect?.();
+      await expect(pending).resolves.toBeUndefined();
     });
   });
 

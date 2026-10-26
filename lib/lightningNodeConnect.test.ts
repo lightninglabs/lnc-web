@@ -345,11 +345,14 @@ describe('LightningNodeConnect', () => {
       ).not.toHaveBeenCalled();
     });
 
-    it('delegates disconnect to WasmManager', () => {
+    it('delegates disconnect to WasmManager', async () => {
       const lnc = new LightningNodeConnect();
       const mocks = createModernMockSetup(lnc);
-      lnc.disconnect();
-      expect(mocks.wasmManager.disconnect).toHaveBeenCalled();
+      const disconnected = Promise.resolve();
+      mocks.wasmManager.disconnect.mockReturnValue(disconnected);
+
+      await expect(lnc.disconnect()).resolves.toBeUndefined();
+      expect(mocks.wasmManager.disconnect).toHaveBeenCalledTimes(1);
     });
 
     it('run() and waitTilReady() are not public', () => {

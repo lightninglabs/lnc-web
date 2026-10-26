@@ -21,9 +21,10 @@ export interface WasmGlobal {
     remoteKey?: string
   ) => void;
   /**
-   * disconnects from the proxy server
+   * Disconnects from the proxy server. The optional callback is invoked
+   * once a live connection has been closed.
    */
-  wasmClientDisconnect: () => void;
+  wasmClientDisconnect: (onDisconnect?: () => void) => void;
   /**
    * Invokes an RPC command with a request object and executes the provided callback
    * with the response

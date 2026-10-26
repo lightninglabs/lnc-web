@@ -233,9 +233,13 @@ export class WasmManager {
       remoteKey ?? ''
     );
 
-    // Add an event listener to disconnect if the page is unloaded
+    // Add an event listener to disconnect if the page is unloaded.
+    // The cast keeps this function reference for removeEventListener.
     if (typeof window !== 'undefined') {
-      window.addEventListener('unload', this.wasm.wasmClientDisconnect);
+      window.addEventListener(
+        'unload',
+        this.wasm.wasmClientDisconnect as unknown as EventListener
+      );
     } else {
       log.info('No unload event listener added. window is not available');
     }
@@ -245,13 +249,34 @@ export class WasmManager {
   }
 
   /**
-   * Disconnects from the proxy server
+   * Disconnects from the proxy server. Resolves after the WASM client
+   * finishes closing a live connection, or immediately when nothing is
+   * connected. The client only invokes its completion callback for a live
+   * connection.
    */
-  disconnect(): void {
-    if (typeof window !== 'undefined') {
-      window.removeEventListener('unload', this.wasm.wasmClientDisconnect);
+  disconnect(): Promise<void> {
+    const wasm = this.wasm;
+
+    if (typeof window !== 'undefined' && wasm?.wasmClientDisconnect) {
+      window.removeEventListener(
+        'unload',
+        wasm.wasmClientDisconnect as unknown as EventListener
+      );
     }
-    this.wasm.wasmClientDisconnect();
+
+    if (!wasm?.wasmClientDisconnect) {
+      return Promise.resolve();
+    }
+
+    // Waiting on the callback with no live connection never settles.
+    if (!this.isConnected) {
+      wasm.wasmClientDisconnect();
+      return Promise.resolve();
+    }
+
+    return new Promise((resolve) => {
+      wasm.wasmClientDisconnect(resolve);
+    });
   }
 
   /**

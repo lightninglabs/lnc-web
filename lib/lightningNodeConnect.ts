@@ -220,8 +220,8 @@ export default class LightningNodeConnect {
   /**
    * Disconnects from the proxy server.
    */
-  disconnect() {
-    this._wasmManager.disconnect();
+  disconnect(): Promise<void> {
+    return this._wasmManager.disconnect();
   }
 
   //
